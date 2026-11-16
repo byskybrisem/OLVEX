@@ -109,10 +109,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     return Response.json(
-  {
-    error: "Sunucu hatası",
-    detail: String(error?.message || error)
-  },
+  { error: "Sunucu hatası. Lütfen daha sonra tekrar deneyin." },
   { status: 500 }
 );
   }
