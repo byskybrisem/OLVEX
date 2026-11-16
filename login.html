@@ -688,39 +688,67 @@ footer {
 
 <footer>© 2026 OLVEX. Tüm hakları saklıdır.</footer>
 
+
 <script>
-
 const password = document.getElementById("password");
-
 const toggle = document.getElementById("togglePassword");
-
 const form = document.getElementById("loginForm");
-
 const message = document.getElementById("message");
+const submitButton = document.getElementById("submitButton");
 
 toggle.addEventListener("click", () => {
-
   const hidden = password.type === "password";
-
   password.type = hidden ? "text" : "password";
-
   toggle.textContent = hidden ? "Gizle" : "Göster";
-
 });
 
-form.addEventListener("submit", (event) => {
-
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   message.style.display = "block";
+  message.style.background = "#FFF1F0";
+  message.style.color = "#B42318";
+  message.textContent = "Giriş yapılıyor...";
 
-  message.textContent =
+  submitButton.disabled = true;
+  submitButton.textContent = "Kontrol ediliyor...";
 
-    "Giriş sistemi henüz etkinleştirilmedi. Hesap altyapısı tamamlandığında giriş yapabileceksiniz.";
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        email: document.getElementById("email").value.trim(),
+        password: password.value,
+        remember: form.elements.remember.checked
+      })
+    });
 
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Giriş yapılamadı.");
+    }
+
+    message.style.background = "#ECFDF3";
+    message.style.color = "#027A48";
+    message.textContent = "Giriş başarılı! Oturumunuz açıldı.";
+
+    form.reset();
+
+  } catch (error) {
+    message.textContent =
+      error.message || "Sunucuya bağlanılamadı.";
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Giriş Yap";
+  }
 });
-
 </script>
+
 
 </body>
 
