@@ -1,5 +1,5 @@
 
-const ITERATIONS = 600000;
+const ITERATIONS = 100000;
 
 function toBase64(bytes) {
   let binary = "";
