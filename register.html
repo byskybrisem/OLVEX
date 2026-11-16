@@ -157,38 +157,73 @@ footer{padding:20px;text-align:center;color:#98A2B3;font-size:12px}
 </main>
 
 <footer>© 2026 OLVEX. Tüm hakları saklıdır.</footer>
-
 <script>
-const password=document.getElementById("password");
-const confirmPassword=document.getElementById("confirmPassword");
-const toggle=document.getElementById("togglePassword");
-const form=document.getElementById("registerForm");
-const message=document.getElementById("message");
+const password = document.getElementById("password");
+const confirmPassword = document.getElementById("confirmPassword");
+const toggle = document.getElementById("togglePassword");
+const form = document.getElementById("registerForm");
+const message = document.getElementById("message");
+const submitButton = form.querySelector('button[type="submit"]');
 
-toggle.addEventListener("click",()=>{
- const hidden=password.type==="password";
- password.type=hidden?"text":"password";
- confirmPassword.type=hidden?"text":"password";
- toggle.textContent=hidden?"Gizle":"Göster";
+toggle.addEventListener("click", () => {
+  const hidden = password.type === "password";
+  password.type = hidden ? "text" : "password";
+  confirmPassword.type = hidden ? "text" : "password";
+  toggle.textContent = hidden ? "Gizle" : "Göster";
 });
 
-form.addEventListener("submit",(event)=>{
- event.preventDefault();
- message.style.display="block";
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
 
- if(password.value!==confirmPassword.value){
-  message.textContent="Girdiğiniz şifreler birbiriyle eşleşmiyor.";
-  confirmPassword.focus();
-  return;
- }
+  message.style.display = "block";
+  message.style.background = "#FFF1F0";
+  message.style.color = "#B42318";
 
- if(password.value.length<8){
-  message.textContent="Şifreniz en az 8 karakter olmalıdır.";
-  password.focus();
-  return;
- }
+  if (password.value !== confirmPassword.value) {
+    message.textContent = "Girdiğiniz şifreler eşleşmiyor.";
+    confirmPassword.focus();
+    return;
+  }
 
- message.textContent="Kayıt sistemi henüz etkinleştirilmedi. Hesap altyapısı tamamlandığında kayıt olabileceksiniz.";
+  if (password.value.length < 8) {
+    message.textContent = "Şifreniz en az 8 karakter olmalıdır.";
+    password.focus();
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = "Hesabınız oluşturuluyor...";
+
+  try {
+    const response = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fullName: document.getElementById("name").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        password: password.value
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Kayıt oluşturulamadı.");
+    }
+
+    message.style.background = "#ECFDF3";
+    message.style.color = "#027A48";
+    message.textContent = "Hesabınız başarıyla oluşturuldu! Giriş sistemi henüz tamamlanmadığı için şimdilik bu sayfada kalabilirsiniz.";
+    form.reset();
+
+  } catch (error) {
+    message.textContent = error.message || "Sunucuya bağlanılamadı. Tekrar deneyin.";
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Ücretsiz Hesap Oluştur";
+  }
 });
 </script>
 </body>
