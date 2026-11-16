@@ -17,3 +17,4 @@ BİLİNEN EKSİKLER
 - İletişim, gizlilik, kullanım şartları ve sosyal bağlantılar "yakında" olarak duruyor.
 - Plan butonları sayfa içindeki "İşletmenizi bir üst seviyeye taşıyın" bölümüne gider.
 - Next.js + TypeScript + Tailwind sürümü henüz yok.
+OLVEX - Backend development started.
