@@ -1,0 +1,727 @@
+
+
+<!doctype html>
+
+<html lang="tr">
+
+<head>
+
+<meta charset="utf-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<meta name="theme-color" content="#F7F8FC">
+
+<title>Giriş Yap | OLVEX</title>
+
+<meta name="description" content="OLVEX hesabınıza güvenle giriş yapın.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+
+:root {
+
+  color-scheme: light;
+
+  --bg:#F7F8FC;
+
+  --surface:#fff;
+
+  --text:#101828;
+
+  --muted:#667085;
+
+  --line:#EAECF0;
+
+  --purple:#635BFF;
+
+  --purple-dark:#5148F0;
+
+  --teal:#12B8A6;
+
+}
+
+* {box-sizing:border-box}
+
+body {
+
+  margin:0;
+
+  min-height:100vh;
+
+  min-height:100dvh;
+
+  display:flex;
+
+  flex-direction:column;
+
+  background:
+
+    radial-gradient(ellipse at 10% 10%,rgba(99,91,255,.12),transparent 38%),
+
+    radial-gradient(ellipse at 90% 90%,rgba(18,184,166,.10),transparent 35%),
+
+    var(--bg);
+
+  color:var(--text);
+
+  font:15px/1.6 "Plus Jakarta Sans",sans-serif;
+
+  -webkit-font-smoothing:antialiased;
+
+}
+
+a {color:inherit;text-decoration:none}
+
+button,input {font:inherit}
+
+.top {
+
+  width:100%;
+
+  max-width:1200px;
+
+  margin:auto;
+
+  padding:25px 28px;
+
+}
+
+.logo {
+
+  display:inline-flex;
+
+  align-items:center;
+
+  gap:10px;
+
+  font-size:21px;
+
+  font-weight:800;
+
+  letter-spacing:.12em;
+
+}
+
+.logo-mark {
+
+  width:34px;
+
+  height:34px;
+
+  display:grid;
+
+  place-items:center;
+
+  color:white;
+
+  border-radius:10px;
+
+  background:linear-gradient(135deg,#7A73FF,#4F46E5);
+
+}
+
+.logo-mark svg {width:25px;height:25px}
+
+main {
+
+  flex:1;
+
+  display:grid;
+
+  place-items:center;
+
+  padding:30px 20px 65px;
+
+}
+
+.layout {
+
+  width:100%;
+
+  max-width:1000px;
+
+  display:grid;
+
+  grid-template-columns:1fr 430px;
+
+  align-items:center;
+
+  gap:70px;
+
+}
+
+.intro h1 {
+
+  max-width:520px;
+
+  margin:0;
+
+  font-size:clamp(36px,5vw,57px);
+
+  line-height:1.1;
+
+  letter-spacing:-.055em;
+
+  font-weight:800;
+
+}
+
+.intro h1 span {
+
+  color:var(--purple);
+
+}
+
+.intro p {
+
+  max-width:440px;
+
+  margin:22px 0 0;
+
+  color:var(--muted);
+
+  font-size:16px;
+
+}
+
+.features {
+
+  display:grid;
+
+  gap:15px;
+
+  margin-top:35px;
+
+}
+
+.feature {
+
+  display:flex;
+
+  align-items:center;
+
+  gap:12px;
+
+  color:#475467;
+
+  font-size:14px;
+
+  font-weight:600;
+
+}
+
+.check {
+
+  width:25px;
+
+  height:25px;
+
+  display:grid;
+
+  place-items:center;
+
+  flex:none;
+
+  border-radius:8px;
+
+  color:var(--purple);
+
+  background:rgba(99,91,255,.10);
+
+  font-weight:800;
+
+}
+
+.panel {
+
+  padding:36px;
+
+  background:var(--surface);
+
+  border:1px solid var(--line);
+
+  border-radius:24px;
+
+  box-shadow:0 28px 75px -35px rgba(16,24,40,.24);
+
+}
+
+.panel h2 {
+
+  margin:0;
+
+  font-size:27px;
+
+  letter-spacing:-.04em;
+
+  font-weight:800;
+
+}
+
+.subtitle {
+
+  margin:7px 0 27px;
+
+  color:var(--muted);
+
+  font-size:14px;
+
+}
+
+.field {margin-top:18px}
+
+label {
+
+  display:block;
+
+  margin-bottom:7px;
+
+  font-size:13px;
+
+  font-weight:700;
+
+}
+
+.input-wrap {position:relative}
+
+input {
+
+  width:100%;
+
+  height:52px;
+
+  padding:0 15px;
+
+  border:1px solid var(--line);
+
+  border-radius:11px;
+
+  outline:none;
+
+  background:#fff;
+
+  color:#101828;
+
+  font-size:14px;
+
+  transition:border-color .2s,box-shadow .2s;
+
+}
+
+input:focus {
+
+  border-color:var(--purple);
+
+  box-shadow:0 0 0 3px rgba(99,91,255,.12);
+
+}
+
+input::placeholder {color:#98A2B3}
+
+.password {
+
+  padding-right:75px;
+
+}
+
+.show {
+
+  position:absolute;
+
+  top:50%;
+
+  right:12px;
+
+  transform:translateY(-50%);
+
+  padding:5px;
+
+  border:0;
+
+  background:none;
+
+  color:var(--purple);
+
+  font-size:12px;
+
+  font-weight:700;
+
+  cursor:pointer;
+
+}
+
+.options {
+
+  display:flex;
+
+  justify-content:space-between;
+
+  align-items:center;
+
+  gap:10px;
+
+  margin:17px 0 22px;
+
+  font-size:12px;
+
+}
+
+.remember {
+
+  display:flex;
+
+  align-items:center;
+
+  gap:7px;
+
+  color:var(--muted);
+
+}
+
+.remember input {
+
+  width:15px;
+
+  height:15px;
+
+  accent-color:var(--purple);
+
+}
+
+.forgot {
+
+  color:var(--purple);
+
+  font-weight:700;
+
+}
+
+.submit {
+
+  width:100%;
+
+  min-height:52px;
+
+  border:0;
+
+  border-radius:11px;
+
+  background:linear-gradient(135deg,#7168FF,#635BFF);
+
+  color:white;
+
+  font-weight:700;
+
+  cursor:pointer;
+
+  box-shadow:0 10px 22px -12px rgba(99,91,255,.9);
+
+  transition:transform .2s,box-shadow .2s;
+
+}
+
+.submit:hover {
+
+  transform:translateY(-2px);
+
+  box-shadow:0 15px 28px -12px rgba(99,91,255,.9);
+
+}
+
+.submit:disabled {
+
+  opacity:.65;
+
+  cursor:not-allowed;
+
+}
+
+.message {
+
+  display:none;
+
+  margin-top:15px;
+
+  padding:11px 13px;
+
+  border-radius:9px;
+
+  background:#FFF1F0;
+
+  color:#B42318;
+
+  font-size:12px;
+
+}
+
+.bottom {
+
+  margin-top:25px;
+
+  text-align:center;
+
+  color:var(--muted);
+
+  font-size:13px;
+
+}
+
+.bottom a {
+
+  color:var(--purple);
+
+  font-weight:800;
+
+}
+
+footer {
+
+  padding:20px;
+
+  text-align:center;
+
+  color:#98A2B3;
+
+  font-size:12px;
+
+}
+
+@media(max-width:760px) {
+
+  .top {padding:20px}
+
+  main {padding:25px 18px 45px}
+
+  .layout {grid-template-columns:1fr;gap:28px;max-width:440px}
+
+  .intro {text-align:center}
+
+  .intro h1 {font-size:35px;margin:auto}
+
+  .intro p {font-size:14px;margin:13px auto 0}
+
+  .features {display:none}
+
+  .panel {padding:27px 23px;border-radius:20px}
+
+  .panel h2 {font-size:25px}
+
+}
+
+@media(prefers-color-scheme:dark) {
+
+  :root:not([data-theme="light"]) {
+
+    color-scheme:dark;
+
+    --bg:#101828;
+
+    --surface:#182230;
+
+    --text:#F2F4F7;
+
+    --muted:#98A2B3;
+
+    --line:#2A3548;
+
+  }
+
+  input {background:#101828;color:#F2F4F7}
+
+  .feature {color:#D0D5DD}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header class="top">
+
+  <a class="logo" href="/">
+
+    <span class="logo-mark">
+
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+
+        <path d="M9 11L16 22L23 11" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <circle cx="23.5" cy="8.5" r="3" fill="#12B8A6"/>
+
+      </svg>
+
+    </span>
+
+    OLVEX
+
+  </a>
+
+</header>
+
+<main>
+
+  <div class="layout">
+
+    <section class="intro">
+
+      <h1>İşletmenizin kontrolü <span>elinizde.</span></h1>
+
+      <p>OLVEX hesabınıza giriş yapın. İşletmenizi, ekibinizi ve tüm operasyonlarınızı tek merkezden yönetin.</p>
+
+      <div class="features">
+
+        <div class="feature"><span class="check">✓</span> Tüm işletmeleriniz tek hesapta</div>
+
+        <div class="feature"><span class="check">✓</span> Finans, satış ve stok yönetimi</div>
+
+        <div class="feature"><span class="check">✓</span> Yapay zekâ destekli iş analizleri</div>
+
+      </div>
+
+    </section>
+
+    <section class="panel">
+
+      <h2>Tekrar hoş geldiniz.</h2>
+
+      <p class="subtitle">Devam etmek için hesabınıza giriş yapın.</p>
+
+      <form id="loginForm">
+
+        <div class="field">
+
+          <label for="email">E-posta adresi</label>
+
+          <input
+
+            id="email"
+
+            name="email"
+
+            type="email"
+
+            placeholder="ornek@isletme.com"
+
+            autocomplete="email"
+
+            required
+
+          >
+
+        </div>
+
+        <div class="field">
+
+          <label for="password">Şifre</label>
+
+          <div class="input-wrap">
+
+            <input
+
+              class="password"
+
+              id="password"
+
+              name="password"
+
+              type="password"
+
+              placeholder="Şifrenizi girin"
+
+              autocomplete="current-password"
+
+              required
+
+            >
+
+            <button class="show" type="button" id="togglePassword">Göster</button>
+
+          </div>
+
+        </div>
+
+        <div class="options">
+
+          <label class="remember">
+
+            <input type="checkbox" name="remember">
+
+            Beni hatırla
+
+          </label>
+
+          <a class="forgot" href="/forgot-password.html">Şifremi unuttum</a>
+
+        </div>
+
+        <button class="submit" type="submit" id="submitButton">
+
+          Giriş Yap
+
+        </button>
+
+        <div class="message" id="message" role="alert"></div>
+
+      </form>
+
+      <div class="bottom">
+
+        Henüz OLVEX hesabınız yok mu?
+
+        <a href="/register.html">Ücretsiz hesap oluşturun</a>
+
+      </div>
+
+    </section>
+
+  </div>
+
+</main>
+
+<footer>© 2026 OLVEX. Tüm hakları saklıdır.</footer>
+
+<script>
+
+const password = document.getElementById("password");
+
+const toggle = document.getElementById("togglePassword");
+
+const form = document.getElementById("loginForm");
+
+const message = document.getElementById("message");
+
+toggle.addEventListener("click", () => {
+
+  const hidden = password.type === "password";
+
+  password.type = hidden ? "text" : "password";
+
+  toggle.textContent = hidden ? "Gizle" : "Göster";
+
+});
+
+form.addEventListener("submit", (event) => {
+
+  event.preventDefault();
+
+  message.style.display = "block";
+
+  message.textContent =
+
+    "Giriş sistemi henüz etkinleştirilmedi. Hesap altyapısı tamamlandığında giriş yapabileceksiniz.";
+
+});
+
+</script>
+
+</body>
+
+</html>
