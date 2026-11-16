@@ -109,8 +109,11 @@ export async function onRequestPost({ request, env }) {
     }
 
     return Response.json(
-      { error: "Kayıt sırasında bir hata oluştu." },
-      { status: 500 }
-    );
+  {
+    error: "Sunucu hatası",
+    detail: String(error?.message || error)
+  },
+  { status: 500 }
+);
   }
 }
