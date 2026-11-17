@@ -1,0 +1,19 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+/app
+  Cache-Control: no-store
+/app.html
+  Cache-Control: no-store
+/forgot-password
+  Referrer-Policy: no-referrer
+/forgot-password.html
+  Referrer-Policy: no-referrer
+/join
+  Referrer-Policy: no-referrer
+/join.html
+  Referrer-Policy: no-referrer

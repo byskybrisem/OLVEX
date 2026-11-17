@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>İşletmeye Katıl | OLVEX</title>
+<link rel="stylesheet" href="/assets/public.css">
+<script type="module" src="/assets/join.js"></script>
+</head>
+<body>
+<div class="shell compact">
+<header><a class="brand" href="/">OLVEX</a><a href="/app.html">Panele dön</a></header>
+<main class="card">
+  <h1>İşletmeye katıl</h1>
+  <p id="identity">Hesap kontrol ediliyor…</p>
+  <form id="join-form" method="post" hidden>
+    <label>Davet kodu<input name="token" autocomplete="off" minlength="43" maxlength="43" required></label>
+    <button type="submit">Daveti kabul et</button>
+  </form>
+  <p id="signed-out" hidden><a href="/login.html?next=join">Giriş yap</a> · <a href="/register.html?next=join">Hesap oluştur</a></p>
+  <p id="message" class="message error" role="status" hidden></p>
+</main>
+</div>
+</body>
+</html>

@@ -51,95 +51,23 @@ button:disabled{opacity:.55;cursor:wait}
 .footer{margin-top:25px;text-align:center;color:#65718a;font-size:12px}
 @media(max-width:480px){.card{padding:27px 22px}h1{font-size:26px}}
 </style>
+<script type="module" src="/assets/setup.js"></script>
 </head>
 <body>
 <main class="card">
  <div class="logo">OLVEX<span>.</span></div>
- <div class="tag">İlk adım</div>
  <h1>İşletmeni oluşturalım.</h1>
- <p class="desc">OLVEX deneyimini başlatmak için işletmenin adını gir. Daha sonra tüm işletmelerini tek panelden yönetebileceksin.</p>
+ <p class="desc">İşletmenin adını gir. Ürünlerini ve kayıtlarını panelden ekleyebilirsin.</p>
 
- <form id="businessForm">
+ <form method="post" id="businessForm">
   <label for="businessName">İşletme adı</label>
   <input id="businessName" name="name" type="text" minlength="2" maxlength="100" placeholder="Örn. OLVEX Teknoloji" autocomplete="organization" required>
-  <button id="submitButton" type="submit">İşletmemi Oluştur</button>
+  <button id="submitButton" disabled type="submit">İşletmemi Oluştur</button>
   <div id="message" role="status"></div>
  </form>
- <div class="footer">OLVEX · İşletmeni daha akıllı yönet.</div>
+ <div class="footer"><a href="/join.html" style="color:#c3baff">Mevcut işletmeye davetle katıl</a></div>
 </main>
 
-<script>
-const form = document.getElementById("businessForm");
-const input = document.getElementById("businessName");
-const button = document.getElementById("submitButton");
-const message = document.getElementById("message");
 
-async function checkAccess() {
- try {
-  const response = await fetch("/api/businesses", {
-   credentials:"same-origin",
-   cache:"no-store"
-  });
-
-  if (response.status === 401) {
-   window.location.replace("/login.html");
-   return;
-  }
-
-  if (!response.ok) throw new Error();
-
-  const data = await response.json();
-
-  if (data.businesses && data.businesses.length > 0) {
-   window.location.replace("/app.html");
-  }
- } catch {
-  message.textContent = "Bağlantı kurulamadı. Sayfayı yenileyip tekrar dene.";
- }
-}
-
-form.addEventListener("submit", async function(event) {
- event.preventDefault();
-
- const name = input.value.trim();
-
- if (name.length < 2 || name.length > 100) {
-  message.textContent = "İşletme adı 2 ile 100 karakter arasında olmalı.";
-  return;
- }
-
- button.disabled = true;
- button.textContent = "Oluşturuluyor...";
- message.textContent = "";
-
- try {
-  const response = await fetch("/api/businesses", {
-   method:"POST",
-   credentials:"same-origin",
-   headers:{"Content-Type":"application/json"},
-   body:JSON.stringify({name})
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-   throw new Error(data.error || "İşletme oluşturulamadı.");
-  }
-
-  message.style.color = "#8ee6b2";
-  message.textContent = "İşletmen oluşturuldu. Panele yönlendiriliyorsun.";
-
-  window.location.replace("/app.html");
-
- } catch(error) {
-  message.style.color = "#ff9292";
-  message.textContent = error.message || "Bir hata oluştu.";
-  button.disabled = false;
-  button.textContent = "İşletmemi Oluştur";
- }
-});
-
-checkAccess();
-</script>
 </body>
 </html>

@@ -7,9 +7,6 @@
 <meta name="theme-color" content="#F7F8FC">
 <title>Ücretsiz Hesap Oluştur | OLVEX</title>
 <meta name="description" content="OLVEX ile işletmenizi tek merkezden yönetmeye başlayın.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
  color-scheme:light;
@@ -84,6 +81,7 @@ footer{padding:20px;text-align:center;color:#98A2B3;font-size:12px}
  .feature{color:#D0D5DD}
 }
 </style>
+<script type="module" src="/assets/register.js"></script>
 </head>
 <body>
 <header class="top">
@@ -114,7 +112,7 @@ footer{padding:20px;text-align:center;color:#98A2B3;font-size:12px}
    <h2>Hesabınızı oluşturun.</h2>
    <p class="subtitle">Başlamak için birkaç bilgi yeterli.</p>
 
-   <form id="registerForm">
+   <form method="post" id="registerForm">
     <div class="field">
      <label for="name">Ad soyad</label>
      <input id="name" name="name" type="text" placeholder="Adınız ve soyadınız" autocomplete="name" required maxlength="100">
@@ -128,7 +126,7 @@ footer{padding:20px;text-align:center;color:#98A2B3;font-size:12px}
     <div class="field">
      <label for="password">Şifre</label>
      <div class="input-wrap">
-      <input class="password" id="password" name="password" type="password" placeholder="En az 8 karakter" autocomplete="new-password" minlength="8" required>
+      <input class="password" id="password" name="password" type="password" placeholder="En az 8 karakter" autocomplete="new-password" minlength="8" maxlength="128" required>
       <button class="show" type="button" id="togglePassword">Göster</button>
      </div>
      <p class="hint">En az 8 karakter kullanın.</p>
@@ -136,103 +134,28 @@ footer{padding:20px;text-align:center;color:#98A2B3;font-size:12px}
 
     <div class="field">
      <label for="confirmPassword">Şifre tekrar</label>
-     <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Şifrenizi tekrar girin" autocomplete="new-password" minlength="8" required>
+     <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Şifrenizi tekrar girin" autocomplete="new-password" minlength="8" maxlength="128" required>
     </div>
 
     <label class="agreement">
      <input type="checkbox" id="terms" required>
-     <span><a href="/terms.html">Kullanım şartlarını</a> ve <a href="/privacy.html">gizlilik politikasını</a> okudum ve kabul ediyorum.</span>
+     <span><a href="/terms.html" target="_blank" rel="noopener">Kullanım şartlarını</a> kabul ediyorum.</span>
     </label>
+    <p class="hint"><a href="/privacy.html" target="_blank" rel="noopener">KVKK aydınlatma metnini</a> okuyun.</p>
 
-    <button class="submit" type="submit">Ücretsiz Hesap Oluştur</button>
+    <button class="submit" disabled type="submit">Ücretsiz Hesap Oluştur</button>
     <div class="message" id="message" role="alert"></div>
    </form>
 
    <div class="bottom">
     Zaten hesabınız var mı?
-    <a href="/login.html">Giriş yapın</a>
+    <a href="/login.html" id="login-link">Giriş yapın</a>
    </div>
   </section>
  </div>
 </main>
 
 <footer>© 2026 OLVEX. Tüm hakları saklıdır.</footer>
-<script>
-const password = document.getElementById("password");
-const confirmPassword = document.getElementById("confirmPassword");
-const toggle = document.getElementById("togglePassword");
-const form = document.getElementById("registerForm");
-const message = document.getElementById("message");
-const submitButton = form.querySelector('button[type="submit"]');
 
-toggle.addEventListener("click", () => {
-  const hidden = password.type === "password";
-  password.type = hidden ? "text" : "password";
-  confirmPassword.type = hidden ? "text" : "password";
-  toggle.textContent = hidden ? "Gizle" : "Göster";
-});
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  message.style.display = "block";
-  message.style.background = "#FFF1F0";
-  message.style.color = "#B42318";
-
-  if (password.value !== confirmPassword.value) {
-    message.textContent = "Girdiğiniz şifreler eşleşmiyor.";
-    confirmPassword.focus();
-    return;
-  }
-
-  if (password.value.length < 8) {
-    message.textContent = "Şifreniz en az 8 karakter olmalıdır.";
-    password.focus();
-    return;
-  }
-
-  submitButton.disabled = true;
-  submitButton.textContent = "Hesabınız oluşturuluyor...";
-
-  try {
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        fullName: document.getElementById("name").value.trim(),
-        email: document.getElementById("email").value.trim(),
-        password: password.value
-      })
-    });
-
-    const result = await response.json();
-
-   if (!response.ok) {
-  throw new Error(
-    result.detail
-      ? result.error + ": " + result.detail
-      : result.error || "Kayıt oluşturulamadı."
-  );
-}
-
-    message.style.background = "#ECFDF3";
-    message.style.color = "#027A48";
-    message.textContent = "Hesabınız oluşturuldu! Giriş sayfasına yönlendiriliyorsunuz...";
-form.reset();
-
-setTimeout(() => {
-  window.location.replace("/login.html");
-}, 1000);
-
-  } catch (error) {
-    message.textContent = error.message || "Sunucuya bağlanılamadı. Tekrar deneyin.";
-  } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = "Ücretsiz Hesap Oluştur";
-  }
-});
-</script>
 </body>
 </html>
