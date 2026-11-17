@@ -490,6 +490,7 @@ body {
 // Oturum kontrolü: doğrulanana kadar paneli gizle
 document.documentElement.style.visibility = 'hidden';
 
+
 (async function checkSession() {
   try {
     const response = await fetch('/api/auth/me', {
@@ -510,12 +511,40 @@ document.documentElement.style.visibility = 'hidden';
       return;
     }
 
+    const businessResponse = await fetch('/api/businesses', {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+
+    if (businessResponse.status === 401) {
+      window.location.replace('/login.html');
+      return;
+    }
+
+    if (!businessResponse.ok) {
+      throw new Error('İşletme bilgileri alınamadı.');
+    }
+
+    const businessData = await businessResponse.json();
+
+    if (
+      !Array.isArray(businessData.businesses) ||
+      businessData.businesses.length === 0
+    ) {
+      window.location.replace('/setup.html');
+      return;
+    }
+
     document.documentElement.style.visibility = 'visible';
 
   } catch (error) {
-    window.location.replace('/login.html');
+    document.documentElement.style.visibility = 'visible';
+    document.body.innerHTML =
+      '<p style="padding:30px;color:white;background:#090e1b;font-family:sans-serif">Bağlantı veya işletme kontrolü başarısız. Sayfayı yenileyip tekrar deneyin.</p>';
   }
 })();
+
 
 // Mevcut menü işlemleri
 const sidebar = document.getElementById('sidebar');
