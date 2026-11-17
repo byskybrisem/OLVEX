@@ -86,3 +86,86 @@ export async function onRequestGet({ request, env }) {
     );
   }
 }
+
+export async function onRequestPost({ request, env }) {
+  try {
+    if (!env.DB) {
+      return Response.json(
+        { error: "Veritabanı bağlantısı bulunamadı." },
+        { status: 500 }
+      );
+    }
+
+    const user = await getSession(request, env);
+
+    if (!user) {
+      return Response.json(
+        { error: "Oturum bulunamadı. Tekrar giriş yap." },
+        { status: 401, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    let data;
+
+    try {
+      data = await request.json();
+    } catch {
+      return Response.json(
+        { error: "Geçersiz istek." },
+        { status: 400 }
+      );
+    }
+
+    const name = typeof data.name === "string"
+      ? data.name.trim()
+      : "";
+
+    if (name.length < 2 || name.length > 100) {
+      return Response.json(
+        { error: "İşletme adı 2 ile 100 karakter arasında olmalıdır." },
+        { status: 400 }
+      );
+    }
+
+    const businessId = crypto.randomUUID();
+    const membershipId = crypto.randomUUID();
+
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO businesses (id, name, created_by)
+         VALUES (?, ?, ?)`
+      ).bind(businessId, name, user.id),
+
+      env.DB.prepare(
+        `INSERT INTO business_members
+         (id, business_id, user_id, role)
+         VALUES (?, ?, ?, 'owner')`
+      ).bind(membershipId, businessId, user.id)
+    ]);
+
+    return Response.json(
+      {
+        success: true,
+        business: {
+          id: businessId,
+          name,
+          role: "owner"
+        }
+      },
+      {
+        status: 201,
+        headers: { "Cache-Control": "no-store" }
+      }
+    );
+
+  } catch (error) {
+    return Response.json(
+      { error: "İşletme oluşturulamadı. Lütfen tekrar dene." },
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store" }
+      }
+    );
+  }
+}
+
