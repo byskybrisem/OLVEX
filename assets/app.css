@@ -392,3 +392,65 @@ dialog::backdrop { background: #020610ba; backdrop-filter: blur(4px); }
       border-color 160ms ease;
   }
 }
+
+/* OLVEX - Grafik gorunumunu gelistirme */
+
+.chart {
+  position: relative;
+  height: clamp(210px, 25vw, 280px);
+  min-width: 0;
+  padding: 20px 12px 0;
+  gap: clamp(3px, 0.6vw, 9px);
+  border: 1px solid rgba(169, 159, 255, 0.18);
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      ellipse at 55% 0%,
+      rgba(113, 101, 248, 0.14),
+      transparent 75%
+    ),
+    repeating-linear-gradient(
+      to top,
+      transparent 0 48px,
+      rgba(174, 190, 230, 0.1) 48px 49px
+    ),
+    rgba(10, 14, 28, 0.28);
+}
+
+.chart .bar {
+  position: relative;
+  min-width: 3px;
+  border-radius: 7px 7px 2px 2px;
+  border: 1px solid rgba(189, 181, 255, 0.3);
+  background: linear-gradient(
+    to top,
+    #5947cf 0%,
+    #8473f5 55%,
+    #b6aaff 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 15px rgba(113, 101, 248, 0.12);
+  transition:
+    filter 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.chart .bar:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 20px rgba(149, 132, 255, 0.4);
+}
+
+.chart-axis {
+  padding: 5px 3px;
+  color: var(--soft);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .chart {
+    height: 230px;
+    padding-inline: 9px;
+    gap: 3px;
+  }
+}
