@@ -1,4 +1,6 @@
 
+import { isRateLimited } from "./rate-limit.js";
+
 const ITERATIONS = 100000;
 
 function toBase64(bytes) {
@@ -71,6 +73,31 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rateLimitKey = `register:${ip}`;
+
+    const limited = await isRateLimited(
+      env.DB,
+      rateLimitKey,
+      5,
+      60 * 60
+    );
+
+    if (limited) {
+      return Response.json(
+        {
+          error: "Çok fazla kayıt denemesi. 1 saat sonra tekrar deneyin."
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "3600",
+            "Cache-Control": "no-store"
+          }
+        }
+      );
+    }
+
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const hash = await hashPassword(password, salt);
 
@@ -99,9 +126,7 @@ export async function onRequestPost({ request, env }) {
     );
 
   } catch (error) {
-    if (
-      error.message?.includes("UNIQUE constraint failed")
-    ) {
+    if (error.message?.includes("UNIQUE constraint failed")) {
       return Response.json(
         { error: "Bu e-posta adresi zaten kayıtlı." },
         { status: 409 }
@@ -109,8 +134,8 @@ export async function onRequestPost({ request, env }) {
     }
 
     return Response.json(
-  { error: "Sunucu hatası. Lütfen daha sonra tekrar deneyin." },
-  { status: 500 }
-);
+      { error: "Sunucu hatası. Lütfen daha sonra tekrar deneyin." },
+      { status: 500 }
+    );
   }
 }
