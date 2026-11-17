@@ -298,3 +298,55 @@ dialog::backdrop { background: #020610ba; backdrop-filter: blur(4px); }
   .filters:has(input[name="from"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filters:has(input[name="from"]) button { justify-self: start; }
 }
+
+/* OLVEX - Mobil tablo ve filtre duzeltmeleri */
+
+.data-table {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table table {
+  width: 100%;
+  min-width: max-content;
+}
+
+.data-table th,
+.data-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.data-table td .inline {
+  flex-wrap: nowrap;
+}
+
+.data-table td .button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .filters:has(input[name="from"]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .filters:has(input[name="from"]) > label {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .filters:has(input[name="from"]) input[type="date"] {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .filters:has(input[name="from"]) > button[type="submit"] {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+}
