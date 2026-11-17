@@ -1,0 +1,3 @@
+OLVEX GitHub yazma yetkisi kontrolü.
+Test dalı: chatgpt-write-check-20261118
+Canlı main dalında değişiklik yapılmadı.
