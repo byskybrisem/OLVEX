@@ -91,6 +91,18 @@ async function verifyPassword(password, storedHash) {
 
 export async function onRequestPost({ request, env }) {
   try {
+    const origin = request.headers.get("Origin");
+
+if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+  return Response.json(
+    { error: "İstek reddedildi." },
+    {
+      status: 403,
+      headers: { "Cache-Control": "no-store" }
+    }
+  );
+}
+    
     if (!env.DB) {
       return Response.json(
         { error: "Sunucu yapılandırma hatası." },
