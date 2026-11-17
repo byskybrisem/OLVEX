@@ -2,6 +2,10 @@
 import { isRateLimited } from "./rate-limit.js";
 
 const ITERATIONS = 100000;
+const ALLOWED_ORIGINS = new Set([
+  "https://olvex.com.tr",
+  "https://www.olvex.com.tr"
+]);
 
 function toBase64(bytes) {
   let binary = "";
