@@ -1,18 +1,31 @@
+
 export async function onRequest({ env }) {
   try {
-    const result = await env.DB.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table'"
-    ).all();
+    if (!env.DB) {
+      return Response.json(
+        { status: "unavailable" },
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store" }
+        }
+      );
+    }
 
-    return Response.json({
-      status: "ok",
-      database: "connected",
-      tables: result.results
-    });
-  } catch (error) {
-    return Response.json({
-      status: "error",
-      message: error.message
-    }, { status: 500 });
+    await env.DB.prepare("SELECT 1").first();
+
+    return Response.json(
+      { status: "ok" },
+      {
+        headers: { "Cache-Control": "no-store" }
+      }
+    );
+  } catch {
+    return Response.json(
+      { status: "unavailable" },
+      {
+        status: 503,
+        headers: { "Cache-Control": "no-store" }
+      }
+    );
   }
 }
