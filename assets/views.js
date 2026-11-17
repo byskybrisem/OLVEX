@@ -121,38 +121,7 @@ function chart(days) {
 }
 
 
-  if (!days.length) {
-    return empty("Grafik için tarih verisi bulunamadı.");
-  }
-
-  if (!days.some((row) => row.sales > 0)) {
-    return `<div class="chart" role="img"
-      aria-label="Seçilen dönemde satış bulunamadı">
-      <p class="empty" style="margin:auto; text-align:center; padding:12px;">
-        Bu dönemde henüz satış yok.
-        İlk satıştan sonra grafik burada oluşacak.
-      </p>
-    </div>
-    <div class="chart-axis">
-      <span>${h(day(days[0].day))}</span>
-      <span>${h(day(days.at(-1).day))}</span>
-    </div>`;
-  }
-  const span = Math.ceil(days.length / 30);
-  const groups = [];
-  for (let index = 0; index < days.length; index += span) {
-    const bucket = days.slice(index, index + span);
-    groups.push({ from: bucket[0].day, to: bucket.at(-1).day, sales: bucket.reduce((sum, row) => sum + row.sales, 0) });
-  }
-  const max = Math.max(...groups.map((bucket) => bucket.sales));
-  return `<div class="chart" role="img" aria-label="${h(day(days[0].day))} ve ${h(day(days.at(-1).day))} arasında satış grafiği">
-    ${groups.map((bucket) => {
-      const label = `${day(bucket.from)}${bucket.from === bucket.to ? "" : ` – ${day(bucket.to)}`} · ${money(bucket.sales)}`;
-      return `<span aria-hidden="true" class="bar" title="${h(label)}" style="height:${bucket.sales > 0 ? Math.max(1, 100 * bucket.sales / max) : 0}%"></span>`;
-    }).join("")}</div>
-    <div class="chart-axis"><span>${h(day(days[0].day))}</span><span>${h(day(days.at(-1).day))}</span></div>`;
-}
-
+ 
 function overview(data, state) {
   const { totals, latest, lowStock, days } = data;
   const cards = stat("Satış tutarı", money(totals.sales)) +
