@@ -33,7 +33,93 @@ const inventoryTabs = (id) => tabs([["Ürün kartları", "products"], ["Stok har
 const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "shifts"]], id);
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
 
+function chart(days) { 
 function chart(days) {
+  if (!days.length) {
+    return empty("Grafik için tarih verisi bulunamadı.");
+  }
+
+  const bucketSize = Math.max(1, Math.ceil(days.length / 14));
+  const groups = [];
+
+  for (let i = 0; i < days.length; i += bucketSize) {
+    const segment = days.slice(i, i + bucketSize);
+    groups.push({
+      from: segment[0].day,
+      to: segment.at(-1).day,
+      sales: segment.reduce((sum, row) => sum + row.sales, 0)
+    });
+  }
+
+  const highest = Math.max(0, ...groups.map((item) => item.sales));
+  const ceiling = highest || 1;
+  const baseY = 218;
+
+  const points = groups.map((item, index) => ({
+    ...item,
+    x: groups.length === 1
+      ? 380
+      : 24 + index * 712 / (groups.length - 1),
+    y: baseY - item.sales / ceiling * 166
+  }));
+
+  const linePath = points.map((point, index) =>
+    `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`
+  ).join(" ");
+
+  const areaPath = `${linePath} L${points.at(-1).x.toFixed(2)} ${baseY} L${points[0].x.toFixed(2)} ${baseY} Z`;
+
+  return `<div class="chart" role="group" aria-label="Satış grafiği"
+    style="display:block;height:auto;padding:12px 12px 8px;">
+    <svg viewBox="0 0 760 250" role="group" aria-label="Dönemsel satışlar"
+      style="display:block;width:100%;height:auto;overflow:visible;">
+      <defs>
+        <linearGradient id="olvex-sales-gradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#9b8aff" stop-opacity="0.34" />
+          <stop offset="100%" stop-color="#9b8aff" stop-opacity="0.01" />
+        </linearGradient>
+      </defs>
+
+      ${[52, 107, 162, 218].map((y) =>
+        `<line x1="24" y1="${y}" x2="736" y2="${y}"
+          stroke="#aab7d2" stroke-opacity="0.17" stroke-dasharray="4 7" />`
+      ).join("")}
+
+      <path d="${areaPath}" fill="url(#olvex-sales-gradient)" />
+
+      <path d="${linePath}" fill="none" stroke="#a99fff"
+        stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+        vector-effect="non-scaling-stroke" />
+
+      ${points.map((point) => {
+        const range = point.from === point.to
+          ? day(point.from)
+          : `${day(point.from)} – ${day(point.to)}`;
+
+        const label = `${range} · ${money(point.sales)}`;
+
+        return `<circle class="bar" cx="${point.x.toFixed(2)}"
+          cy="${point.y.toFixed(2)}" r="7" fill="#b6aaff"
+          stroke="#111a31" stroke-width="2" title="${h(label)}"
+          style="animation:none;transform:none;cursor:pointer;" />`;
+      }).join("")}
+
+      <text x="24" y="22" fill="#aab7d2" font-size="14">
+        En yüksek dönem: ${h(money(highest))}
+      </text>
+    </svg>
+  </div>
+
+  <div class="chart-axis">
+    <span>${h(day(days[0].day))}</span>
+    <span>${h(day(days.at(-1).day))}</span>
+  </div>
+
+  ${highest === 0
+    ? '<p class="hint">Seçilen tarihlerde satış yok. Grafik sıfır düzeyinde.</p>'
+    : '<p class="hint">Noktalara dokunarak ilgili dönemin satışını inceleyin.</p>'}`;
+}
+
 
   if (!days.length) {
     return empty("Grafik için tarih verisi bulunamadı.");
