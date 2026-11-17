@@ -1,0 +1,509 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090e1b">
+<title>OLVEX | İşletme Yönetimi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:#090e1b;
+  --panel:rgba(20,29,49,.68);
+  --line:rgba(174,190,230,.14);
+  --text:#f4f6ff;
+  --muted:#98a5c0;
+  --purple:#8178ff;
+  --teal:#20d6c0;
+}
+*{box-sizing:border-box}
+body{
+ margin:0;min-height:100vh;
+ background:
+ radial-gradient(ellipse at 12% 0%,#6757ff38,transparent 34%),
+ radial-gradient(ellipse at 95% 25%,#15beb121,transparent 30%),
+ linear-gradient(145deg,#090e1b,#0c1426 55%,#0a1020);
+ color:var(--text);
+ font:14px/1.55 "Plus Jakarta Sans",sans-serif;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+.shell{
+ display:grid;
+ grid-template-columns:245px minmax(0,1fr);
+ min-height:100vh;
+ max-width:1600px;
+ margin:auto;
+ padding:18px;
+ gap:18px;
+}
+.glass{
+ background:var(--panel);
+ border:1px solid var(--line);
+ box-shadow:0 24px 70px #0005;
+ backdrop-filter:blur(22px) saturate(145%);
+ -webkit-backdrop-filter:blur(22px) saturate(145%);
+}
+.sidebar{
+ border-radius:24px;
+ padding:22px 15px;
+ display:flex;
+ flex-direction:column;
+ min-height:calc(100vh - 36px);
+ position:sticky;
+ top:18px;
+ height:calc(100vh - 36px);
+}
+.brand{
+ display:flex;align-items:center;gap:11px;
+ padding:4px 10px 27px;
+ font-size:19px;font-weight:800;letter-spacing:.13em;
+}
+.mark{
+ width:35px;height:35px;border-radius:12px;
+ display:grid;place-items:center;
+ background:linear-gradient(135deg,#9188ff,#5c54e8);
+ box-shadow:0 8px 24px #7168ff55;
+ font-size:22px;
+}
+.workspace{
+ padding:12px;margin:0 3px 22px;
+ border:1px solid var(--line);
+ background:#ffffff09;border-radius:14px;
+}
+.workspace small,.navlabel{
+ display:block;color:var(--muted);
+ font-size:10px;letter-spacing:.08em;
+ text-transform:uppercase;
+}
+.workspace b{display:block;margin-top:4px;font-size:13px}
+.navlabel{
+ padding:0 12px 9px;color:#71809f;font-weight:800;
+}
+.nav{display:grid;gap:5px}
+.nav button{
+ display:flex;align-items:center;gap:12px;
+ width:100%;padding:11px 12px;
+ border:1px solid transparent;border-radius:12px;
+ background:transparent;color:#aab5ce;
+ text-align:left;font-size:12px;font-weight:600;
+}
+.nav button:hover,.nav button.active{
+ background:#8178ff24;border-color:#8e84ff38;color:white;
+}
+.ico{width:19px;text-align:center;font-size:16px}
+.sidebottom{margin-top:auto}
+.help{
+ padding:14px;border:1px solid var(--line);
+ border-radius:15px;
+ background:linear-gradient(145deg,#776aff26,#16c1b212);
+}
+.help b{font-size:12px}
+.help p{color:var(--muted);font-size:10px;margin:5px 0 10px}
+.help button{
+ border:0;border-radius:9px;
+ background:#766dff;padding:8px 11px;
+ font-size:10px;font-weight:700;
+}
+.profile{
+ display:flex;align-items:center;gap:10px;
+ padding:17px 7px 2px;
+}
+.avatar{
+ width:34px;height:34px;border-radius:50%;
+ display:grid;place-items:center;
+ background:linear-gradient(135deg,#28c8b8,#756cff);
+ font-weight:800;
+}
+.profile b{display:block;font-size:11px}
+.profile small{color:var(--muted);font-size:10px}
+.main{min-width:0;padding:8px 4px}
+.topbar{
+ display:flex;align-items:center;
+ justify-content:space-between;
+ gap:15px;margin:0 0 27px;
+}
+.crumb{color:var(--muted);font-size:11px}
+.crumb b{color:var(--text)}
+.topactions{display:flex;align-items:center;gap:9px}
+.iconbtn,.period,.select{
+ border:1px solid var(--line);
+ background:#ffffff08;border-radius:11px;
+ padding:9px 12px;color:#c8d1e7;
+}
+.iconbtn{width:38px;height:38px}
+.period,.select{font-size:10px}
+.mobilebrand,.hamb{display:none}
+.welcome{
+ display:flex;align-items:flex-end;
+ justify-content:space-between;
+ gap:16px;margin-bottom:22px;
+}
+.eyebrow{
+ color:var(--teal);font-size:10px;
+ font-weight:800;letter-spacing:.14em;
+}
+.welcome h1{
+ font-size:clamp(25px,3vw,34px);
+ letter-spacing:-.045em;line-height:1.2;margin:6px 0;
+}
+.welcome p{margin:0;color:var(--muted);font-size:12px}
+.date{color:var(--muted);font-size:11px}
+.demo{
+ display:inline-flex;align-items:center;gap:7px;
+ border:1px solid #20d6c033;background:#20d6c012;
+ color:#75e8d9;border-radius:30px;
+ padding:6px 10px;font-size:9px;font-weight:800;
+ letter-spacing:.08em;
+}
+.demo:before{
+ content:"";width:6px;height:6px;
+ border-radius:50%;background:var(--teal);
+}
+.stats{
+ display:grid;
+ grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:13px;
+}
+.stat{
+ padding:17px 18px;border-radius:18px;
+ min-width:0;position:relative;overflow:hidden;
+}
+.stat:after{
+ content:"";position:absolute;width:100px;height:100px;
+ right:-45px;top:-48px;border-radius:50%;
+ background:#8178ff22;filter:blur(5px);
+}
+.stathead{
+ display:flex;align-items:center;
+ justify-content:space-between;
+ color:var(--muted);font-size:10px;
+}
+.staticon{
+ width:29px;height:29px;display:grid;
+ place-items:center;border-radius:9px;
+ background:#8178ff22;color:#b4aeff;
+}
+.stat strong{
+ display:block;font-size:clamp(19px,2vw,25px);
+ letter-spacing:-.04em;margin:12px 0 5px;
+}
+.trend{font-size:10px;color:#52d9b4}
+.down{color:#ff9a9a}
+.stat small{color:var(--muted);font-size:9px}
+.gridmain{
+ display:grid;
+ grid-template-columns:minmax(0,1.65fr) minmax(260px,.85fr);
+ gap:14px;margin-top:14px;
+}
+.card{
+ padding:19px;border-radius:19px;min-width:0;
+}
+.cardhead{
+ display:flex;align-items:center;
+ justify-content:space-between;
+ gap:10px;margin-bottom:17px;
+}
+.cardhead h2{font-size:13px;margin:0}
+.cardhead p{font-size:10px;color:var(--muted);margin:4px 0 0}
+.chart{height:205px}
+.chart svg{width:100%;height:100%;overflow:visible}
+.chartlabels{
+ display:flex;justify-content:space-between;
+ color:#73809c;font-size:9px;margin-top:5px;
+}
+.insight{
+ background:linear-gradient(145deg,#776aff26,#17c4b412),var(--panel);
+ border-color:#8178ff33;
+}
+.aihead{display:flex;align-items:center;gap:9px;margin-bottom:15px}
+.aiorb{
+ width:32px;height:32px;border-radius:11px;
+ background:linear-gradient(135deg,#8178ff,#25cbb8);
+ display:grid;place-items:center;
+}
+.aihead b{font-size:12px}
+.aihead small{display:block;color:var(--muted);font-size:9px}
+.insight h3{font-size:15px;line-height:1.4;margin:0 0 9px}
+.insight>p{font-size:10px;color:#aab6d0;line-height:1.8}
+.action{
+ margin-top:15px;padding:10px;border-radius:11px;
+ background:#ffffff0d;border:1px solid var(--line);
+ font-size:10px;color:#d9def0;
+}
+.action b{color:#8ee8d9}
+.bottomgrid{
+ display:grid;grid-template-columns:1.1fr .9fr;
+ gap:14px;margin-top:14px;
+}
+.tablewrap{overflow:auto}
+table{width:100%;border-collapse:collapse;white-space:nowrap}
+th{
+ text-align:left;color:#7785a2;font-size:9px;
+ padding:0 10px 11px;
+}
+td{
+ border-top:1px solid #aebee617;
+ padding:12px 10px;font-size:10px;color:#d8def0;
+}
+td:first-child{padding-left:0}
+.product{display:flex;align-items:center;gap:9px}
+.producticon{
+ width:28px;height:28px;display:grid;place-items:center;
+ border-radius:8px;background:#8178ff22;
+}
+.product b{display:block;font-size:10px}
+.product small{display:block;color:var(--muted);font-size:9px}
+.status{
+ display:inline-block;padding:4px 7px;border-radius:20px;
+ font-size:8px;background:#20d6c01a;color:#69e2ce;
+}
+.status.warn{background:#ffb85c1f;color:#ffc477}
+.stocklist{display:grid;gap:13px}
+.stockrow{
+ display:grid;grid-template-columns:1fr auto;gap:5px 10px;
+}
+.stockrow b{font-size:10px}
+.stockrow small{color:var(--muted);font-size:9px}
+.bar{
+ grid-column:1/-1;height:5px;border-radius:8px;
+ background:#ffffff12;overflow:hidden;
+}
+.bar i{
+ display:block;height:100%;border-radius:8px;
+ background:linear-gradient(90deg,#8178ff,#24c9b7);
+}
+.bar i.low{background:linear-gradient(90deg,#f2a65a,#f16d7c)}
+.footnote{text-align:center;color:#62708c;font-size:9px;margin:17px 0 4px}
+
+@media(max-width:1050px){
+ .shell{grid-template-columns:215px minmax(0,1fr);padding:12px;gap:12px}
+ .sidebar{min-height:calc(100vh - 24px);height:calc(100vh - 24px)}
+ .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .gridmain,.bottomgrid{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+ .shell{display:block;padding:10px}
+ .sidebar{
+  display:none;position:fixed;z-index:20;
+  inset:10px auto 10px 10px;
+  width:min(290px,calc(100vw - 45px));
+  height:auto;min-height:0;background:#0d1425f7;
+ }
+ .sidebar.open{display:flex}
+ body.menuopen:after{
+  content:"";position:fixed;inset:0;
+  background:#0009;z-index:19;
+ }
+ .main{padding:2px 1px}
+ .topbar{margin-bottom:23px}
+ .mobilebrand{
+  display:flex;align-items:center;gap:8px;
+  font-weight:800;letter-spacing:.12em;font-size:14px;
+ }
+ .mobilebrand .mark{width:29px;height:29px}
+ .hamb{display:block}
+ .crumb{display:none}
+ .topactions{gap:6px}
+ .period{padding:8px;font-size:9px}
+ .welcome{align-items:flex-start;flex-direction:column;gap:9px}
+ .welcome h1{font-size:26px}
+ .welcome p{font-size:11px}
+ .stats{gap:9px}
+ .stat{padding:13px;border-radius:15px}
+ .stat strong{font-size:21px;margin:9px 0 3px}
+ .stathead{font-size:9px}
+ .staticon{width:25px;height:25px}
+ .gridmain,.bottomgrid{gap:10px;margin-top:10px}
+ .card{padding:15px;border-radius:16px}
+ .chart{height:175px}
+ .tablewrap{margin-right:-5px}
+ .footnote{padding:0 15px}
+}
+</style>
+</head>
+
+<body>
+<div class="shell">
+
+<aside class="sidebar glass" id="sidebar">
+ <div class="brand"><span class="mark">V</span>OLVEX</div>
+ <div class="workspace"><small>Çalışma alanı</small><b>Örnek İşletme⌄</b></div>
+ <div class="navlabel">Yönetim</div>
+
+ <nav class="nav" aria-label="Ana menü">
+  <button class="active" data-page="Genel Bakış"><span class="ico">◫</span>Genel Bakış</button>
+  <button data-page="Satışlar"><span class="ico">↗</span>Satışlar</button>
+  <button data-page="Ürünler & Stok"><span class="ico">▦</span>Ürünler & Stok</button>
+  <button data-page="Satın Alma"><span class="ico">＋</span>Satın Alma</button>
+  <button data-page="Müşteriler"><span class="ico">♙</span>Müşteriler</button>
+  <button data-page="Finans"><span class="ico">◈</span>Finans</button>
+  <button data-page="Faturalar"><span class="ico">▤</span>Faturalar</button>
+  <button data-page="Personel"><span class="ico">♧</span>Personel</button>
+  <button data-page="Raporlar"><span class="ico">▥</span>Raporlar</button>
+ </nav>
+
+ <div class="sidebottom">
+  <div class="help">
+   <b>OLVEX AI</b>
+   <p>İşletmen için akıllı içgörüler ve öneriler.</p>
+   <button onclick="alert('OLVEX AI bağlantısı sonraki geliştirme aşamasında eklenecek.')">Asistanı keşfet ↗</button>
+  </div>
+  <div class="profile">
+   <div class="avatar">O</div>
+   <div><b>İşletme Yöneticisi</b><small>Demo hesap</small></div>
+  </div>
+ </div>
+</aside>
+
+<main class="main">
+ <div class="topbar">
+  <div class="mobilebrand">
+   <button class="iconbtn hamb" id="hamb" aria-label="Menüyü aç">☰</button>
+   <span class="mark">V</span>OLVEX
+  </div>
+  <div class="crumb">Çalışma alanı　/　<b>Genel Bakış</b></div>
+  <div class="topactions">
+   <span class="demo">ÖRNEK VERİ</span>
+   <button class="period" onclick="alert('Tarih filtresi gerçek veriler bağlandığında etkinleştirilecek.')">Son 30 gün⌄</button>
+   <button class="iconbtn" aria-label="Bildirimler" onclick="alert('Bildirim merkezi sonraki aşamada bağlanacak.')">♧</button>
+  </div>
+ </div>
+
+ <section class="welcome">
+  <div>
+   <div class="eyebrow">İŞLETME ÖZETİ</div>
+   <h1>Genel Bakış</h1>
+   <p>İşletmenizde bugün neler olup bittiğine göz atın.</p>
+  </div>
+  <div class="date">17 Kasım 2026 · Salı</div>
+ </section>
+
+ <section class="stats">
+  <article class="stat glass">
+   <div class="stathead">Toplam Satış <span class="staticon">↗</span></div>
+   <strong>₺284.650</strong><span class="trend">↗ %12,8</span>
+   <small>önceki döneme göre</small>
+  </article>
+  <article class="stat glass">
+   <div class="stathead">Net Kâr <span class="staticon">◈</span></div>
+   <strong>₺68.420</strong><span class="trend">↗ %8,4</span>
+   <small>önceki döneme göre</small>
+  </article>
+  <article class="stat glass">
+   <div class="stathead">Toplam Sipariş <span class="staticon">▤</span></div>
+   <strong>1.248</strong><span class="trend">↗ %5,2</span>
+   <small>önceki döneme göre</small>
+  </article>
+  <article class="stat glass">
+   <div class="stathead">Aktif Müşteri <span class="staticon">♙</span></div>
+   <strong>864</strong><span class="trend down">↘ %1,3</span>
+   <small>önceki döneme göre</small>
+  </article>
+ </section>
+
+ <section class="gridmain">
+  <article class="card glass">
+   <div class="cardhead">
+    <div><h2>Satış performansı</h2><p>Günlük satışların dönemsel görünümü</p></div>
+    <select class="select"><option>Bu ay</option><option>Son 7 gün</option><option>Bu yıl</option></select>
+   </div>
+   <div class="chart">
+    <svg viewBox="0 0 650 205" preserveAspectRatio="none" role="img" aria-label="Örnek satış grafiği">
+     <defs>
+      <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
+       <stop offset="0" stop-color="#8178ff" stop-opacity=".34"/>
+       <stop offset="1" stop-color="#8178ff" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="line" x1="0" x2="1">
+       <stop stop-color="#8178ff"/><stop offset="1" stop-color="#22d2bf"/>
+      </linearGradient>
+     </defs>
+     <g stroke="#aebee622" stroke-dasharray="4 6">
+      <path d="M0 25H650M0 70H650M0 115H650M0 160H650"/>
+     </g>
+     <path d="M0 153 C35 145 42 115 82 125 S135 152 165 111 S215 95 246 112 S290 72 328 88 S370 105 409 65 S460 78 492 58 S540 74 570 39 S620 55 650 20 L650 190 L0 190Z" fill="url(#area)"/>
+     <path d="M0 153 C35 145 42 115 82 125 S135 152 165 111 S215 95 246 112 S290 72 328 88 S370 105 409 65 S460 78 492 58 S540 74 570 39 S620 55 650 20" fill="none" stroke="url(#line)" stroke-width="3" stroke-linecap="round"/>
+     <circle cx="570" cy="39" r="5" fill="#22d2bf" stroke="#0d172b" stroke-width="3"/>
+    </svg>
+   </div>
+   <div class="chartlabels"><span>01 Kas</span><span>05 Kas</span><span>10 Kas</span><span>15 Kas</span><span>20 Kas</span><span>25 Kas</span><span>30 Kas</span></div>
+  </article>
+
+  <article class="card glass insight">
+   <div class="aihead">
+    <div class="aiorb">✦</div>
+    <div><b>OLVEX AI İçgörü</b><small>Örnek analiz · Canlı veriye bağlı değil</small></div>
+   </div>
+   <h3>Satışlarında olumlu bir ivme var.</h3>
+   <p>Bu örnek panelde satışların önceki döneme göre yükseldiği varsayılmıştır. Gerçek işletme verileri bağlandığında OLVEX AI performans değişimlerini ve dikkat edilmesi gereken alanları analiz edecek.</p>
+   <div class="action"><b>Öneri:</b> En çok satan ürünlerini ve stok seviyelerini birlikte değerlendir.</div>
+  </article>
+ </section>
+
+ <section class="bottomgrid">
+  <article class="card glass">
+   <div class="cardhead">
+    <div><h2>Son satışlar</h2><p>Yakın zamandaki örnek işlemler</p></div>
+    <button class="select" onclick="selectPage('Satışlar')">Tümünü gör ↗</button>
+   </div>
+   <div class="tablewrap">
+    <table>
+     <thead><tr><th>ÜRÜN / İŞLEM</th><th>MÜŞTERİ</th><th>TUTAR</th><th>DURUM</th></tr></thead>
+     <tbody>
+      <tr><td><div class="product"><span class="producticon">◧</span><span><b>Ürün A</b><small>#S-1024</small></span></div></td><td>Ahmet Y.</td><td>₺2.450</td><td><span class="status">Tamamlandı</span></td></tr>
+      <tr><td><div class="product"><span class="producticon">◈</span><span><b>Ürün B</b><small>#S-1023</small></span></div></td><td>Elif K.</td><td>₺1.280</td><td><span class="status">Tamamlandı</span></td></tr>
+      <tr><td><div class="product"><span class="producticon">▣</span><span><b>Ürün C</b><small>#S-1022</small></span></div></td><td>Mehmet D.</td><td>₺860</td><td><span class="status warn">Bekliyor</span></td></tr>
+     </tbody>
+    </table>
+   </div>
+  </article>
+
+  <article class="card glass">
+   <div class="cardhead">
+    <div><h2>Stok durumu</h2><p>Örnek kritik stok takibi</p></div>
+    <button class="select" onclick="selectPage('Ürünler & Stok')">Stoklara git ↗</button>
+   </div>
+   <div class="stocklist">
+    <div class="stockrow"><b>Ürün A</b><small>42 / 100 adet</small><div class="bar"><i style="width:42%"></i></div></div>
+    <div class="stockrow"><b>Ürün B</b><small>8 / 80 adet · Kritik</small><div class="bar"><i class="low" style="width:10%"></i></div></div>
+    <div class="stockrow"><b>Ürün C</b><small>64 / 100 adet</small><div class="bar"><i style="width:64%"></i></div></div>
+   </div>
+  </article>
+ </section>
+
+ <p class="footnote">OLVEX · Bu ekran tasarım prototipidir. Gösterilen tüm rakamlar örnektir; henüz veritabanına veya gerçek satışlara bağlı değildir.</p>
+</main>
+</div>
+
+<script>
+const sidebar=document.getElementById('sidebar');
+
+document.getElementById('hamb').addEventListener('click',()=>{
+ sidebar.classList.toggle('open');
+ document.body.classList.toggle('menuopen');
+});
+
+document.querySelectorAll('.nav button').forEach(button=>{
+ button.addEventListener('click',()=>selectPage(button.dataset.page));
+});
+
+function selectPage(page){
+ document.querySelectorAll('.nav button').forEach(button=>{
+  button.classList.toggle('active',button.dataset.page===page);
+ });
+ document.querySelector('.crumb b').textContent=page;
+ document.querySelector('.welcome h1').textContent=page;
+
+ if(page!=='Genel Bakış'){
+  alert(page+' modülü henüz geliştirme aşamasında. Şu an yalnızca Genel Bakış tasarım prototipi hazır.');
+ }
+
+ sidebar.classList.remove('open');
+ document.body.classList.remove('menuopen');
+}
+</script>
+</body>
+</html>
