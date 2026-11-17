@@ -485,32 +485,66 @@ body {
 </main>
 </div>
 
+
 <script>
-const sidebar=document.getElementById('sidebar');
+// Oturum kontrolü: doğrulanana kadar paneli gizle
+document.documentElement.style.visibility = 'hidden';
 
-document.getElementById('hamb').addEventListener('click',()=>{
- sidebar.classList.toggle('open');
- document.body.classList.toggle('menuopen');
+(async function checkSession() {
+  try {
+    const response = await fetch('/api/auth/me', {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      window.location.replace('/login.html');
+      return;
+    }
+
+    const data = await response.json();
+
+    if (data.authenticated !== true) {
+      window.location.replace('/login.html');
+      return;
+    }
+
+    document.documentElement.style.visibility = 'visible';
+
+  } catch (error) {
+    window.location.replace('/login.html');
+  }
+})();
+
+// Mevcut menü işlemleri
+const sidebar = document.getElementById('sidebar');
+
+document.getElementById('hamb').addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+  document.body.classList.toggle('menuopen');
 });
 
-document.querySelectorAll('.nav button').forEach(button=>{
- button.addEventListener('click',()=>selectPage(button.dataset.page));
+document.querySelectorAll('.nav button').forEach(button => {
+  button.addEventListener('click', () => selectPage(button.dataset.page));
 });
 
-function selectPage(page){
- document.querySelectorAll('.nav button').forEach(button=>{
-  button.classList.toggle('active',button.dataset.page===page);
- });
- document.querySelector('.crumb b').textContent=page;
- document.querySelector('.welcome h1').textContent=page;
+function selectPage(page) {
+  document.querySelectorAll('.nav button').forEach(button => {
+    button.classList.toggle('active', button.dataset.page === page);
+  });
 
- if(page!=='Genel Bakış'){
-  alert(page+' modülü henüz geliştirme aşamasında. Şu an yalnızca Genel Bakış tasarım prototipi hazır.');
- }
+  document.querySelector('.crumb b').textContent = page;
+  document.querySelector('.welcome h1').textContent = page;
 
- sidebar.classList.remove('open');
- document.body.classList.remove('menuopen');
+  if (page !== 'Genel Bakış') {
+    alert(page + ' modülü henüz geliştirme aşamasında. Şu an yalnızca Genel Bakış tasarım prototipi hazır.');
+  }
+
+  sidebar.classList.remove('open');
+  document.body.classList.remove('menuopen');
 }
 </script>
+
 </body>
 </html>
