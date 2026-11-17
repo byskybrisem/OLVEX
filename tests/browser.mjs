@@ -90,9 +90,19 @@ try {
 
   await navigate(page, "sales", "Satışlar");
   await page.getByRole("button", { name: "+ Yeni satış", exact: true }).click();
-  await dialog(page).getByLabel("Referans").fill("BROWSER-001");
-  await dialog(page).getByLabel("SKU").fill("KAHVE-01");
-  await dialog(page).getByLabel("Adet").fill("2");
+  const saleDialog = dialog(page);
+  await saleDialog.getByLabel("Referans").fill("BROWSER-001");
+  await saleDialog.getByLabel("Ürün ara").fill("Filtre kahve");
+  const picker = saleDialog.getByLabel("Kayıtlı ürünü seç");
+  await picker.locator('option[value="KAHVE-01"]').waitFor({ state: "attached" });
+  await picker.selectOption("KAHVE-01");
+  assert.equal(await saleDialog.getByLabel("SKU").inputValue(), "KAHVE-01");
+  await saleDialog.getByLabel("Adet").fill("2");
+  assert.match(await saleDialog.locator("[data-order-total]").textContent(), /251,00/);
+  await saleDialog.getByRole("button", { name: "+ Satır ekle" }).click();
+  assert.equal(await saleDialog.locator(".order-line").count(), 2);
+  await saleDialog.getByRole("button", { name: "Ürünü kaldır" }).last().click();
+  assert.equal(await saleDialog.locator(".order-line").count(), 1);
   await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
   await dialog(page).waitFor({ state: "hidden" });
   await page.getByText("BROWSER-001", { exact: false }).waitFor();
