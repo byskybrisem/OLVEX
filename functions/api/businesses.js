@@ -1,186 +1,38 @@
+import { handle, HttpError, json, readJson, sameOrigin } from "../_lib/http.js";
+import { requireUser } from "../_lib/session.js";
+import { identifier, text } from "../_lib/validate.js";
 
-const COOKIE_NAME = "olvex_session";
-const ALLOWED_ORIGINS = new Set([
-  "https://olvex.com.tr",
-  "https://www.olvex.com.tr"
-]);
+export const onRequestGet = handle(async ({ request, env }) => {
+  const db = env.DB;
+  const user = await requireUser(request, db);
+  const { results } = await db.prepare(`
+    SELECT b.id, b.name, b.created_at, m.role FROM business_members m
+    JOIN businesses b ON b.id = m.business_id WHERE m.user_id = ?
+    ORDER BY b.created_at, b.id
+  `).bind(user.id).all();
+  return json({ success: true, businesses: results });
+});
 
-async function hashToken(token) {
-  const data = new TextEncoder().encode(token);
-  const digest = await crypto.subtle.digest("SHA-256", data);
+export const onRequestPost = handle(async ({ request, env }) => {
+  sameOrigin(request);
+  const db = env.DB;
+  const user = await requireUser(request, db);
+  const data = await readJson(request, 4096);
+  const name = text(data.name, "İşletme adı", { min: 2, max: 100 });
+  const id = data.requestId ? identifier(data.requestId) : crypto.randomUUID();
 
-  return Array.from(new Uint8Array(digest))
-    .map(byte => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function getSession(request, env) {
-  const cookieHeader = request.headers.get("Cookie") || "";
-
-  const cookie = cookieHeader
-    .split(";")
-    .map(item => item.trim())
-    .find(item => item.startsWith(COOKIE_NAME + "="));
-
-  if (!cookie) return null;
-
-  const token = cookie.slice(COOKIE_NAME.length + 1);
-
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
-
-  const tokenHash = await hashToken(token);
-
-  return await env.DB.prepare(
-    `SELECT users.id, users.email, users.full_name
-     FROM user_sessions
-     JOIN users ON users.id = user_sessions.user_id
-     WHERE user_sessions.token_hash = ?
-     AND user_sessions.expires_at > ?
-     LIMIT 1`
-  )
-    .bind(tokenHash, new Date().toISOString())
-    .first();
-}
-
-export async function onRequestGet({ request, env }) {
   try {
-    if (!env.DB) {
-      return Response.json(
-        { error: "Veritabanı bağlantısı bulunamadı." },
-        { status: 500 }
-      );
-    }
-
-    const user = await getSession(request, env);
-
-    if (!user) {
-      return Response.json(
-        { error: "Oturum bulunamadı. Tekrar giriş yap." },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
-      );
-    }
-
-    const result = await env.DB.prepare(
-      `SELECT
-         businesses.id,
-         businesses.name,
-         businesses.created_at,
-         business_members.role
-       FROM business_members
-       JOIN businesses
-         ON businesses.id = business_members.business_id
-       WHERE business_members.user_id = ?
-       ORDER BY businesses.created_at ASC`
-    )
-      .bind(user.id)
-      .all();
-
-    return Response.json(
-      {
-        success: true,
-        businesses: result.results || []
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-
-  } catch (error) {
-    return Response.json(
-      { error: "İşletmeler yüklenirken sunucu hatası oluştu." },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    );
-  }
-}
-
-export async function onRequestPost({ request, env }) {
-  try {
-    const origin = request.headers.get("Origin");
-
-if (!origin || !ALLOWED_ORIGINS.has(origin)) {
-  return Response.json(
-    { error: "İstek reddedildi." },
-    {
-      status: 403,
-      headers: { "Cache-Control": "no-store" }
-    }
-  );
-}
-    if (!env.DB) {
-      return Response.json(
-        { error: "Veritabanı bağlantısı bulunamadı." },
-        { status: 500 }
-      );
-    }
-
-    const user = await getSession(request, env);
-
-    if (!user) {
-      return Response.json(
-        { error: "Oturum bulunamadı. Tekrar giriş yap." },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
-      );
-    }
-
-    let data;
-
-    try {
-      data = await request.json();
-    } catch {
-      return Response.json(
-        { error: "Geçersiz istek." },
-        { status: 400 }
-      );
-    }
-
-    const name = typeof data.name === "string"
-      ? data.name.trim()
-      : "";
-
-    if (name.length < 2 || name.length > 100) {
-      return Response.json(
-        { error: "İşletme adı 2 ile 100 karakter arasında olmalıdır." },
-        { status: 400 }
-      );
-    }
-
-    const businessId = crypto.randomUUID();
-    const membershipId = crypto.randomUUID();
-
-    await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO businesses (id, name, created_by)
-         VALUES (?, ?, ?)`
-      ).bind(businessId, name, user.id),
-
-      env.DB.prepare(
-        `INSERT INTO business_members
-         (id, business_id, user_id, role)
-         VALUES (?, ?, ?, 'owner')`
-      ).bind(membershipId, businessId, user.id)
+    await db.batch([
+      db.prepare("INSERT INTO businesses (id, name, created_by) VALUES (?, ?, ?)").bind(id, name, user.id),
+      db.prepare("INSERT INTO business_members (id, business_id, user_id, role) VALUES (?, ?, ?, 'owner')")
+        .bind(crypto.randomUUID(), id, user.id)
     ]);
-
-    return Response.json(
-      {
-        success: true,
-        business: {
-          id: businessId,
-          name,
-          role: "owner"
-        }
-      },
-      {
-        status: 201,
-        headers: { "Cache-Control": "no-store" }
-      }
-    );
-
   } catch (error) {
-    return Response.json(
-      { error: "İşletme oluşturulamadı. Lütfen tekrar dene." },
-      {
-        status: 500,
-        headers: { "Cache-Control": "no-store" }
-      }
-    );
+    if (!error.message?.includes("UNIQUE constraint failed: businesses.id")) throw error;
+    const existing = await db.prepare(`SELECT b.name FROM businesses b JOIN business_members m ON m.business_id = b.id
+      WHERE b.id = ? AND m.user_id = ? AND m.role = 'owner'`).bind(id, user.id).first();
+    if (existing?.name !== name) throw new HttpError(409, "Bu istek kimliği kullanılmış.");
   }
-}
 
+  return json({ success: true, business: { id, name, role: "owner" } }, 201);
+});

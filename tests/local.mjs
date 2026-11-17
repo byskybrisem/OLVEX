@@ -1,0 +1,86 @@
+import { execFile, spawn } from "node:child_process";
+import { once } from "node:events";
+import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
+const root = resolve(import.meta.dirname, "..");
+const cli = join(root, "node_modules", "wrangler", "bin", "wrangler.js");
+const environment = { ...process.env, CI: "true", WRANGLER_SEND_METRICS: "false" };
+
+async function openPort() {
+  const server = createServer();
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const port = server.address().port;
+  await new Promise((done) => server.close(done));
+  return port;
+}
+
+export async function localPages({ seed, bindings = {}, registration = "preview" } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), "olvex-test-"));
+  const dbId = crypto.randomUUID();
+  const config = join(dir, "wrangler.test.toml");
+  const storage = join(dir, "local-data");
+  const testEnv = {
+    OLVEX_SIGNUPS: registration,
+    OLVEX_AI_MODE: "mock",
+    ...bindings
+  };
+  let worker;
+  let logs = "";
+  async function close() {
+    if (worker && worker.exitCode === null && worker.signalCode === null) {
+      worker.kill("SIGTERM");
+      await once(worker, "exit");
+    }
+    await rm(dir, { recursive: true, force: true });
+  }
+
+  async function wrangler(...args) {
+    return run(process.execPath, [cli, ...args], { cwd: dir, env: environment, timeout: 30_000 });
+  }
+
+  try {
+    const assets = ["_headers", "_routes.json", "assets", "index.html", "app.html", "login.html", "register.html", "setup.html",
+      "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts"];
+    await Promise.all([...assets, "functions", "migrations"].map((name) =>
+      cp(join(root, name), join(dir, name), { recursive: true })));
+    await run(process.execPath, ["scripts/build.mjs"], { cwd: dir, env: environment });
+    await writeFile(config, `name = "olvex-test"\ncompatibility_date = "2025-10-01"\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "olvex-test"\ndatabase_id = "${dbId}"\nmigrations_dir = "migrations"\n`);
+    const dbArgs = ["DB", "--local", "--config", config, "--persist-to", storage];
+    await wrangler("d1", "migrations", "apply", ...dbArgs);
+    if (seed) {
+      const fixture = join(dir, "fixture.sql");
+      await writeFile(fixture, seed);
+      await wrangler("d1", "execute", ...dbArgs, "--file", fixture);
+    }
+
+    const port = await openPort();
+    const url = `http://127.0.0.1:${port}`;
+    worker = spawn(process.execPath, [cli, "pages", "dev", "dist", "--ip", "127.0.0.1", "--port", String(port),
+      "--compatibility-date", "2025-10-01", "--d1", `DB=${dbId}`, "--persist-to", storage,
+      "--show-interactive-dev-session=false", "--log-level", "warn",
+      ...Object.entries(testEnv).flatMap(([key, value]) => ["--binding", `${key}=${value}`])
+    ], { cwd: dir, env: environment, stdio: ["ignore", "pipe", "pipe"] });
+    worker.stdout.on("data", (chunk) => { logs = (logs + chunk).slice(-5000); });
+    worker.stderr.on("data", (chunk) => { logs = (logs + chunk).slice(-5000); });
+
+    for (let attempt = 0; attempt < 90; attempt++) {
+      if (worker.exitCode !== null || worker.signalCode !== null) break;
+      try {
+        const response = await fetch(`${url}/api/health`);
+        if (response.ok) return { url, close, logs: () => logs };
+      } catch {}
+      await delay(180);
+    }
+    throw new Error(`Yerel Pages sunucusu başlatılamadı.\n${logs}`);
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}

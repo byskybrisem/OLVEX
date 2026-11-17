@@ -16,11 +16,8 @@
 
 <meta name="description" content="OLVEX hesabınıza güvenle giriş yapın.">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
 
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
 
@@ -540,6 +537,7 @@ footer {
 
 </style>
 
+<script type="module" src="/assets/login.js"></script>
 </head>
 
 <body>
@@ -594,7 +592,7 @@ footer {
 
       <p class="subtitle">Devam etmek için hesabınıza giriş yapın.</p>
 
-      <form id="loginForm">
+      <form method="post" id="loginForm">
 
         <div class="field">
 
@@ -628,7 +626,7 @@ footer {
 
               class="password"
 
-              id="password"
+              id="password" maxlength="128"
 
               name="password"
 
@@ -676,7 +674,7 @@ footer {
 
         Henüz OLVEX hesabınız yok mu?
 
-        <a href="/register.html">Ücretsiz hesap oluşturun</a>
+        <a href="/register.html" id="register-link">Ücretsiz hesap oluşturun</a>
 
       </div>
 
@@ -689,86 +687,7 @@ footer {
 <footer>© 2026 OLVEX. Tüm hakları saklıdır.</footer>
 
 
-<script>
-const password = document.getElementById("password");
-const toggle = document.getElementById("togglePassword");
-const form = document.getElementById("loginForm");
-const message = document.getElementById("message");
-const submitButton = document.getElementById("submitButton");
 
-toggle.addEventListener("click", () => {
-  const hidden = password.type === "password";
-  password.type = hidden ? "text" : "password";
-  toggle.textContent = hidden ? "Gizle" : "Göster";
-});
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  message.style.display = "block";
-  message.style.background = "#FFF1F0";
-  message.style.color = "#B42318";
-  message.textContent = "Giriş yapılıyor...";
-
-  submitButton.disabled = true;
-  submitButton.textContent = "Kontrol ediliyor...";
-
-  try {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        email: document.getElementById("email").value.trim(),
-        password: password.value,
-        remember: document.querySelector('input[name="remember"]').checked
-      })
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.error || "Giriş yapılamadı.");
-    }
-
-    
-message.style.background = "#ECFDF3";
-message.style.color = "#027A48";
-message.textContent = "Giriş başarılı! Hesabınız kontrol ediliyor...";
-
-const businessResponse = await fetch("/api/businesses", {
-  method: "GET",
-  credentials: "same-origin",
-  cache: "no-store"
-});
-
-if (!businessResponse.ok) {
-  throw new Error("İşletme bilgileri kontrol edilemedi. Lütfen tekrar dene.");
-}
-
-const businessData = await businessResponse.json();
-
-if (
-  !Array.isArray(businessData.businesses) ||
-  businessData.businesses.length === 0
-) {
-  window.location.replace("/setup.html");
-} else {
-  window.location.replace("/app.html");
-}
-
-
-  } catch (error) {
-    message.textContent =
-      error.message || "Sunucuya bağlanılamadı.";
-  } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = "Giriş Yap";
-  }
-});
-</script>
 
 
 </body>
