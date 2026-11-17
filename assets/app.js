@@ -186,6 +186,56 @@ async function load() {
     if (tab === "finance") data.summary = additional;
     if (tab === "tasks") data.calendar = additional;
     content.innerHTML = renderers[tab](data, state());
+    
+    // OLVEX - Etkilesimli grafik inceleme
+    for (const chart of content.querySelectorAll('.chart')) {
+      const bars = [...chart.querySelectorAll('.bar[title]')];
+      if (!bars.length) continue;
+
+      chart.setAttribute('role', 'group');
+
+      const details = document.createElement('p');
+      details.className = 'hint';
+      details.setAttribute('role', 'status');
+      details.textContent =
+        'Bir sütuna dokunarak satış tutarını inceleyin.';
+
+      const axis = chart.nextElementSibling;
+      (axis?.classList.contains('chart-axis') ? axis : chart)
+        .insertAdjacentElement('afterend', details);
+
+      const selectBar = (selected) => {
+        for (const bar of bars) {
+          const active = bar === selected;
+          bar.setAttribute('aria-pressed', String(active));
+          bar.style.outline = active
+            ? '2px solid var(--teal)' : '';
+          bar.style.outlineOffset = active ? '2px' : '';
+        }
+        details.textContent =
+          selected.getAttribute('title') || '';
+      };
+
+      for (const bar of bars) {
+        bar.removeAttribute('aria-hidden');
+        bar.setAttribute('role', 'button');
+        bar.setAttribute(
+          'aria-label', bar.getAttribute('title')
+        );
+        bar.setAttribute('tabindex', '0');
+        bar.setAttribute('aria-pressed', 'false');
+        bar.style.cursor = 'pointer';
+
+        bar.addEventListener('click', () => selectBar(bar));
+        bar.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectBar(bar);
+          }
+        });
+      }
+    }
+
     content.scrollTop = 0;
     const chat = content.querySelector(".chat");
     if (chat) chat.scrollTop = chat.scrollHeight;
