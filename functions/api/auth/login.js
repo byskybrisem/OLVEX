@@ -1,4 +1,9 @@
 
+import {
+  isRateLimited,
+  clearRateLimit
+} from "./rate-limit.js";
+
 const ITERATIONS = 100000;
 const COOKIE_NAME = "olvex_session";
 
@@ -107,6 +112,31 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rateLimitKey = `login:${ip}:${email}`;
+
+    const limited = await isRateLimited(
+      env.DB,
+      rateLimitKey,
+      5,
+      15 * 60
+    );
+
+    if (limited) {
+      return Response.json(
+        {
+          error: "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin."
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": "900",
+            "Cache-Control": "no-store"
+          }
+        }
+      );
+    }
+
     const user = await env.DB.prepare(
       `SELECT id, email, full_name, password_hash
        FROM users
@@ -134,6 +164,8 @@ export async function onRequestPost({ request, env }) {
         { status: 401 }
       );
     }
+
+    await clearRateLimit(env.DB, rateLimitKey);
 
     const tokenBytes = crypto.getRandomValues(
       new Uint8Array(32)
@@ -193,7 +225,7 @@ export async function onRequestPost({ request, env }) {
       }
     );
 
-  } catch (error) {
+  } catch {
     return Response.json(
       {
         error: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
