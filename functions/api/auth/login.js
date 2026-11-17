@@ -6,6 +6,10 @@ import {
 
 const ITERATIONS = 100000;
 const COOKIE_NAME = "olvex_session";
+const ALLOWED_ORIGINS = new Set([
+  "https://olvex.com.tr",
+  "https://www.olvex.com.tr"
+]);
 
 function fromBase64(value) {
   const binary = atob(value);
