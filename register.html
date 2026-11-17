@@ -219,8 +219,12 @@ form.addEventListener("submit", async (event) => {
 
     message.style.background = "#ECFDF3";
     message.style.color = "#027A48";
-    message.textContent = "Hesabınız başarıyla oluşturuldu! Giriş sistemi henüz tamamlanmadığı için şimdilik bu sayfada kalabilirsiniz.";
-    form.reset();
+    message.textContent = "Hesabınız oluşturuldu! Giriş sayfasına yönlendiriliyorsunuz...";
+form.reset();
+
+setTimeout(() => {
+  window.location.replace("/login.html");
+}, 1000);
 
   } catch (error) {
     message.textContent = error.message || "Sunucuya bağlanılamadı. Tekrar deneyin.";
