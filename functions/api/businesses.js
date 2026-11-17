@@ -1,5 +1,9 @@
 
 const COOKIE_NAME = "olvex_session";
+const ALLOWED_ORIGINS = new Set([
+  "https://olvex.com.tr",
+  "https://www.olvex.com.tr"
+]);
 
 async function hashToken(token) {
   const data = new TextEncoder().encode(token);
