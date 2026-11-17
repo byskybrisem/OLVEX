@@ -33,7 +33,7 @@ const inventoryTabs = (id) => tabs([["Ürün kartları", "products"], ["Stok har
 const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "shifts"]], id);
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
 
-function chart(days) { 
+
 function chart(days) {
   if (!days.length) {
     return empty("Grafik için tarih verisi bulunamadı.");
