@@ -1,5 +1,9 @@
 
 const COOKIE_NAME = "olvex_session";
+const ALLOWED_ORIGINS = new Set([
+  "https://olvex.com.tr",
+  "https://www.olvex.com.tr"
+]);
 
 async function hashToken(token) {
   const data = new TextEncoder().encode(token);
@@ -14,10 +18,23 @@ export async function onRequestPost({ request, env }) {
   try {
     const origin = request.headers.get("Origin");
 
-    if (origin !== "https://olvex.com.tr") {
+    if (!origin || !ALLOWED_ORIGINS.has(origin)) {
       return Response.json(
         { error: "İstek reddedildi." },
-        { status: 403 }
+        {
+          status: 403,
+          headers: { "Cache-Control": "no-store" }
+        }
+      );
+    }
+
+    if (!env.DB) {
+      return Response.json(
+        { error: "Sunucu şu anda kullanılamıyor." },
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store" }
+        }
       );
     }
 
@@ -42,12 +59,11 @@ export async function onRequestPost({ request, env }) {
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
+    return Response.json(
+      { success: true },
       {
         status: 200,
         headers: {
-          "Content-Type": "application/json",
           "Cache-Control": "no-store",
           "Set-Cookie":
             `${COOKIE_NAME}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
@@ -58,7 +74,10 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return Response.json(
       { error: "Çıkış işlemi tamamlanamadı." },
-      { status: 500 }
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store" }
+      }
     );
   }
 }
