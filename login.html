@@ -735,9 +735,9 @@ form.addEventListener("submit", async (event) => {
 
     message.style.background = "#ECFDF3";
     message.style.color = "#027A48";
-    message.textContent = "Giriş başarılı! Oturumunuz açıldı.";
+   message.textContent = "Giriş başarılı! Panele yönlendiriliyorsunuz.";
 
-    form.reset();
+window.location.replace("/app.html");
 
   } catch (error) {
     message.textContent =
