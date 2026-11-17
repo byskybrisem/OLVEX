@@ -733,11 +733,32 @@ form.addEventListener("submit", async (event) => {
       throw new Error(result.error || "Giriş yapılamadı.");
     }
 
-    message.style.background = "#ECFDF3";
-    message.style.color = "#027A48";
-   message.textContent = "Giriş başarılı! Panele yönlendiriliyorsunuz.";
+    
+message.style.background = "#ECFDF3";
+message.style.color = "#027A48";
+message.textContent = "Giriş başarılı! Hesabınız kontrol ediliyor...";
 
-window.location.replace("/app.html");
+const businessResponse = await fetch("/api/businesses", {
+  method: "GET",
+  credentials: "same-origin",
+  cache: "no-store"
+});
+
+if (!businessResponse.ok) {
+  throw new Error("İşletme bilgileri kontrol edilemedi. Lütfen tekrar dene.");
+}
+
+const businessData = await businessResponse.json();
+
+if (
+  !Array.isArray(businessData.businesses) ||
+  businessData.businesses.length === 0
+) {
+  window.location.replace("/setup.html");
+} else {
+  window.location.replace("/app.html");
+}
+
 
   } catch (error) {
     message.textContent =
