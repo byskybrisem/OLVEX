@@ -12,6 +12,16 @@ async function hashToken(token) {
 
 export async function onRequestGet({ request, env }) {
   try {
+    if (!env.DB) {
+      return Response.json(
+        { error: "Sunucu şu anda kullanılamıyor." },
+        {
+          status: 503,
+          headers: { "Cache-Control": "no-store" }
+        }
+      );
+    }
+
     const cookieHeader = request.headers.get("Cookie") || "";
 
     const cookie = cookieHeader
@@ -22,7 +32,10 @@ export async function onRequestGet({ request, env }) {
     if (!cookie) {
       return Response.json(
         { authenticated: false },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" }
+        }
       );
     }
 
@@ -31,7 +44,10 @@ export async function onRequestGet({ request, env }) {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
       return Response.json(
         { authenticated: false },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" }
+        }
       );
     }
 
@@ -51,7 +67,10 @@ export async function onRequestGet({ request, env }) {
     if (!session) {
       return Response.json(
         { authenticated: false },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" }
+        }
       );
     }
 
@@ -64,13 +83,18 @@ export async function onRequestGet({ request, env }) {
           fullName: session.full_name
         }
       },
-      { headers: { "Cache-Control": "no-store" } }
+      {
+        headers: { "Cache-Control": "no-store" }
+      }
     );
 
   } catch {
     return Response.json(
       { error: "Sunucu hatası." },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      {
+        status: 500,
+        headers: { "Cache-Control": "no-store" }
+      }
     );
   }
 }
