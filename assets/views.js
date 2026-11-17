@@ -34,7 +34,24 @@ const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
 
 function chart(days) {
-  if (!days.some((row) => row.sales > 0)) return empty("Seçilen aralıkta satış kaydı yok.");
+
+  if (!days.length) {
+    return empty("Grafik için tarih verisi bulunamadı.");
+  }
+
+  if (!days.some((row) => row.sales > 0)) {
+    return `<div class="chart" role="img"
+      aria-label="Seçilen dönemde satış bulunamadı">
+      <p class="empty" style="margin:auto; text-align:center; padding:12px;">
+        Bu dönemde henüz satış yok.
+        İlk satıştan sonra grafik burada oluşacak.
+      </p>
+    </div>
+    <div class="chart-axis">
+      <span>${h(day(days[0].day))}</span>
+      <span>${h(day(days.at(-1).day))}</span>
+    </div>`;
+  }
   const span = Math.ceil(days.length / 30);
   const groups = [];
   for (let index = 0; index < days.length; index += span) {
