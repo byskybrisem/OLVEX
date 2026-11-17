@@ -147,7 +147,8 @@ menu.addEventListener("click", () => {
   backdrop.hidden = false;
   menu.setAttribute("aria-expanded", "true");
   menu.setAttribute("aria-label", "Menüyü kapat");
-  selector.focus();
+  
+sidebar.querySelector('nav a[aria-current="page"]')?.focus();
 });
 backdrop.addEventListener("click", () => closeMenu(true));
 document.addEventListener("keydown", (event) => {
