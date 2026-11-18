@@ -42,7 +42,7 @@ export function customerHistory(ctx) {
   const id = identifier(ctx.paramsUrl.get("id"), "Müşteri");
   return list(ctx, `SELECT o.id, o.occurred_on, o.reference, o.status, o.paid_on,
       SUM(i.quantity * i.unit_minor) AS total_minor
-    FROM olvex_orders o JOIN olvex_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
+    FROM olvex_orders o JOIN olvex_net_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
     WHERE o.business_id = ? AND o.customer_id = ? AND o.kind = 'sale'
     GROUP BY o.business_id, o.id ORDER BY o.occurred_on DESC, o.created_at DESC, o.id DESC LIMIT ? OFFSET ?`, [id]);
 }

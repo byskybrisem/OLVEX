@@ -35,9 +35,16 @@ export function lookup(ctx, root, { section, field: name, label, labelFor, query
 
 export function lookupField(label, name, placeholder, required = false) {
   return `<div class="lookup" data-lookup="${h(name)}">${field(`${label} ara`, "", "", { type: "search", required: false, max: 80 })}
-    <label class="field">${h(label)}<select name="${h(name)}"${required ? " required" : ""}>
+    <label class="field">${h(label)}<select aria-label="${h(label)}" name="${h(name)}"${required ? " required" : ""}>
       <option value="">${h(placeholder)}</option></select></label><p class="hint" data-lookup-status role="status"></p>
   </div>`;
+}
+
+export function findRegister(ctx, root) {
+  lookup(ctx, root, {
+    section: "pos", field: "registerId", label: "kasa", query: { active: "1" },
+    labelFor: row => `${row.name} · ${row.branch_name}`
+  });
 }
 
 function orderLine(index) {
@@ -265,7 +272,8 @@ function orderSummary(row, purchase) {
 
 export function orderDetail(ctx, row, purchase) {
   const items = JSON.parse(row.items_json);
-  const columns = ["Ürün", "Adet", "Birim fiyat", "Toplam"];
+  const hasReturns = items.some(item => item.returned > 0);
+  const columns = ["Ürün", ...(hasReturns ? ["Satılan", "İade", "Kalan adet"] : ["Adet"]), "Birim fiyat", "Toplam"];
   if (ctx.manager && !purchase) columns.push("Birim maliyet");
   editor(ctx, {
     title: purchase ? "Satın alma ayrıntısı" : "Satış ayrıntısı",
@@ -273,6 +281,7 @@ export function orderDetail(ctx, row, purchase) {
       (row.note ? `<p class="muted">${h(row.note)}</p>` : "") +
       table(columns, items.map((item) => [
         `<strong>${h(item.name)}</strong><small class="row-sub">${h(item.sku)}</small>`,
+        ...(hasReturns ? [h(count(item.sold)), h(count(item.returned))] : []),
         h(count(item.quantity)), h(money(item.unit)), h(money(item.unit * item.quantity)),
         ...(ctx.manager && !purchase ? [h(money(item.cost))] : [])
       ]))
@@ -290,7 +299,7 @@ export function orderCommand(ctx, row, command, purchase) {
       title: purchase ? "Satın almayı iptal et" : "Tam iade / iptal",
       label: "İptali onayla",
       html: orderSummary(row, purchase) +
-        `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde bu satıştaki ürünler stoka döner."}</p>` +
+        `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde satışın kalan ürünleri şube stokuna döner."}</p>` +
         (row.paid_on ? '<p class="hint">Tam iadenin tamamlandığı tarihi girin. İade bu tarihte nakit akışına eklenir.</p>' : '') +
         field("İptal / iade tarihi", "date", today(), { type: "date", extra: `min="${h(row.paid_on || row.occurred_on)}" max="${today()}"` }),
       submit: (form, send) => send(section, "void", { id: row.id, date: form.get("date") }),
@@ -313,9 +322,12 @@ export function importSales(ctx) {
     title: "Kasa satışlarını CSV ile içe aktar",
     label: "Satışları aktar",
     html: `<p>Başlık sırası <code>referans;tarih;sku;adet;birim_fiyat</code>. Tarih biçimi YYYY-AA-GG. Aynı fişin ürünleri aynı referansı kullanır.</p>
+      ${lookupField("Kaynak kasa", "registerId", "Dosyanın geldiği kasayı seçin", true)}
+      <p class="hint">Kaynak işlem kimliği kullanan kasalarda referans sütununa kalıcı işlem kimliğini girin. Uzlaştırma kullanan kasalarda bu sütuna onaylı kaynak kayıt konumunu girin.</p>
       <label class="field">CSV dosyası<input name="file" type="file" accept=".csv,text/csv" required></label>
       ${check("Dosyadaki satışlar tahsil edildi", "paid")}
       <p class="hint" role="status" data-progress></p>`,
+    init: root => findRegister(ctx, root),
     submit: async (form, _send, root) => {
       const file = form.get("file");
       if (!file?.size || file.size > 512 * 1024) throw new Error("En fazla 512 KB boyutunda bir CSV dosyası seçin.");
@@ -327,7 +339,7 @@ export function importSales(ctx) {
       for (const [index, sale] of sales.entries()) {
         progress.textContent = `${index + 1} / ${sales.length} satış aktarılıyor`;
         try {
-          const result = await ctx.post("sales", "import", { ...sale, paid });
+          const result = await ctx.post("sales", "import", { ...sale, paid, registerId: form.get("registerId") });
           if (result.repeated) repeated++;
           else created++;
         } catch (error) {

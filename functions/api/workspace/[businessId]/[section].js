@@ -1,3 +1,7 @@
+import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
+import { importRegisterSale } from "../../../_lib/register.js";
+import { createBranch, locations } from "../../../_lib/branches.js";
+import { reconcilePos } from "../../../_lib/pos-identity.js";
 import { handle, HttpError, json, readJson, sameOrigin } from "../../../_lib/http.js";
 import { EVERY_ROLE, MANAGERS, OWNER, workspace } from "../../../_lib/workspace.js";
 import { archiveProduct, catalog, createOrder, orders, products, saveProduct, settleOrder, stockAdjustment, stockHistory, voidOrder } from "../../../_lib/inventory.js";
@@ -5,7 +9,7 @@ import { archiveCustomer, archiveEmployee, cashEntries, completeTask, createCash
   customers, employees, invoices, removeShift, removeTask, saveCustomer, saveEmployee, saveInvoice, saveTask, shifts,
   taskDays, tasks, voidCash } from "../../../_lib/records.js";
 import { branches, reports, overview } from "../../../_lib/reports.js";
-import { changeMember, createPos, invite, posConnections, rename, revokeInvite, revokePos, settings } from "../../../_lib/team.js";
+import { changeMember, createPos, invite, posConnections, rename, revokeInvite, revokePos, rotatePos, setPosIdentity, settings } from "../../../_lib/team.js";
 import { aiDashboard, ask, resolveProposal } from "../../../_lib/ai.js";
 
 const READ = {
@@ -24,6 +28,7 @@ const READ = {
   tasks: [EVERY_ROLE, tasks],
   "task-days": [EVERY_ROLE, taskDays],
   branches: [EVERY_ROLE, branches],
+  locations: [EVERY_ROLE, locations],
   reports: [MANAGERS, reports],
   settings: [MANAGERS, settings],
   pos: [MANAGERS, posConnections],
@@ -38,7 +43,7 @@ const WRITE = {
   stock: { adjust: [MANAGERS, stockAdjustment] },
   sales: {
     create: [EVERY_ROLE, (ctx, data) => createOrder(ctx, data, "sale")],
-    import: [MANAGERS, (ctx, data) => createOrder(ctx, data, "sale", "csv")],
+    import: [MANAGERS, importRegisterSale],
     void: [MANAGERS, (ctx, data) => voidOrder(ctx, data, "sale")],
     settle: [MANAGERS, (ctx, data) => settleOrder(ctx, data, "sale")]
   },
@@ -66,7 +71,12 @@ const WRITE = {
     "revoke-invite": [OWNER, revokeInvite],
     member: [OWNER, changeMember]
   },
-  pos: { create: [MANAGERS, createPos], revoke: [MANAGERS, revokePos] },
+  locations: { create: [MANAGERS, createBranch] },
+  pos: {
+    create: [MANAGERS, createPos], revoke: [MANAGERS, revokePos],
+    rotate: [MANAGERS, rotatePos], identity: [MANAGERS, setPosIdentity], reconcile: [MANAGERS, reconcilePos],
+    "link-csv": [MANAGERS, linkLegacyCsv]
+  },
   ai: {
     ask: [MANAGERS, ask],
     apply: [MANAGERS, (ctx, data) => resolveProposal(ctx, data, true)],
