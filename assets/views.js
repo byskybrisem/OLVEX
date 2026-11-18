@@ -315,6 +315,43 @@ export function proposalLabel(proposal) {
   return `${proposal.name} (${proposal.sku}) · ${proposal.delta > 0 ? "+" : ""}${count(proposal.delta)} adet · ${proposal.description}`;
 }
 
+function freeBusinessInsights(facts) {
+  const sales = Number(facts.totals?.sales || 0);
+  const previous = Number(facts.previousSales || 0);
+  const lowCount = Number(facts.lowStockCount || 0);
+  const receivables = Number(facts.unpaid?.sale || 0);
+
+  let salesMessage;
+  if (previous > 0) {
+    const percent = Math.round((sales - previous) * 100 / previous);
+    salesMessage = percent > 0
+      ? "Son 7 gündeki satışlar önceki 7 güne göre %" + percent + " yükseldi."
+      : percent < 0
+        ? "Son 7 gündeki satışlar önceki 7 güne göre %" + Math.abs(percent) + " azaldı."
+        : "Son 7 günün satış tutarı önceki dönemle aynı.";
+  } else {
+    salesMessage = sales > 0
+      ? "Son 7 günde " + money(sales) + " satış kaydı var; önceki dönemde satış olmadığı için yüzdelik karşılaştırma yapılmıyor."
+      : "Henüz karşılaştırılabilir satış verisi yok. İlk satış kaydından sonra eğilim burada gösterilecek.";
+  }
+
+  const stockMessage = lowCount > 0
+    ? count(lowCount) + " ürün kritik stok eşiğine ulaşmış. Ürünleri gözden geçirin."
+    : "Kritik stok uyarısı bulunmuyor. Bu, henüz hiç ürün eklenmediği anlamına da gelebilir.";
+  const paymentMessage = receivables > 0
+    ? money(receivables) + " tutarında tahsilat bekleyen satış var."
+    : "Tahsilat bekleyen satış kaydı görünmüyor.";
+
+  return '<div class="stat-grid">' +
+    panel("Satış eğilimi", '<p class="hint">' + h(salesMessage) + '</p>' +
+      link("Satışları incele", "#sales", "small")) +
+    panel("Stok kontrolü", '<p class="hint">' + h(stockMessage) + '</p>' +
+      link("Stokları incele", "#products", "small")) +
+    panel("Tahsilat kontrolü", '<p class="hint">' + h(paymentMessage) + '</p>' +
+      link("Finansa geç", "#finance", "small")) +
+    '</div>';
+}
+
 function ai(data, state) {
   const { facts, mode, proposals } = data;
   const change = facts.previousSales > 0 ?
@@ -322,7 +359,7 @@ function ai(data, state) {
     "Önceki 7 günde karşılaştırılabilir satış kaydı yok.";
   const chat = state.chat.map((msg) => `<article class="${msg.role === "user" ? "user" : "assistant"}">
     <strong>${msg.role === "user" ? "Siz" : "OLVEX AI"}</strong><p>${h(msg.content)}</p></article>`).join("");
-  const chatForm = mode === "off" ? empty("OLVEX AI sohbeti bu ortamda kapalı.") :
+  const chatForm = mode === "off" ? empty("Canlı AI sohbeti bu ortamda etkinleştirilmemiş. Yukarıdaki ücretsiz veri analizleri çalışmaya devam eder.") :
     `<form class="ai-form" id="ai-form"><label>Mesaj
       <textarea name="prompt" required maxlength="2000" rows="3" placeholder="Son 7 günlük satışlarımı değerlendir"></textarea></label>
       <p class="hint">${mode === "mock" ? "Test modu. Örnek gider taslağı için “gider 125,50 elektrik” yazın." :
@@ -337,6 +374,7 @@ function ai(data, state) {
         button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" }) +
         button("Reddet", "discard-proposal", { id: proposal.id, kind: "small" }))}</article>`
     ).join("")}</div>` : empty("Onay bekleyen işlem yok."))) +
+    panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts)) +
     panel("OLVEX AI sohbeti", `<div class="chat" aria-live="polite">${chat}</div>${chatForm}`,
       mode === "mock" ? badge("Test modu", "warn") : "");
 }
