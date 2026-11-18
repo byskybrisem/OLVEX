@@ -266,7 +266,11 @@ test("davet, roller ve hassas maliyet alanlarının üyeye dönmemesi", async ()
   assert.equal(Object.hasOwn(JSON.parse(memberSales.rows[0].items_json)[0], "cost"), false);
   assert.equal(Object.hasOwn((await teammate.read(thisBusiness, "overview")).totals, "cost"), false);
   await teammate.read(thisBusiness, "finance", "", 403);
-  assert.equal((await teammate.read(thisBusiness, "overview")).receivables, undefined);
+  const dashboard = await teammate.read(thisBusiness, "overview", "?detail=dashboard");
+  assert.equal(dashboard.receivables, undefined);
+  assert.deepEqual(Object.keys(dashboard.previous).sort(), ["saleCount", "sales"]);
+  assert.ok(dashboard.leaders.length);
+  assert.deepEqual(Object.keys(dashboard.leaders[0]).sort(), ["name", "quantity", "sales"]);
   await teammate.read(thisBusiness, "settings", "", 403);
   await teammate.mutate(thisBusiness, "products", "archive", { id: product.id }, 403);
   const { data: memberSession } = await teammate.call("/api/auth/me");

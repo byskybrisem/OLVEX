@@ -79,8 +79,7 @@ export async function summary(ctx) {
   };
 }
 
-export async function reports(ctx) {
-  const result = await summary(ctx);
+async function rankedProducts(ctx, start, end) {
   const { results } = await ctx.db.prepare(`
     SELECT i.product_id AS id, p.sku, p.name, SUM(i.quantity) AS quantity,
       SUM(i.quantity * i.unit_minor) AS sales, SUM(i.quantity * i.cost_minor) AS cost
@@ -88,8 +87,30 @@ export async function reports(ctx) {
     JOIN olvex_products p ON p.business_id = i.business_id AND p.id = i.product_id
     WHERE o.business_id = ? AND o.status = 'posted' AND o.kind = 'sale' AND o.occurred_on BETWEEN ? AND ?
     GROUP BY i.product_id ORDER BY sales DESC, p.sku LIMIT 20
-  `).bind(ctx.businessId, result.from, result.to).all();
-  return { ...result, topProducts: results };
+  `).bind(ctx.businessId, start, end).all();
+  return results;
+}
+
+export async function reports(ctx) {
+  const { start, end } = period(ctx.paramsUrl);
+  const [result, topProducts] = await Promise.all([summary(ctx), rankedProducts(ctx, start, end)]);
+  return { ...result, topProducts };
+}
+
+export async function overview(ctx) {
+  if (ctx.paramsUrl.get("detail") !== "dashboard") return summary(ctx);
+  const { start, end } = period(ctx.paramsUrl);
+  const span = (Date.parse(end) - Date.parse(start)) / 86400000 + 1;
+  const manager = MANAGERS.includes(ctx.role);
+  const [current, previous, products] = await Promise.all([
+    summary(ctx), financials(ctx, addDays(start, -span), addDays(start, -1)),
+    rankedProducts(ctx, start, end)
+  ]);
+  return {
+    ...current,
+    previous: manager ? previous.totals : {sales: previous.totals.sales, saleCount: previous.totals.saleCount},
+    leaders: products.slice(0, 4).map(({name, sales, quantity}) => ({name, sales, quantity}))
+  };
 }
 
 export async function branches(ctx) {

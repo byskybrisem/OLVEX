@@ -1,3 +1,4 @@
+import { overview } from "./dashboard.js";
 import { salesChart } from "./sales-chart.js";
 import { badge, button, count, day, empty, filters, h, link, money, offsetDay, pagination, panel, rowName, stat, table, tabs, today } from "./ui.js";
 
@@ -34,30 +35,6 @@ const inventoryTabs = (id) => tabs([["Ürün kartları", "products"], ["Stok har
 const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "shifts"]], id);
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
 
-
-function overview(data, state) {
-  const { totals, latest, lowStock, days } = data;
-  const cards = stat("Toplam satış", money(totals.sales)) +
-    (state.manager ? stat("Brüt kâr", money(totals.sales - totals.cost), "teal") +
-      stat("Net nakit", money(totals.revenue - totals.spending)) : stat("Satış sayısı", count(totals.saleCount))) +
-    stat("Kritik stok", count(lowStock[0]?.total), "warm") +
-    (state.manager ? stat("Bekleyen tahsilat · tüm dönemler", money(data.unpaid?.sale), "teal") : "");
-  const quickActions = state.demo ? "" : panel("Hızlı işlemler", group(
-    button("Müşteri ekle", "edit-customer") + button("Görev oluştur", "edit-task") +
-    (state.manager ? button("Gelir / gider ekle", "add-cash") : "")
-  ));
-  return filters(state, { range: true }) + stats(cards) +
-    grid(panel("Satış seyri", salesChart(days)),
-      panel("Kritik stok", table(["Ürün", "Stok"], lowStock.map((row) =>
-        [rowName(row.name, row.sku), badge(count(row.stock), "warn")]), "Kritik stok kaydı yok."),
-      link("Ürünler", "#products", "small"))) +
-    panel("Son satışlar", table(["Tarih", "Referans", "Tutar"], latest.map((row) =>
-      [h(day(row.occurred_on)), h(row.reference || "Manuel kayıt"), h(money(row.total_minor))]),
-    "Seçilen tarihlerde satış yok."), link("Satışları aç", "#sales", "small")) +
-    (state.manager ? panel("Bekleyen tahsilatlar · tüm dönemler", table(["Tarih", "Müşteri / referans", "Tutar"],
-      (data.receivables || []).map(row => [h(day(row.occurred_on)), rowName(row.customer || "Perakende", row.reference), h(money(row.total_minor))]),
-      "Bekleyen tahsilat yok."), state.demo ? "" : button("Bekleyenleri aç", "open-receivables", {kind: "small"})) : "") + quickActions;
-}
 
 function productList(data, state) {
   const columns = ["Ürün", "Satış fiyatı", ...(state.manager ? ["Maliyet"] : []), "Stok", "İşlemler"];

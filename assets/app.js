@@ -26,8 +26,11 @@ let productName = "";
 let calendar = monthSpan(today());
 let taskDay = "";
 
+let noticeTimer;
 function appNotice(message = "", error = false) {
+  clearTimeout(noticeTimer);
   noticeBox.textContent = message;
+  if (message && !error) noticeTimer = setTimeout(() => { noticeBox.hidden = true; }, 5500);
   noticeBox.classList.toggle("error", error);
   noticeBox.hidden = !message;
 }
@@ -141,6 +144,37 @@ function closeMenu(restoreFocus = false) {
   if (restoreFocus) menu.focus();
 }
 
+const railToggle = $("#rail-toggle");
+function setRail(collapsed) {
+  $(".shell").classList.toggle("rail", collapsed);
+  railToggle.setAttribute("aria-expanded", String(!collapsed));
+  railToggle.setAttribute("aria-label", collapsed ? "Menüyü genişlet" : "Menüyü daralt");
+}
+try { setRail(localStorage.getItem("olvex:collapsed") === "1"); } catch {}
+railToggle.addEventListener("click", () => {
+  const collapsed = railToggle.getAttribute("aria-expanded") === "true";
+  setRail(collapsed);
+  try { localStorage.setItem("olvex:collapsed", collapsed ? "1" : "0"); } catch {}
+});
+
+for (const dropdown of document.querySelectorAll(".account-tools details")) {
+  dropdown.addEventListener("toggle", () => {
+    if (dropdown.open) for (const other of document.querySelectorAll(".account-tools details[open]")) {
+      if (other !== dropdown) other.open = false;
+    }
+  });
+}
+document.addEventListener("click", event => {
+  for (const dropdown of document.querySelectorAll(".account-tools details[open]")) {
+    if (!dropdown.contains(event.target)) dropdown.open = false;
+  }
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  const open = document.querySelector(".account-tools details[open]");
+  if (open) { open.open = false; open.querySelector("summary").focus(); }
+});
+
 menu.addEventListener("click", () => {
   if (sidebar.classList.contains("open")) {
     closeMenu();
@@ -176,12 +210,15 @@ async function load() {
   const params = { page: selected.page, q: selected.q, archived: selected.archived ? "1" : "" };
   if (sectionsWithPeriod.has(tab)) Object.assign(params, { from, to });
   if (selected.unpaid) params.unpaid = "1";
+  if (tab === "overview") params.detail = "dashboard";
   if (tab === "stock") params.product = product;
   if (tab === "tasks") Object.assign(params, taskDay ?
     { from: taskDay, to: taskDay, exact: "1" } : calendar);
 
   content.setAttribute("aria-busy", "true");
-  content.innerHTML = panel("", '<p class="empty">Kayıtlar yükleniyor…</p>');
+  $("#alerts").hidden = true;
+  $("#alerts").open = false;
+  content.innerHTML = '<div class="loading-panel" role="status">Kayıtlar yükleniyor…<i></i><i></i><i></i></div>';
   data = null;
   try {
     const [result, additional] = await Promise.all([
@@ -193,6 +230,15 @@ async function load() {
     data = result;
     if (tab === "finance") data.summary = additional;
     if (tab === "tasks") data.calendar = additional;
+    if (tab === "overview") {
+      const alerts = [];
+      const critical = result.lowStock[0]?.total;
+      if (critical) alerts.push(`<a href="#products">${h(critical)} ürün kritik stokta</a>`);
+      if (result.unpaid?.sale > 0) alerts.push(button("Bekleyen tahsilatları aç", "open-receivables", {kind:"small"}));
+      $("#alert-items").innerHTML = alerts.join("") || "Stok ve tahsilat uyarısı yok.";
+      $("#alerts").classList.toggle("has-alert", alerts.length > 0);
+      $("#alerts").hidden = false;
+    }
     content.innerHTML = renderers[tab](data, state());
     
     content.scrollTop = 0;
@@ -214,7 +260,7 @@ function navigate({ focus = false } = {}) {
   const [name, hint, parent] = views[view];
   title.textContent = name;
   $("#breadcrumb").textContent = name;
-  $("#subtitle").textContent = hint;
+  $("#subtitle").textContent = view === "overview" ? `Hoş geldiniz, ${user.fullName || user.email}.` : hint;
   $("#actions").innerHTML = actions(view, state());
   document.title = `${name} | OLVEX`;
   for (const link of sidebar.querySelectorAll("[data-view]")) {
@@ -399,6 +445,7 @@ function command(event) {
 
 content.addEventListener("click", command);
 $("#actions").addEventListener("click", command);
+$("#alert-items").addEventListener("click", command);
 
 async function start() {
   $("#today").textContent = day(today());

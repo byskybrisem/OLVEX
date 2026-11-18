@@ -94,3 +94,16 @@ test("period presets cross month boundaries including leap years", () => {
   assert.deepEqual(periods("2024-03-01").map(x => x.from),
     ["2024-03-01", "2024-02-24", "2024-02-01", "2024-03-01"]);
 });
+
+test("comparisons use posted totals from the previous period and handle a missing baseline", () => {
+  const snapshot = {
+    totals: {sales:15000, cost:4000, revenue:15000, spending:3000, saleCount:2},
+    previous: {sales:10000, cost:3000, revenue:5000, spending:5000},
+    days: [], latest: [], lowStock: []
+  };
+  const html = renderers.overview(snapshot, initialState);
+  assert.match(html, /\+%50 · önceki döneme göre/);
+  assert.equal(html.match(/class="delta"/g).length, 2);
+  const noHistory = renderers.overview({...snapshot, previous:undefined}, initialState);
+  assert.doesNotMatch(noHistory, /class="delta"/);
+});

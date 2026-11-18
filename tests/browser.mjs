@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { chromium, webkit } from "playwright-core";
+import { chromium, devices, webkit } from "playwright-core";
+import { offsetDay } from "../assets/ui.js";
 import { views } from "../assets/views.js";
 import { localPages } from "./local.mjs";
 
@@ -141,8 +142,29 @@ try {
   const download = await downloadEvent;
   assert.match(download.suggestedFilename(), /^olvex-rapor-.+\.csv$/);
   assert.match(await readFile(await download.path(), "utf8"), /Brüt kâr TL/);
+  // Exercise ranking and comparisons with orders in this test's temporary D1.
+  const workspace = await page.locator("#business").inputValue();
+  async function record(section, action, body) {
+    const response = await page.request.post(local.url + "/api/workspace/" + workspace + "/" + section, {
+      headers: {Origin: local.url}, data: {action, requestId:crypto.randomUUID(), ...body}
+    });
+    assert.ok(response.ok(), await response.text());
+  }
+  await record("products", "save", {sku:"FIN-02", name:"Seramik fincan", price:24500, cost:10200, opening:150, reorder:5});
+  for (const [index, quantity] of [24, 3, 9, 5, 14, 8, 17, 10, 19].entries()) {
+    const daysAgo = index === 0 ? 38 : 32 - index * 4;
+    await record("sales", "create", {date:offsetDay(date,-daysAgo), paid:true,
+      reference:"FIN-" + (100 + index), lines:[{sku:"FIN-02", quantity}]});
+  }
   await navigate(page, "overview", "Genel Bakış");
-  await page.getByText("Filtre kahve", { exact: true }).waitFor();
+  await page.locator(".ranking").getByText("Filtre kahve").waitFor();
+  await page.locator(".revenue .delta").waitFor();
+  await page.locator("#alerts summary").click();
+  await page.getByText("1 ürün kritik stokta").waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", {name:"Menüyü daralt"}).click();
+  assert.equal(await page.locator("#rail-toggle").getAttribute("aria-expanded"), "false");
+  await page.getByRole("button", {name:"Menüyü genişlet"}).click();
   await prepareScreenshot(page, "panel-desktop.png");
   await page.getByRole("button", {name:"Bekleyenleri aç"}).click();
   await heading(page, "Satışlar");
@@ -174,7 +196,7 @@ try {
   await page.getByText("Örnek kasa", { exact: true }).waitFor();
 
   const mobile = await safeContext({
-    viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
+    ...devices["Pixel 7"], viewport: { width: 390, height: 844 },
     storageState: await desktop.storageState()
   });
   const handset = await mobile.newPage();
@@ -197,6 +219,23 @@ try {
         true, route + " at " + width);
     }
   }
+  await handset.setViewportSize({width:320, height:680});
+  let releaseResponse;
+  const release = new Promise(done => { releaseResponse = done; });
+  await handset.route("**/api/workspace/*/overview?**", async route => {
+    const response = await route.fetch();
+    const summary = await response.json();
+    summary.totals.sales = 98765432109876;
+    summary.latest[0].reference = "Uzun referans ".repeat(7);
+    summary.leaders[0].name = "ÇokUzunÜrünAdı".repeat(8);
+    await release;
+    await route.fulfill({response, json:summary});
+  }, {times:1});
+  await handset.evaluate(() => { location.hash = "overview"; });
+  await handset.locator(".loading-panel").waitFor();
+  releaseResponse();
+  await loaded(handset);
+  assert.equal(await handset.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
   if (process.env.OLVEX_WEBKIT) {
     const safari = await webkit.launch();
     try {
