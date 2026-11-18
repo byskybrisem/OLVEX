@@ -254,13 +254,22 @@ export function newOrder(ctx, purchase) {
   });
 }
 
+function orderSummary(row, purchase) {
+  const party = purchase ? row.supplier : row.customer || "Perakende";
+  return `<div class="panel">
+    <strong>${h(money(row.total_minor))}</strong>
+    <span class="row-sub">${h(party)} · ${h(day(row.occurred_on))}</span>
+    <span class="row-sub">Referans · ${h(row.reference || "Belirtilmedi")}</span>
+  </div>`;
+}
+
 export function orderDetail(ctx, row, purchase) {
   const items = JSON.parse(row.items_json);
   const columns = ["Ürün", "Adet", "Birim fiyat", "Toplam"];
   if (ctx.manager && !purchase) columns.push("Birim maliyet");
   editor(ctx, {
     title: purchase ? "Satın alma ayrıntısı" : "Satış ayrıntısı",
-    html: `<p>${h(day(row.occurred_on))} · ${h(row.reference || "Referans yok")} · ${h(money(row.total_minor))}</p>` +
+    html: orderSummary(row, purchase) +
       (row.note ? `<p class="muted">${h(row.note)}</p>` : "") +
       table(columns, items.map((item) => [
         `<strong>${h(item.name)}</strong><small class="row-sub">${h(item.sku)}</small>`,
@@ -280,7 +289,8 @@ export function orderCommand(ctx, row, command, purchase) {
     editor(ctx, {
       title: purchase ? "Satın almayı iptal et" : "Tam iade / iptal",
       label: "İptali onayla",
-      html: `<p>${purchase ? "Bu kaydı iptal edince gelen ürünler stoktan düşer." : "Bu satışı iptal edince ürünler stoka döner."}</p>` +
+      html: orderSummary(row, purchase) +
+        `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde bu satıştaki ürünler stoka döner."}</p>` +
         (row.paid_on ? '<p class="hint">Tam iadenin tamamlandığı tarihi girin. İade bu tarihte nakit akışına eklenir.</p>' : '') +
         field("İptal / iade tarihi", "date", today(), { type: "date", extra: `min="${h(row.paid_on || row.occurred_on)}" max="${today()}"` }),
       submit: (form, send) => send(section, "void", { id: row.id, date: form.get("date") }),
@@ -290,9 +300,11 @@ export function orderCommand(ctx, row, command, purchase) {
   }
   editor(ctx, {
     title: purchase ? "Ödeme kaydet" : "Tahsilat kaydet",
-    html: field("Tarih", "date", today(), { type: "date", extra: `min="${h(row.occurred_on)}" max="${today()}"` }),
+    label: purchase ? "Ödemeyi kaydet" : "Tahsilatı kaydet",
+    html: orderSummary(row, purchase) +
+      field("Tarih", "date", today(), { type: "date", extra: `min="${h(row.occurred_on)}" max="${today()}"` }),
     submit: (form, send) => send(section, "settle", { id: row.id, date: form.get("date") }),
-    done: () => ctx.changed()
+    done: () => ctx.changed(purchase ? "Ödeme kaydedildi." : "Tahsilat kaydedildi.")
   });
 }
 
