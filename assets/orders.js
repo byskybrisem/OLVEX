@@ -367,7 +367,7 @@ export function orderCommand(ctx, row, command, purchase) {
         `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde bu satıştaki ürünler stoka döner."}</p>` +
         (row.paid_on ? '<p class="hint">Tam iadenin tamamlandığı tarihi girin. İade bu tarihte nakit akışına eklenir.</p>' : '') +
         field("İptal / iade tarihi", "date", today(), { type: "date", extra: `min="${h(row.paid_on || row.occurred_on)}" max="${today()}"` }),
-      submit: (form, send) => send(section, "void", { id: row.id, revision: row.revision, date: form.get("date") }),
+      submit: (form, send) => send(section, "void", { id: row.id, revision: row.revision, expectedPaidOn: row.paid_on, date: form.get("date") }),
       done: () => ctx.changed("Kayıt iptal edildi. Stok güncellendi.")
     });
     return;

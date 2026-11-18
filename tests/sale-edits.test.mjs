@@ -82,7 +82,8 @@ test("açık satışı düzeltme, tarihçe, maliyet ve iptal stoğu aynı işlem
   await api("sales", {action:"settle", id:saleId, date:day, revision:1});
   assert.equal((await report()).revenue - before.revenue, 6400);
   await api("sales", {action:"void", id:saleId, date:day, revision:0}, {status:409});
-  await api("sales", {action:"void", id:saleId, date:day, revision:1});
+  await api("sales", {action:"void", id:saleId, date:day, revision:1, expectedPaidOn:null}, {status:409});
+  await api("sales", {action:"void", id:saleId, date:day, revision:1, expectedPaidOn:day});
   assert.equal(await stock(), 10);
   assert.equal((await report()).spending - before.spending, 6400);
   await api("sales", {...edit, revision:1, note:"İptal"}, {status:409});

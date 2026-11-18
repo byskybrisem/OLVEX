@@ -145,10 +145,14 @@ export function voidOrder(ctx, body, kind) {
   const day = requestedDay || today();
   if (day > today()) throw new HttpError(400, "İade tarihi bugünden ileri olamaz.");
   const revision = integer(body.revision ?? 0, "Sürüm", 0, Number.MAX_SAFE_INTEGER);
+  const checkPayment = body.expectedPaidOn !== undefined;
+  const expectedPaidOn = body.expectedPaidOn == null ? null : date(body.expectedPaidOn, "Tahsilat tarihi");
   const guard = rowExists("olvex_orders", id,
-    "AND kind = ? AND revision = ? AND status = 'posted' AND occurred_on <= ? AND (paid_on IS NULL OR paid_on <= ?)", kind, revision, day, day);
+    "AND kind = ? AND revision = ? AND status = 'posted' AND occurred_on <= ? AND (paid_on IS NULL OR paid_on <= ?) AND (? = 0 OR paid_on IS ?)",
+    kind, revision, day, day, Number(checkPayment), expectedPaidOn);
   guard.message = "İptal uygulanamadı. Kaydın güncel durumunu ve iade tarihini kontrol edin.";
-  return transact(ctx, `${kind}-void`, { requestId: body.requestId, id, date: requestedDay, revision: body.revision }, [
+  const data = { requestId: body.requestId, id, date: requestedDay, revision: body.revision, expectedPaidOn: body.expectedPaidOn };
+  return transact(ctx, `${kind}-void`, data, [
     ctx.db.prepare("UPDATE olvex_orders SET status = 'void', voided_by = ?, voided_on = ? WHERE business_id = ? AND id = ?")
       .bind(ctx.actorId, day, ctx.businessId, id)
   ], guard);
