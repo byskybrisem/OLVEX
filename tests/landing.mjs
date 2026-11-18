@@ -86,21 +86,34 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await overviewTab.focus();
     await overviewTab.press("ArrowRight");
     assert.equal(await page.locator("#tour-products-tab").getAttribute("aria-selected"), "true");
-    await page.locator("#plan-details").click();
-    const price = page.locator('[data-price="499"]');
-    await page.locator("#annual").click();
-    assert.match(await price.textContent(), /399,20/);
-    await page.locator("#monthly").click();
-    assert.match(await price.textContent(), /499/);
+    const pricing = page.getByRole("region", { name: "Paketler ve fiyatlar" });
+    assert.deepEqual(await pricing.getByRole("heading", {level: 3}).allTextContents(),
+      ["Başlangıç", "Esnaf", "Profesyonel", "Business"]);
+    const prices = pricing.locator("[data-price]");
+    const totals = pricing.locator("[data-period-note]");
+    const monthly = ["₺499", "₺999", "₺2.499"];
+    assert.deepEqual(await prices.allTextContents(), monthly);
+    await pricing.locator("#annual").focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await pricing.locator("#annual").getAttribute("aria-pressed"), "true");
+    assert.deepEqual(await prices.allTextContents(), ["₺399,20", "₺799,20", "₺1.999,20"]);
+    assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺4.790,40", "Yıllık toplam ₺9.590,40", "Yıllık toplam ₺23.990,40"]);
+    assert.equal(await pricing.locator(".plan-price strong").first().textContent(), "Ücretsiz");
+    await pricing.locator("#monthly").click();
+    assert.deepEqual(await prices.allTextContents(), monthly);
+    assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺5.988", "12 ayda ₺11.988", "12 ayda ₺29.988"]);
     assert.equal(requests.some(path => path.endsWith("/core-scene.js")), false,
       "The WebGL bundle must be deferred until activation");
 
     await page.setViewportSize({ width: 1024, height: 768 });
     const toggle = page.locator("#core-toggle");
+    await checkCoreLoading(page);
     await toggle.click();
     await page.waitForFunction(() => document.querySelector("#core-toggle").getAttribute("aria-pressed") === "true");
     const canvas = page.locator("#core-canvas");
     await canvas.waitFor();
+    assert.equal(await toggle.textContent(), "2B görünüme dön");
+    await checkCoreFrames(page);
     await page.waitForFunction(() => window.olvexDraws > 0);
     const draws = await page.evaluate(() => {
       const count = window.olvexDraws;
