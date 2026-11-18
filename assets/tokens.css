@@ -1,0 +1,57 @@
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+/* Turkish text can use these glyphs without fetching the full Latin Extended face. */
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/inter-tr.woff2") format("woff2");
+  unicode-range: U+011E-011F,U+0130,U+015E-015F,U+20BA;
+}
+:root {
+  --radius: 12px;
+  --space: clamp(12px, 1.4vw, 20px);
+  --bg: #090c15;
+  --glass: #151a27;
+  --solid: #1b2231;
+  --line: #b1b9d525;
+  --text: #f5f7ff;
+  --muted: #a4aabe;
+  --soft: #d5d7e3;
+  --purple: #a99fff;
+  --accent: #8368e6;
+  --teal: #66e2ce;
+  --danger: #ffbac5;
+  --warm: #ffdcab;
+  --font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius-small: 8px;
+  --radius-large: 18px;
+  --shadow-float: 0 18px 64px #03050d7a;
+  --focus-ring: 2px solid var(--teal);
+  --motion-fast: 150ms;
+  --motion-normal: 200ms;
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+  --layer-menu: 6;
+  --layer-notice: 9;
+  --layer-skip: 20;
+}

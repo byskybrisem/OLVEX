@@ -330,6 +330,22 @@ test("ücretsiz AI, onay öncesi işlem yok, tek sefer uygulama ve reddetme", as
   assert.deepEqual((await owner.read(thisBusiness, "ai")).proposals, []);
 });
 
+test("AI taslağı hazırlayan yöneticide görünür ve yetki değişince onaylanamaz", async () => {
+  const secret = "j".repeat(43);
+  await owner.mutate(thisBusiness, "settings", "invite", { email: "teammate@example.test", role: "admin", secret });
+  await teammate.post("/api/join", { token: secret });
+  const { data: session } = await teammate.call("/api/auth/me");
+  const before = await owner.read(thisBusiness, "finance");
+  const { proposal } = await teammate.mutate(thisBusiness, "ai", "ask", {
+    messages: [{ role: "user", content: "gider 25,50 kırtasiye" }]
+  });
+  assert.ok((await teammate.read(thisBusiness, "ai")).proposals.some(row => row.id === proposal.id));
+  assert.ok(!(await owner.read(thisBusiness, "ai")).proposals.some(row => row.id === proposal.id));
+  await owner.mutate(thisBusiness, "settings", "member", { userId: session.user.id, role: "member" });
+  await teammate.mutate(thisBusiness, "ai", "apply", { id: proposal.id }, 403);
+  assert.deepEqual((await owner.read(thisBusiness, "finance")).rows, before.rows);
+});
+
 test("giriş deneme sınırı ve yayın dosyalarının izin listesi", async () => {
   const client = new Client(pages.url);
   for (let attempt = 0; attempt < 5; attempt++) await client.login("absent@example.test", password, 401);

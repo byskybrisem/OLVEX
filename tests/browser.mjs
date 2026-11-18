@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import { chromium, devices, webkit } from "playwright-core";
 import { offsetDay } from "../assets/ui.js";
 import { views } from "../assets/views.js";
 import { localPages } from "./local.mjs";
+import { landingChecks, widths } from "./landing.mjs";
 
 const local = await localPages({ https: true });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
 const snapshots = process.env.OLVEX_SCREENSHOT_DIR;
 const credentials = { email: "browser@example.test", password: "Fixture-browser-2026" };
-const browser = await chromium.launch({ executablePath }).catch(async (error) => {
+const browser = await chromium.launch({ executablePath, args: ["--enable-unsafe-swiftshader"] }).catch(async (error) => {
   await local.close();
   throw error;
 });
@@ -77,7 +79,19 @@ try {
   await loaded(page);
   await page.getByText("Son satışlar", { exact: true }).waitFor();
 
-  await navigate(page, "products", "Ürünler ve Stok");
+  await page.keyboard.press("Control+k");
+  const palette = page.locator("#module-search");
+  const query = page.locator("#module-query");
+  await palette.waitFor();
+  await query.fill("vardiya");
+  await palette.locator('a[href="#shifts"]').waitFor();
+  await query.fill("olmayan modül");
+  assert.equal(await palette.getByRole("link").count(), 0);
+  await query.fill("Ürünler");
+  await query.press("Enter");
+  await heading(page, "Ürünler ve Stok");
+  await loaded(page);
+  await palette.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "+ Ürün ekle", exact: true }).click();
   const product = dialog(page);
   await product.getByLabel("Ürün adı").fill("Filtre kahve");
@@ -112,6 +126,13 @@ try {
   await dialog(page).getByText("Filtre kahve", { exact: true }).waitFor();
   await dialog(page).getByRole("button", { name: "Kapat", exact: true }).last().click();
 
+  const saleRow = page.getByRole("row").filter({ hasText: "BROWSER-001" });
+  await saleRow.getByRole("button", { name: "Tam iade / iptal" }).click();
+  await dialog(page).getByText(/BROWSER-001/).waitFor();
+  await dialog(page).getByText(/251,00/).waitFor();
+  await dialog(page).getByRole("button", { name: "Vazgeç" }).click();
+  await saleRow.getByRole("button", { name: "Tam iade / iptal" }).waitFor();
+
   await page.getByRole("button", { name: "CSV içe aktar", exact: true }).click();
   const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   await dialog(page).getByLabel("CSV dosyası").setInputFiles({
@@ -126,6 +147,9 @@ try {
   await page.getByText("Test modu", { exact: true }).waitFor();
   await page.getByText("Ücretsiz veriye dayalı analiz", { exact: true }).waitFor();
   await page.getByRole("link", { name: "Stokları incele", exact: true }).waitFor();
+  const prefill = page.locator("[data-prompt]").first();
+  await prefill.click();
+  assert.ok((await page.getByLabel("Mesaj", { exact: true }).inputValue()).trim().length > 0);
   await page.getByLabel("Mesaj", { exact: true }).fill("gider 125,50 elektrik");
   await page.getByRole("button", { name: "Gönder", exact: true }).click();
   await page.getByRole("button", { name: "Onayı incele", exact: true }).click();
@@ -159,6 +183,10 @@ try {
   await navigate(page, "overview", "Genel Bakış");
   await page.locator(".ranking").getByText("Filtre kahve").waitFor();
   await page.locator(".revenue .delta").waitFor();
+  const chartData = page.locator("details").filter({ has: page.getByText("Grafik verilerini göster", { exact: true }) });
+  await chartData.locator("summary").click();
+  assert.ok(await chartData.getByRole("row").count() > 1);
+  await chartData.locator("summary").click();
   await page.locator("#alerts summary").click();
   await page.getByText("1 ürün kritik stokta").waitFor();
   await page.keyboard.press("Escape");
@@ -171,7 +199,12 @@ try {
   await loaded(page);
   assert.equal(await page.getByLabel("Tahsilat bekleyenler").isChecked(), true);
   assert.equal(await page.locator("tbody tr").count(), 1);
-  await page.getByText("CSV-BROWSER", {exact:false}).waitFor();
+  const unpaidRow = page.getByRole("row").filter({ hasText: "CSV-BROWSER" });
+  await unpaidRow.getByRole("button", { name: "Tahsilat kaydet" }).click();
+  await dialog(page).getByText(/CSV-BROWSER/).waitFor();
+  await dialog(page).getByText(/124,50/).waitFor();
+  await dialog(page).getByRole("button", { name: "Vazgeç" }).click();
+  await unpaidRow.getByRole("button", { name: "Tahsilat kaydet" }).waitFor();
   await page.route("**/api/workspace/*/customers?**", route => route.fulfill({
     status:503, contentType:"application/json", body:JSON.stringify({error:"Geçici bağlantı hatası"})
   }), {times:1});
@@ -195,6 +228,30 @@ try {
   await dialog(page).getByRole("button", { name: "Kapat", exact: true }).last().click();
   await page.getByText("Örnek kasa", { exact: true }).waitFor();
 
+  // Join as a real member to verify the search uses the selected business role.
+  const member = await safeContext();
+  try {
+    const email = "member-browser@example.test";
+    const secret = randomBytes(32).toString("base64url");
+    const { termsVersion } = await (await member.request.get(local.url + "/api/public-info")).json();
+    const memberPost = (path, data) => member.request.post(local.url + path, { headers: { Origin: local.url }, data });
+    assert.equal((await memberPost("/api/auth/register", { fullName: "Ekip Üyesi",
+      email, password: credentials.password, acceptedTerms: true, termsVersion })).status(), 201);
+    assert.ok((await memberPost("/api/auth/login", { email, password: credentials.password })).ok());
+    await record("settings", "invite", { email, role: "member", secret });
+    assert.ok((await memberPost("/api/join", { token: secret })).ok());
+    const memberPage = await member.newPage();
+    watch(memberPage);
+    await memberPage.goto(local.url + "/app.html#overview");
+    await loaded(memberPage);
+    await memberPage.locator("#module-search-open").click();
+    const links = memberPage.locator("#module-search a");
+    const routes = await links.evaluateAll(nodes => nodes.map(node => node.hash.slice(1)).sort());
+    assert.deepEqual(routes, Object.keys(views).filter(route => !views[route][3]).sort());
+    await memberPage.keyboard.press("Escape");
+    assert.equal(await memberPage.locator("#module-search-open").evaluate(button => button === document.activeElement), true);
+  } finally { await member.close(); }
+
   const mobile = await safeContext({
     ...devices["Pixel 7"], viewport: { width: 390, height: 844 },
     storageState: await desktop.storageState()
@@ -208,7 +265,7 @@ try {
   await navigate(handset, "products", "Ürünler ve Stok");
   await handset.getByText("Filtre kahve", { exact: true }).waitFor();
   assert.equal(await handset.locator("#sidebar").isVisible(), false);
-  for (const width of [320, 375, 390, 430, 440, 768, 1366, 1920]) {
+  for (const width of widths) {
     await handset.setViewportSize({width, height: 900});
     for (const [route, [title]] of Object.entries(views)) {
       await handset.evaluate(hash => { location.hash = hash; }, route);
@@ -272,6 +329,7 @@ try {
   await handset.waitForURL(/\/login(?:\.html)?$/);
   await handset.goto(`${local.url}/app.html`);
   await handset.waitForURL(/\/login(?:\.html)?$/);
+  await landingChecks({ safeContext, url: local.url, snapshots });
   assert.deepEqual(browserErrors, []);
   console.log("Tarayıcı doğrulandı: masaüstü ve mobil akış, satış/CSV, AI onayı, rapor, kasa ve oturum.");
 } finally {

@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { get as httpsGet } from "node:https";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -47,10 +47,11 @@ export async function localPages({ seed, https = false, bindings = {}, registrat
   }
 
   try {
-    const assets = ["_headers", "_routes.json", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
-      "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts"];
+    const assets = ["_headers", "_routes.json", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
+      "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts", "scene"];
     await Promise.all([...assets, "functions", "migrations"].map((name) =>
       cp(join(root, name), join(dir, name), { recursive: true })));
+    await symlink(join(root, "node_modules"), join(dir, "node_modules"), "dir");
     await run(process.execPath, ["scripts/build.mjs"], { cwd: dir, env: environment });
     await writeFile(config, `name = "olvex-test"\ncompatibility_date = "2025-10-01"\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "olvex-test"\ndatabase_id = "${dbId}"\nmigrations_dir = "migrations"\n`);
     const dbArgs = ["DB", "--local", "--config", config, "--persist-to", storage];

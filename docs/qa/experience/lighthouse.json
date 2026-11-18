@@ -1,0 +1,87 @@
+{
+  "laboratory": {
+    "lighthouse": "13.6.0",
+    "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "throttlingMethod": "simulate",
+    "formFactor": "mobile",
+    "throttling": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "screenEmulation": {
+      "mobile": true,
+      "width": 412,
+      "height": 823,
+      "deviceScaleFactor": 1.75,
+      "disabled": false
+    }
+  },
+  "before-1": {
+    "LCP_ms": 1078.5326,
+    "CLS": 0,
+    "TBT_ms": 58.5,
+    "bytes": 22081,
+    "performance": 100,
+    "accessibility": 98
+  },
+  "before-2": {
+    "LCP_ms": 1008.3651,
+    "CLS": 0,
+    "TBT_ms": 0,
+    "bytes": 22081,
+    "performance": 100,
+    "accessibility": 98
+  },
+  "before-3": {
+    "LCP_ms": 983.581,
+    "CLS": 0,
+    "TBT_ms": 0,
+    "bytes": 22081,
+    "performance": 100,
+    "accessibility": 98
+  },
+  "after-1": {
+    "LCP_ms": 1590.9529,
+    "CLS": 0.0007,
+    "TBT_ms": 0,
+    "bytes": 90842,
+    "performance": 100,
+    "accessibility": 100
+  },
+  "after-2": {
+    "LCP_ms": 1606.3371,
+    "CLS": 0.0013,
+    "TBT_ms": 52.5543,
+    "bytes": 90851,
+    "performance": 100,
+    "accessibility": 100
+  },
+  "after-3": {
+    "LCP_ms": 1634.9986,
+    "CLS": 0,
+    "TBT_ms": 201,
+    "bytes": 90851,
+    "performance": 96,
+    "accessibility": 100
+  },
+  "demo-before": {
+    "LCP_ms": 2164.119,
+    "CLS": 0.0626,
+    "TBT_ms": 0,
+    "bytes": 183414,
+    "performance": 98,
+    "accessibility": 100
+  },
+  "demo-after": {
+    "LCP_ms": 970.0937,
+    "CLS": 0.003,
+    "TBT_ms": 158.0,
+    "bytes": 101886,
+    "performance": 98,
+    "accessibility": 100
+  }
+}

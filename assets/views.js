@@ -37,18 +37,18 @@ const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa ba�
 
 
 function productList(data, state) {
-  const columns = ["Ürün", "Satış fiyatı", ...(state.manager ? ["Maliyet"] : []), "Stok", "İşlemler"];
+  const columns = ["Ürün", "Satış fiyatı", ...(state.manager ? ["Maliyet"] : []), "Stok", ...(state.demo ? [] : ["İşlemler"])];
   const rows = data.rows.map((row) => [
     rowName(row.name, [row.sku, row.category].filter(Boolean).join(" · ")),
     h(money(row.price_minor)), ...(state.manager ? [h(money(row.cost_minor))] : []),
     !row.active ? badge(`Arşiv · ${count(row.stock)}`) :
       badge(count(row.stock), row.stock <= row.reorder_at ? "warn" : "ok"),
-    group(button("Hareketler", "product-history", { id: row.id, kind: "small" }) + (state.manager ?
+    ...(state.demo ? [] : [group(button("Hareketler", "product-history", { id: row.id, kind: "small" }) + (state.manager ?
       button("Düzenle", "edit-product", { id: row.id, kind: "small" }) +
       (row.active ? button("Stok düzelt", "adjust-stock", { id: row.id, kind: "small" }) : "") +
-      (row.stock === 0 || !row.active ? button(row.active ? "Arşivle" : "Geri aç", "archive-product", { id: row.id, kind: "small" }) : "") : ""))
+      (row.stock === 0 || !row.active ? button(row.active ? "Arşivle" : "Geri aç", "archive-product", { id: row.id, kind: "small" }) : "") : ""))])
   ]);
-  return inventoryTabs("products") + filters(state, { query: "Ürün veya SKU", archive: true }) +
+  return (state.demo ? "" : inventoryTabs("products")) + filters(state, { query: "Ürün veya SKU", archive: !state.demo }) +
     withPage("Ürün kayıtları", data, table(columns, rows, "Bu görünümde ürün yok."));
 }
 
@@ -72,12 +72,12 @@ function orderList(data, state, purchase) {
       rowName(party, [row.reference, sources[row.source]].filter(Boolean).join(" · ")),
       h(money(row.total_minor)), status,
       group(button("Ayrıntı", "order-detail", { id: row.id, kind: "small" }) +
-        (active && state.manager ? (!row.paid_on ?
+        (active && state.manager && !state.demo ? (!row.paid_on ?
           button(purchase ? "Ödeme kaydet" : "Tahsilat kaydet", "settle-order", { id: row.id, kind: "small" }) : "") +
           button(purchase ? "İptal et" : "Tam iade / iptal", "void-order", { id: row.id, kind: "small danger" }) : ""))
     ];
   });
-  return filters(state, { unpaid: state.demo ? "" : purchase ? "Ödeme bekleyenler" : "Tahsilat bekleyenler", query: purchase ? "Tedarikçi, ürün veya referans" : "Müşteri, ürün veya referans" }) +
+  return filters(state, { unpaid: purchase ? "Ödeme bekleyenler" : "Tahsilat bekleyenler", query: purchase ? "Tedarikçi, ürün veya referans" : "Müşteri, ürün veya referans" }) +
     withPage(purchase ? "Alış geçmişi" : "Satış geçmişi", data,
       table(["Tarih", purchase ? "Tedarikçi" : "Müşteri", "Tutar", "Durum", "İşlemler"], rows, "Bu görünümde işlem yok."));
 }
@@ -102,7 +102,7 @@ function finance(data, state) {
     stat("Ödeme bekleyen alışlar", money(unpaid.purchase), "warm")) +
     withPage("Diğer nakit kayıtları", data, table(["Tarih", "Açıklama", "Tür", "Tutar", "İşlemler"], data.rows.map((row) => [
       h(day(row.occurred_on)), rowName(row.description, row.category), badge(row.kind === "income" ? "Gelir" : "Gider"),
-      h(money(row.amount_minor)), row.voided_at ? badge("İptal") : button("İptal et", "void-cash", { id: row.id, kind: "small danger" })
+      h(money(row.amount_minor)), row.voided_at ? badge("İptal") : state.demo ? "Örnek kayıt" : button("İptal et", "void-cash", { id: row.id, kind: "small danger" })
     ]), "Seçilen tarihlerde ek gelir veya gider kaydı yok."));
 }
 
@@ -263,7 +263,10 @@ function ai(data, state) {
       <textarea name="prompt" required maxlength="2000" rows="3" placeholder="Son 7 günlük satışlarımı değerlendir"></textarea></label>
       <p class="hint">${mode === "mock" ? "Test modu. Örnek gider taslağı için “gider 125,50 elektrik” yazın." :
       "Mesajınız ve işletme özetiniz OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
-      <button class="button primary" type="submit">Gönder</button></form>`;
+      <div class="ai-prompts" role="group" aria-label="Örnek sorular">
+        <button class="button small" type="button" data-prompt="Son 7 günlük satışlarımı önceki dönemle karşılaştır.">Satışları karşılaştır</button>
+        <button class="button small" type="button" data-prompt="Hangi ürünler kritik stok eşiğinde?">Kritik stokları özetle</button>
+      </div><button class="button primary" type="submit">Gönder</button></form>`;
   return stats(stat("Son 7 gün satış", money(facts.totals.sales)) + stat("Kritik stok", count(facts.lowStockCount), "warm") +
     stat("Bekleyen tahsilat", money(facts.unpaid.sale), "teal")) +
     grid(panel("İşletme analizi", `<p class="hint">${h(day(facts.from))} – ${h(day(facts.to))} · ${h(change)}</p>` +

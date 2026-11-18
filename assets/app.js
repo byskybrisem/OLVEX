@@ -1,3 +1,4 @@
+import { bindDrawer, bindModuleSearch } from "./navigation.js";
 import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
 import { customerHistory, importSales, newOrder, orderCommand } from "./orders.js";
@@ -10,8 +11,8 @@ const noticeBox = $("#notice");
 const selector = $("#business");
 const title = $("#title");
 const sidebar = $("#sidebar");
-const menu = $("#menu");
-const backdrop = $("#backdrop");
+const closeMenu = bindDrawer();
+bindModuleSearch(route => Boolean(business) && (!views[route][3] || viewManager()));
 const sectionsWithPeriod = new Set(["overview", "finance", "shifts", "branches", "reports"]);
 const filters = new Map();
 const conversations = new Map();
@@ -121,6 +122,7 @@ function setBusiness(selected, reset = true) {
   selector.replaceChildren(...businesses.map((item) => new Option(item.name, item.id)));
   selector.value = selected.id;
   selector.disabled = false;
+  $("#module-search-open").disabled = false;
   $("#workspace-name").textContent = selected.name;
   $("#user-role").textContent = roles[selected.role];
   for (const entry of sidebar.querySelectorAll("[data-manager]")) entry.hidden = !viewManager();
@@ -131,17 +133,6 @@ function setBusiness(selected, reset = true) {
     taskDay = "";
     data = null;
   }
-}
-
-function closeMenu(restoreFocus = false) {
-  if (!sidebar.classList.contains("open")) return;
-  $("#main").inert = false;
-  document.body.classList.remove("menuopen");
-  sidebar.classList.remove("open");
-  backdrop.hidden = true;
-  menu.setAttribute("aria-expanded", "false");
-  menu.setAttribute("aria-label", "Menüyü aç");
-  if (restoreFocus) menu.focus();
 }
 
 const railToggle = $("#rail-toggle");
@@ -175,26 +166,6 @@ document.addEventListener("keydown", event => {
   if (open) { open.open = false; open.querySelector("summary").focus(); }
 });
 
-menu.addEventListener("click", () => {
-  if (sidebar.classList.contains("open")) {
-    closeMenu();
-    return;
-  }
-  $("#main").inert = true;
-  document.body.classList.add("menuopen");
-  sidebar.classList.add("open");
-  backdrop.hidden = false;
-  menu.setAttribute("aria-expanded", "true");
-  menu.setAttribute("aria-label", "Menüyü kapat");
-  
-  sidebar.querySelector('nav a[aria-current="page"]')?.focus();
-});
-$("#close-menu").addEventListener("click", () => closeMenu(true));
-matchMedia("(max-width: 760px)").addEventListener("change", () => closeMenu());
-backdrop.addEventListener("click", () => closeMenu(true));
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !$("#editor").open) closeMenu(true);
-});
 $(".skip").addEventListener("click", (event) => {
   event.preventDefault();
   title.focus();
@@ -277,10 +248,6 @@ function navigate({ focus = false } = {}) {
 }
 
 window.addEventListener("hashchange", () => navigate({ focus: true }));
-sidebar.addEventListener("click", (event) => {
-  const link = event.target.closest("a");
-  if (link && link.hash === location.hash) closeMenu(true);
-});
 selector.addEventListener("change", () => {
   const selected = businesses.find((item) => item.id === selector.value);
   if (!selected) return;
@@ -328,6 +295,13 @@ async function askAI(form) {
 }
 
 bindSalesChart(content);
+content.addEventListener("click", event => {
+  const suggestion = event.target.closest("button[data-prompt]");
+  if (!suggestion) return;
+  const field = suggestion.form.elements.prompt;
+  if (!field.value) field.value = suggestion.dataset.prompt;
+  field.focus();
+});
 content.addEventListener("change", event => {
   if (!event.target.matches("[data-period]")) return;
   if (event.target.value === "custom") {

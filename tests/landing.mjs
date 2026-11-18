@@ -1,0 +1,202 @@
+import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { webkit } from "playwright-core";
+
+export const widths = [320, 360, 375, 390, 430, 768, 1024, 1440, 1920];
+
+async function checkWidth(page, width) {
+  const bounds = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    document: document.documentElement.scrollWidth
+  }));
+  assert.equal(bounds.viewport, width, "Mobile viewport metadata");
+  assert.ok(bounds.document <= width, JSON.stringify({ width, ...bounds }));
+}
+
+async function snapshot(page, directory, filename) {
+  if (!directory) return;
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({ path: join(directory, filename), animations: "disabled" });
+}
+
+async function checkStaticPage(page, url) {
+  await page.goto(url);
+  await page.getByRole("heading", { name: "İşletmenizin tüm gücü, tek merkezde.", level: 1 }).waitFor();
+  const poster = page.locator("#core-stage img");
+  await poster.waitFor();
+  assert.ok(await poster.evaluate(async image => {
+    await image.decode();
+    return image.naturalWidth > 0;
+  }));
+  const missingTargets = await page.locator('a[href^="#"]').evaluateAll(links =>
+    links.map(link => link.hash.slice(1)).filter(id => id && !document.getElementById(decodeURIComponent(id))));
+  assert.deepEqual(missingTargets, []);
+  await page.getByRole("link", {name: "Ücretsiz Hesap Oluştur", exact: true}).first().waitFor();
+}
+
+export async function landingChecks({ safeContext, url, snapshots }) {
+  const errors = [];
+  const desktop = await safeContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    const page = await desktop.newPage();
+    page.on("pageerror", error => errors.push(error.message));
+    const requests = [];
+    page.on("request", request => requests.push(new URL(request.url()).pathname));
+    page.on("response", response => {
+      if (response.status() >= 400) errors.push(response.status() + " " + response.url());
+    });
+    // Count actual WebGL draws. Network completion alone does not prove that the model renders.
+    await page.addInitScript(() => {
+      window.olvexDraws = 0;
+      if (!window.WebGL2RenderingContext) return;
+      for (const method of ["drawArrays", "drawElements", "drawArraysInstanced", "drawElementsInstanced"]) {
+        const original = WebGL2RenderingContext.prototype[method];
+        WebGL2RenderingContext.prototype[method] = function(...args) {
+          ++window.olvexDraws;
+          return original.apply(this, args);
+        };
+      }
+    });
+    await checkStaticPage(page, url);
+    await page.evaluate(() => document.fonts.ready);
+    await snapshot(page, snapshots, "landing-desktop.png");
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 850 });
+      await checkWidth(page, width);
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await snapshot(page, snapshots, "landing-mobile.png");
+    const menu = page.locator("#site-menu");
+    await menu.locator("summary").click();
+    await checkWidth(page, 390);
+    const link = menu.locator('a[href="#moduller"]');
+    await link.click();
+    assert.equal(new URL(page.url()).hash, "#moduller");
+    assert.equal(await menu.evaluate(node => node.open), false);
+
+    for (const name of ["products", "sales", "overview"]) {
+      const tab = page.locator("#tour-" + name + "-tab");
+      await tab.click();
+      assert.equal(await tab.getAttribute("aria-selected"), "true");
+      await page.locator("#tour-" + name).waitFor();
+    }
+    const overviewTab = page.locator("#tour-overview-tab");
+    await overviewTab.focus();
+    await overviewTab.press("ArrowRight");
+    assert.equal(await page.locator("#tour-products-tab").getAttribute("aria-selected"), "true");
+    await page.locator("#plan-details").click();
+    const price = page.locator('[data-price="499"]');
+    await page.locator("#annual").click();
+    assert.match(await price.textContent(), /399,20/);
+    await page.locator("#monthly").click();
+    assert.match(await price.textContent(), /499/);
+    assert.equal(requests.some(path => path.endsWith("/core-scene.js")), false,
+      "The WebGL bundle must be deferred until activation");
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    const toggle = page.locator("#core-toggle");
+    await toggle.click();
+    await page.waitForFunction(() => document.querySelector("#core-toggle").getAttribute("aria-pressed") === "true");
+    const canvas = page.locator("#core-canvas");
+    await canvas.waitFor();
+    await page.waitForFunction(() => window.olvexDraws > 0);
+    const draws = await page.evaluate(() => {
+      const count = window.olvexDraws;
+      const story = document.querySelector("#core-story");
+      window.scrollTo({ top: story.offsetTop + story.clientHeight / 3, behavior: "instant" });
+      return count;
+    });
+    await page.waitForFunction(previous => window.olvexDraws > previous, draws);
+    assert.ok(requests.some(path => path.endsWith("/core-scene.js")));
+    await snapshot(page, snapshots, "landing-live.png");
+    await toggle.click();
+    await page.locator('#core-stage[data-core-state="idle"]').waitFor();
+    assert.equal(await canvas.isVisible(), false);
+    await toggle.click();
+    await page.locator('#core-stage[data-core-state="live"]').waitFor();
+    await canvas.evaluate(element => element.getContext("webgl2").getExtension("WEBGL_lose_context").loseContext());
+    await page.locator('#core-stage[data-core-state="unavailable"]').waitFor();
+    await page.locator("#core-stage img").waitFor();
+    await page.getByRole("link", { name: "Paneli incele", exact: true }).click();
+    await page.getByRole("heading", { name: "Genel Bakış", exact: true, level: 1 }).waitFor();
+    await page.locator("#module-search-open").click();
+    await page.locator("#module-query").fill("satışlar");
+    await page.locator('#module-search a[href="#sales"]').click();
+    const unpaidFilter = page.locator('[data-filter] [name="unpaid"]');
+    await unpaidFilter.check();
+    await page.locator('[data-filter] button[type="submit"]').click();
+    assert.ok(await unpaidFilter.isChecked());
+    assert.equal(await page.locator("tbody tr").count(), 1);
+    const detail = page.getByRole("button", { name: "Ayrıntı", exact: true });
+    await detail.click();
+    const order = page.getByRole("dialog", { name: "Satış ayrıntısı" });
+    await order.getByText(/DEMO-1000/).waitFor();
+    await order.getByRole("button", { name: "Kapat", exact: true }).last().click();
+    assert.equal(await page.locator("#core-canvas").count(), 0);
+  } finally { await desktop.close(); }
+
+  const noJS = await safeContext({ javaScriptEnabled: false, viewport: { width: 320, height: 700 } });
+  try {
+    const page = await noJS.newPage();
+    await checkStaticPage(page, url);
+    await checkWidth(page, 320);
+    await page.locator("#site-menu summary").click();
+    await page.locator('#site-menu a[href="#moduller"]').click();
+    assert.equal(new URL(page.url()).hash, "#moduller");
+    await page.getByRole("link", {name: "Ücretsiz Hesap Oluştur", exact: true}).first().click();
+    await page.locator("#name").waitFor();
+  } finally { await noJS.close(); }
+
+  const fallback = await safeContext();
+  try {
+    const page = await fallback.newPage();
+    page.on("pageerror", error => errors.push(error.message));
+    await page.addInitScript(() => {
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+        return type === "webgl2" ? null : getContext.call(this, type, ...args);
+      };
+    });
+    await checkStaticPage(page, url);
+    await page.locator("#core-toggle").click();
+    await page.locator('#core-stage[data-core-state="unavailable"]').waitFor();
+    assert.ok(await page.locator("#core-toggle").isDisabled());
+    assert.notEqual(await page.locator("#core-toggle").getAttribute("aria-pressed"), "true");
+    await page.locator("#core-stage img").waitFor();
+  } finally { await fallback.close(); }
+
+  const reduced = await safeContext({ reducedMotion: "reduce" });
+  try {
+    const page = await reduced.newPage();
+    const scripts = [];
+    page.on("request", request => scripts.push(new URL(request.url()).pathname));
+    await checkStaticPage(page, url);
+    await page.locator('#core-stage[data-core-state="reduced"]').waitFor();
+    assert.ok(await page.locator("#core-toggle").isDisabled());
+    await page.locator("#baslayin").scrollIntoViewIfNeeded();
+    assert.equal(await page.locator("#core-canvas").isVisible(), false);
+    assert.equal(scripts.some(path => path.endsWith("/core-scene.js")), false);
+  } finally { await reduced.close(); }
+
+  if (process.env.OLVEX_WEBKIT) {
+    const engine = await webkit.launch();
+    try {
+      const context = await safeContext({ viewport: { width: 440, height: 956 }, isMobile: true,
+        hasTouch: true, deviceScaleFactor: 3, reducedMotion: "reduce" }, engine);
+      const page = await context.newPage();
+      page.on("pageerror", error => errors.push(error.message));
+      await checkStaticPage(page, url);
+      await checkWidth(page, 440);
+      await snapshot(page, snapshots, "landing-webkit.png");
+      await page.locator("#site-menu summary").tap();
+      await page.locator('#site-menu a[href="#moduller"]').tap();
+      await page.locator("#tour-products-tab").tap();
+      await page.locator("#tour-products").waitFor();
+      await checkWidth(page, 440);
+    } finally { await engine.close(); }
+  }
+  assert.deepEqual(errors, []);
+  console.log("Açılış sayfası doğrulandı: dokuz genişlik, mobil menü, ürün turu, planlar, JavaScript kapalı, 3B ve statik görsel.");
+}
