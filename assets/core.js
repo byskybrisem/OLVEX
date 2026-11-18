@@ -14,14 +14,17 @@ function setState(state) {
   stage.dataset.coreState = state;
   const live = state === "live";
   toggle.hidden = false;
-  toggle.disabled = ["loading", "reduced", "unavailable"].includes(state);
+  toggle.disabled = state === "reduced" || state === "unavailable";
+  toggle.setAttribute("aria-controls", stage.id);
+  stage.setAttribute("aria-busy", String(state === "loading"));
   toggle.setAttribute("aria-pressed", String(live));
   toggle.textContent = ({
-    idle: "3B görünümü aç", loading: "3B hazırlanıyor…", live: "3B görünümü kapat",
-    reduced: "Sabit görünüm", unavailable: "Sabit görünüm"
+    idle: "3B görünümü aç", loading: "Hazırlanıyor · Vazgeç", live: "2B görünüme dön",
+    reduced: "2B · Hareket azaltıldı", unavailable: "2B · 3B kullanılamıyor"
   })[state];
   status.textContent = ({
-    idle: "", loading: "Üç boyutlu model hazırlanıyor.", live: "3B görünüm açık. Sayfayı kaydırarak katmanları inceleyebilirsiniz.",
+    idle: "Sabit görsel gösteriliyor.", loading: "Üç boyutlu model hazırlanırken sabit görsel gösteriliyor.",
+    live: "3B görünüm açık. Kaydırarak çekirdeği tam tur döndürebilir ve katmanları inceleyebilirsiniz.",
     reduced: "Hareket tercihiniz nedeniyle sabit görsel gösteriliyor.",
     unavailable: "Bu cihazda 3B görünüm kullanılamıyor. Sabit görsel gösteriliyor."
   })[state];
@@ -73,9 +76,10 @@ function paint(time) {
     scene.resize(w, h, ratio);
   }
   const track = story.getBoundingClientRect();
-  // In the stacked mobile layout the stage leaves the viewport before the workflow ends.
+  // On phones the stage scrolls with the text. Complete the turn and the exit
+  // while the stage is still above the fold and below the sticky navigation.
   const position = stackedStory.matches
-    ? (innerHeight * .60 - box.top) / Math.max(1, innerHeight * .60 + box.height * .65)
+    ? (innerHeight * .60 - box.top) / Math.max(1, innerHeight * .60 - 64)
     : -track.top / Math.max(1, track.height - Math.min(innerHeight, box.height));
   const progress = Math.min(1, Math.max(0, position));
   try {
@@ -89,7 +93,7 @@ function queue() {
 }
 
 toggle.addEventListener("click", async () => {
-  if (scene) return release("idle");
+  if (stage.dataset.coreState === "loading" || scene) return release("idle");
   const ticket = ++generation;
   setState("loading");
   try {

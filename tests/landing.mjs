@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { webkit } from "playwright-core";
+import { checkCoreFrames, checkCoreLoading } from "./core-browser.mjs";
 
 export const widths = [320, 360, 375, 390, 430, 768, 1024, 1440, 1920];
 
