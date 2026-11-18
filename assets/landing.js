@@ -3,7 +3,14 @@ const tour = document.querySelector(".tour-tabs");
 const tabs = [...tour.querySelectorAll("a")];
 const panels = tabs.map(tab => document.getElementById(tab.hash.slice(1)));
 
+let tourInRange = !("IntersectionObserver" in window);
+function loadPreview(index) {
+  const image = panels[index].querySelector(".preview template");
+  if (image) image.replaceWith(image.content);
+}
+
 function selectPreview(index) {
+  if (tourInRange) loadPreview(index);
   tabs.forEach((tab, position) => {
     const active = position === index;
     tab.tabIndex = active ? 0 : -1;
@@ -81,6 +88,15 @@ function openDestination() {
   }
 }
 selectPreview(0);
+if (!tourInRange) {
+  const observer = new IntersectionObserver(entries => {
+    if (!entries.some(entry => entry.isIntersecting)) return;
+    tourInRange = true;
+    loadPreview(tabs.findIndex(tab => tab.getAttribute("aria-selected") === "true"));
+    observer.disconnect();
+  }, {rootMargin: "180px"});
+  observer.observe(document.querySelector(".tour-frame"));
+}
 openDestination();
 window.addEventListener("hashchange", openDestination);
 document.querySelectorAll('a[href="#fiyatlandirma"]').forEach(link => {
