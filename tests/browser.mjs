@@ -122,6 +122,8 @@ try {
 
   await navigate(page, "ai", "OLVEX AI");
   await page.getByText("Test modu", { exact: true }).waitFor();
+  await page.getByText("Ücretsiz veriye dayalı analiz", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "Stokları incele", exact: true }).waitFor();
   await page.getByLabel("Mesaj", { exact: true }).fill("gider 125,50 elektrik");
   await page.getByRole("button", { name: "Gönder", exact: true }).click();
   await page.getByRole("button", { name: "Onayı incele", exact: true }).click();
