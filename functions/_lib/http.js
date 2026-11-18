@@ -7,7 +7,12 @@ export class HttpError extends Error {
 }
 
 export function json(body, status = 200, headers = {}) {
-  return Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
+  return Response.json(body, { status, headers: {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    ...headers
+  } });
 }
 
 export function handle(handler) {

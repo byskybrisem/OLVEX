@@ -43,6 +43,8 @@ class Client {
     const token = response.headers.get("Set-Cookie");
     if (token && (path === "/api/auth/login" || path === "/api/auth/logout")) this.cookie = token.split(";")[0];
     assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+    assert.match(response.headers.get("Content-Security-Policy"), /default-src 'none'/);
     return { data, response };
   }
 
@@ -69,7 +71,7 @@ async function account(name, address) {
   assert.equal(info.registrationOpen, true);
   await client.post("/api/auth/register", {
     fullName: name, email: address, password, acceptedTerms: true, termsVersion: info.termsVersion
-  }, 201);
+  }, 202);
   await client.login(address);
   return client;
 }
@@ -91,6 +93,8 @@ before(async () => {
   pages = await localPages({ seed: `
     INSERT INTO users(id,email,full_name,password_hash) VALUES ('${legacyId}','legacy@example.test','Eski Hesap','${hash}');
     INSERT INTO olvex_password_resets(token_hash,user_id,expires_at) VALUES ('${tokenHash}','${legacyId}','${expiresAt}');
+    CREATE TRIGGER preserve_legacy_consent BEFORE INSERT ON olvex_terms_acceptances
+      WHEN NEW.user_id = '${legacyId}' BEGIN SELECT RAISE(ABORT, 'unexpected consent for legacy user'); END;
   ` });
 });
 
@@ -102,6 +106,11 @@ test("hesap, politika sürümü, oturum çerezi ve şifre sıfırlama", async ()
   await newClient.call("/api/businesses", { status: 401 });
   const { data: info } = await newClient.call("/api/public-info");
   assert.equal(info.email, null);
+  const accepted = await newClient.post("/api/auth/register", {
+    fullName: "Tekrar Kayıt", email: "LEGACY@example.test", password: replacementPassword,
+    acceptedTerms: true, termsVersion: info.termsVersion
+  }, 202);
+  assert.deepEqual(accepted.data, { success: true });
   await newClient.post("/api/auth/register", {
     fullName: "Örnek", email: "preview@example.test", password, termsVersion: info.termsVersion
   }, 400);
@@ -135,9 +144,13 @@ test("önceki ve yeni işletme akışı, kayıt eşsizliği ve işletme izolasyo
   teammate = await account("Ekip Üyesi", "teammate@example.test");
   other = await account("Başka İşletme", "other@example.test");
   const { data: info } = await owner.call("/api/public-info");
-  await owner.post("/api/auth/register", {
-    fullName: "Aynı Hesap", email: "OWNER@example.test", password, acceptedTerms: true, termsVersion: info.termsVersion
-  }, 409);
+  const duplicate = await owner.post("/api/auth/register", {
+    fullName: "Aynı Hesap", email: "OWNER@example.test", password: replacementPassword, acceptedTerms: true, termsVersion: info.termsVersion
+  }, 202);
+  assert.deepEqual(duplicate.data, { success: true });
+  const existing = new Client(pages.url);
+  await existing.login("owner@example.test", password);
+  assert.equal((await existing.call("/api/auth/me")).data.user.fullName, "İşletme Sahibi");
   const empty = await owner.call("/api/businesses");
   assert.deepEqual(empty.data.businesses, []);
   const requestId = id();

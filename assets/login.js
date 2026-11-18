@@ -15,7 +15,7 @@ function status(text, success = false) {
 }
 
 if (joining) document.querySelector("#register-link").href = "/register.html?next=join";
-if (url.searchParams.get("registered") === "1") status("Hesabınız oluşturuldu. Giriş yapın.", true);
+if (url.searchParams.get("registered") === "1") status("Kayıt isteğiniz alındı. Hesabınıza ait e-posta ve şifreyle giriş yapabilirsiniz.", true);
 if (url.searchParams.get("reset") === "1") status("Şifreniz güncellendi. Yeni şifrenizle giriş yapın.", true);
 
 toggle.addEventListener("click", () => {
