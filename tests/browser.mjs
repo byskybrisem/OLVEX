@@ -3,12 +3,14 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { chromium, devices, webkit } from "playwright-core";
+import { chromium, devices, firefox, webkit } from "playwright-core";
 import { offsetDay } from "../assets/ui.js";
 import { views } from "../assets/views.js";
 import { localPages } from "./local.mjs";
 import { landingChecks, widths } from "./landing.mjs";
 
+const desktopEngineName = process.env.OLVEX_DESKTOP_BROWSER || "chromium";
+assert.ok(["chromium", "firefox", "webkit"].includes(desktopEngineName), "Unknown desktop engine");
 const local = await localPages({ https: true });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
@@ -56,8 +58,12 @@ async function prepareScreenshot(page, filename) {
   await page.screenshot({ path: join(snapshots, filename), fullPage: true, animations: "disabled" });
 }
 
+let desktopEngine = browser;
 try {
-  const desktop = await safeContext({ viewport: { width: 1366, height: 850 }, acceptDownloads: true });
+  if (desktopEngineName === "firefox") desktopEngine = await firefox.launch();
+  if (desktopEngineName === "webkit") desktopEngine = await webkit.launch();
+  console.log("Masaüstü iş akışı", desktopEngineName, desktopEngine.version());
+  const desktop = await safeContext({ viewport: { width: 1366, height: 850 }, acceptDownloads: true }, desktopEngine);
   const page = await desktop.newPage();
   watch(page);
   await page.goto(local.url);
@@ -205,6 +211,32 @@ try {
   await dialog(page).getByText(/124,50/).waitFor();
   await dialog(page).getByRole("button", { name: "Vazgeç" }).click();
   await unpaidRow.getByRole("button", { name: "Tahsilat kaydet" }).waitFor();
+  await navigate(page, "products", "Ürünler ve Stok");
+  const coffeeStock = page.getByRole("row").filter({ hasText: "KAHVE-01" }).locator('[data-label="Stok"]');
+  assert.equal((await coffeeStock.innerText()).trim(), "3", "6 opening - 2 manual - 1 CSV sale");
+  // Correct an unpaid manual sale and follow the stock delta and immutable history in the UI.
+  await record("sales", "create", {date, paid: false, reference: "REV-1", lines: [{sku: "KAHVE-01", quantity: 1}]});
+  await navigate(page, "sales", "Satışlar");
+  const editedRow = page.getByRole("row").filter({hasText: "REV-1"});
+  await editedRow.getByRole("button", {name: "Düzenle", exact: true}).click();
+  const correction = page.getByRole("dialog", {name: "Satışı düzenle"});
+  await correction.getByLabel("Adet", {exact: true}).fill("2");
+  await correction.getByLabel("Birim fiyat", {exact: true}).fill("80,00");
+  await correction.getByLabel("Düzeltme nedeni").fill("Müşteri iki paket aldı");
+  await correction.getByRole("button", {name: "Düzeltmeyi kaydet"}).click();
+  await correction.waitFor({state:"hidden"});
+  await editedRow.getByText(/160,00/).waitFor();
+  await editedRow.getByRole("button", {name: "Ayrıntı"}).click();
+  await dialog(page).getByRole("button", {name:"Düzeltmeleri göster"}).click();
+  await dialog(page).getByText("Müşteri iki paket aldı", {exact:false}).waitFor();
+  if (snapshots) {
+    await mkdir(snapshots, {recursive:true});
+    await dialog(page).screenshot({path: join(snapshots, "sale-correction.png"), animations:"disabled"});
+  }
+  await dialog(page).getByRole("button", {name:"Kapat", exact:true}).last().click();
+  await navigate(page, "products", "Ürünler ve Stok");
+  assert.equal((await coffeeStock.innerText()).trim(), "1", "Only the quantity difference is applied on correction");
+
   await page.route("**/api/workspace/*/customers?**", route => route.fulfill({
     status:503, contentType:"application/json", body:JSON.stringify({error:"Geçici bağlantı hatası"})
   }), {times:1});
@@ -229,14 +261,14 @@ try {
   await page.getByText("Örnek kasa", { exact: true }).waitFor();
 
   // Join as a real member to verify the search uses the selected business role.
-  const member = await safeContext();
+  const member = await safeContext({}, desktopEngine);
   try {
     const email = "member-browser@example.test";
     const secret = randomBytes(32).toString("base64url");
     const { termsVersion } = await (await member.request.get(local.url + "/api/public-info")).json();
     const memberPost = (path, data) => member.request.post(local.url + path, { headers: { Origin: local.url }, data });
     assert.equal((await memberPost("/api/auth/register", { fullName: "Ekip Üyesi",
-      email, password: credentials.password, acceptedTerms: true, termsVersion })).status(), 201);
+      email, password: credentials.password, acceptedTerms: true, termsVersion })).status(), 202);
     assert.ok((await memberPost("/api/auth/login", { email, password: credentials.password })).ok());
     await record("settings", "invite", { email, role: "member", secret });
     assert.ok((await memberPost("/api/join", { token: secret })).ok());
@@ -333,6 +365,7 @@ try {
   assert.deepEqual(browserErrors, []);
   console.log("Tarayıcı doğrulandı: masaüstü ve mobil akış, satış/CSV, AI onayı, rapor, kasa ve oturum.");
 } finally {
+  if (desktopEngine !== browser) await desktopEngine.close();
   await browser.close();
   await local.close();
 }
