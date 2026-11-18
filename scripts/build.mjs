@@ -5,7 +5,7 @@ await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
 const deployable = [
-  "_headers", "_routes.json", "assets", "index.html", "app.html", "login.html", "register.html", "setup.html",
+  "_headers", "_routes.json", "assets", "index.html", "app.html", "demo.html", "login.html", "register.html", "setup.html",
   "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html"
 ];
 for (const name of deployable) {

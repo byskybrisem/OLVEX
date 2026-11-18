@@ -49,50 +49,175 @@ function orderLine(index) {
   </fieldset>`;
 }
 
-function productLines(ctx, root) {
+function productLines(ctx, root, purchase = false) {
   const lines = root.querySelector(".lines");
   const dataList = root.querySelector("#sku-list");
   const add = root.querySelector("[data-add-line]");
   const status = root.querySelector("[data-sku-status]");
+  const total = root.querySelector("[data-order-total]");
+  const knownProducts = new Map();
   let revision = 0;
   let timeout;
 
   const refreshLines = () => {
     const fieldsets = [...lines.children];
     for (const [index, item] of fieldsets.entries()) {
-      item.querySelector("legend").textContent = `Ürün ${index + 1}`;
+      item.querySelector("legend").textContent = "Ürün " + (index + 1);
       item.querySelector("[data-remove-line]").disabled = fieldsets.length === 1;
     }
     add.disabled = fieldsets.length >= 25;
   };
+
+  const updateTotal = () => {
+    if (!total) return;
+    let amountMinor = 0;
+    let incomplete = 0;
+    for (const line of lines.children) {
+      const code = line.querySelector('[name="sku"]').value.trim();
+      const quantity = Number(line.querySelector('[name="quantity"]').value);
+      const typedPrice = line.querySelector('[name="unit"]').value.trim();
+      let priceMinor = null;
+      if (typedPrice) {
+        try { priceMinor = toMinor(typedPrice); } catch { /* Form validation displays the error. */ }
+      } else if (code && knownProducts.has(code)) {
+        priceMinor = knownProducts.get(code).price_minor;
+      }
+      if (!code || !Number.isSafeInteger(quantity) || quantity < 1 ||
+          !Number.isSafeInteger(priceMinor) || priceMinor < 0) {
+        incomplete++;
+        continue;
+      }
+      amountMinor += priceMinor * quantity;
+    }
+    if (incomplete || !Number.isSafeInteger(amountMinor)) {
+      total.textContent = "Tahmini toplam için tüm ürünleri seçin, adetleri ve fiyatları kontrol edin.";
+    } else {
+      total.textContent = "Tahmini satış toplamı: " + money(amountMinor) +
+        " · Son tutar kaydedilirken hesaplanır.";
+    }
+  };
+
   const load = async (query = "") => {
     const token = ++revision;
     try {
       const data = await ctx.get("catalog", { q: query });
-      if (token !== revision) return;
-      dataList.replaceChildren(...data.rows.map((row) => new Option(`${row.name} · ${row.stock} adet`, row.sku)));
-      status.textContent = query || data.rows.length ? "" : "İlk işlemden önce Ürünler ve Stok bölümünde ürün ekleyin.";
+      if (token !== revision || !root.isConnected) return;
+      for (const row of data.rows) knownProducts.set(row.sku, row);
+      dataList.replaceChildren(...data.rows.map((row) =>
+        new Option(row.name + " · " + row.stock + " adet", row.sku)));
+      status.textContent = data.hasMore
+        ? "Daha fazla ürün için SKU veya ürün adıyla arama yapın."
+        : data.rows.length || query ? "" : "Önce Ürünler ve Stok bölümünde ürün ekleyin.";
+      updateTotal();
     } catch (error) {
       if (token === revision) status.textContent = error.message;
     }
   };
+
+  function enhanceLine(line) {
+    if (line.querySelector("[data-product-picker]")) return;
+    const skuInput = line.querySelector('[name="sku"]');
+    if (!skuInput) return;
+
+    const picker = document.createElement("div");
+    picker.className = "lookup";
+    picker.dataset.productPicker = "";
+    picker.style.gridColumn = "1 / -1";
+    picker.innerHTML = [
+      '<label class="field">Ürün ara<input type="search" data-product-search maxlength="80"',
+      ' placeholder="Ürün adı veya SKU" autocomplete="off"></label>',
+      '<label class="field">Kayıtlı ürünü seç<select data-product-choice>',
+      '<option value="">Ürün seçin...</option></select></label>',
+      '<p class="hint" data-product-info role="status"></p>'
+    ].join("");
+    line.insertBefore(picker, skuInput.closest("label"));
+
+    const search = picker.querySelector("[data-product-search]");
+    const choice = picker.querySelector("[data-product-choice]");
+    const info = picker.querySelector("[data-product-info]");
+    let requestNumber = 0;
+    let timer;
+
+    const fetchProducts = async () => {
+      const token = ++requestNumber;
+      info.textContent = "Ürünler aranıyor...";
+      try {
+        const result = await ctx.get("catalog", { q: search.value.trim() });
+        if (token !== requestNumber || !picker.isConnected) return;
+        for (const row of result.rows) knownProducts.set(row.sku, row);
+        choice.replaceChildren(
+          new Option("Ürün seçin...", ""),
+          ...result.rows.map((row) => new Option(
+            row.name + " · " + row.sku +
+              (purchase ? "" : " · " + money(row.price_minor)) +
+              " · stok: " + row.stock,
+            row.sku
+          ))
+        );
+        if ([...choice.options].some((option) => option.value === skuInput.value)) {
+          choice.value = skuInput.value;
+        }
+        info.textContent = result.hasMore
+          ? "Daha fazla ürün için aramayı daraltın."
+          : result.rows.length + " kayıtlı ürün bulundu.";
+        updateTotal();
+      } catch (error) {
+        if (token === requestNumber) info.textContent = error.message || "Ürünler alınamadı.";
+      }
+    };
+
+    search.addEventListener("input", () => {
+      clearTimeout(timer);
+      requestNumber++;
+      timer = setTimeout(fetchProducts, 250);
+    });
+
+    choice.addEventListener("change", () => {
+      const product = knownProducts.get(choice.value);
+      if (!product) return;
+      skuInput.value = product.sku;
+      line.querySelector('[name="unit"]').value = "";
+      const price = purchase
+        ? "Alış maliyeti boş bırakılırsa ürün kartındaki maliyet kullanılır."
+        : "Kayıtlı satış fiyatı: " + money(product.price_minor) +
+          ". Farklı fiyat için birim fiyat alanını doldurun.";
+      const warning = !purchase && product.stock < 1 ? " Stok bulunmuyor." : "";
+      info.textContent = product.name + " · Stok: " + product.stock + ". " + price + warning;
+      updateTotal();
+    });
+
+    skuInput.addEventListener("input", () => {
+      if (choice.value !== skuInput.value) choice.value = "";
+      updateTotal();
+    });
+    fetchProducts();
+  }
+
   lines.addEventListener("input", (event) => {
-    if (event.target.name !== "sku") return;
-    clearTimeout(timeout);
-    timeout = setTimeout(() => load(event.target.value.trim()), 140);
+    if (event.target.name === "sku") {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => load(event.target.value.trim()), 140);
+    }
+    if (event.target.name === "quantity" || event.target.name === "unit") updateTotal();
   });
   lines.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-remove-line]");
-    if (!button || button.disabled) return;
-    button.closest("fieldset").remove();
+    const remove = event.target.closest("[data-remove-line]");
+    if (!remove || remove.disabled) return;
+    remove.closest("fieldset").remove();
     refreshLines();
+    updateTotal();
   });
   add.addEventListener("click", () => {
     lines.insertAdjacentHTML("beforeend", orderLine(lines.children.length));
     refreshLines();
-    lines.lastElementChild.querySelector("input")?.focus();
+    const newest = lines.lastElementChild;
+    enhanceLine(newest);
+    newest.querySelector("[data-product-search]")?.focus();
+    updateTotal();
   });
+  for (const line of lines.children) enhanceLine(line);
   refreshLines();
+  updateTotal();
   load();
 }
 
@@ -107,9 +232,10 @@ export function newOrder(ctx, purchase) {
         <p class="hint" data-sku-status role="status"></p>
         <div class="inline"><button type="button" class="button small" data-add-line>+ Satır ekle</button></div>
         <p class="hint">Birim fiyat boşsa ürün kartındaki ${purchase ? "maliyet" : "satış fiyatı"} kullanılır.</p>` +
+      (purchase ? "" : '<p class="notice" data-order-total role="status"></p>') +
       check(purchase ? "Ödendi" : "Tahsil edildi", "paid", true) + note("Not", "note"),
     init: (root) => {
-      productLines(ctx, root);
+      productLines(ctx, root, purchase);
       if (!purchase) lookup(ctx, root, {
         section: "catalog", field: "customerId", label: "müşteri", query: { type: "customers" },
         labelFor: (row) => row.email ? `${row.name} · ${row.email}` : row.name
