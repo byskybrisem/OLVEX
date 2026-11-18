@@ -3,6 +3,17 @@ import { test } from "node:test";
 import { recoveryOrigin } from "../functions/_lib/recovery.js";
 import { onRequestPost as requestReset } from "../functions/api/auth/password-reset.js";
 import { onRequest as health } from "../functions/api/health.js";
+import { newPassword, passwordHash, verifyPassword } from "../functions/_lib/password.js";
+
+test("yeni şifrelerde minimum uzunluk uygulanır, eski parolanın doğrulanması korunur", async () => {
+  assert.throws(() => newPassword("x".repeat(14)), /15 ile 128/);
+  assert.throws(() => newPassword("🚲".repeat(8)), /15 ile 128/);
+  assert.equal(newPassword("x".repeat(15)).length, 15);
+  assert.equal(newPassword("a".repeat(128)).length, 128);
+  assert.throws(() => newPassword("a".repeat(129)), /15 ile 128/);
+  const legacy = "test-eski";
+  assert.equal(await verifyPassword(legacy, await passwordHash(legacy)), true);
+});
 
 test("kurtarma bağlantısı için yapılandırılmış HTTPS kökeni gerekir", async () => {
   assert.equal(recoveryOrigin({}), "https://olvex.com.tr");

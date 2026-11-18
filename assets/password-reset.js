@@ -11,7 +11,7 @@ if (resetting) {
   requestForm.hidden = true;
   resetForm.hidden = false;
   document.querySelector("#heading").textContent = "Yeni şifre oluştur";
-  document.querySelector("#hint").textContent = "Yeni şifren en az 8 karakter olmalı.";
+  document.querySelector("#hint").textContent = "Yeni şifren en az 15 karakter olmalı.";
 }
 
 function status(text, error = false) {
