@@ -9,9 +9,8 @@ const url = new URL(location.href);
 const joining = url.searchParams.get("next") === "join";
 
 function status(text, success = false) {
-  message.style.display = "block";
-  message.style.background = success ? "#ECFDF3" : "#FFF1F0";
-  message.style.color = success ? "#027A48" : "#B42318";
+  message.hidden = false;
+  message.classList.toggle("error", !success);
   message.textContent = text;
 }
 
@@ -30,7 +29,7 @@ form.addEventListener("submit", async (event) => {
   if (submit.disabled) return;
   submit.disabled = true;
   submit.textContent = "Giriş yapılıyor…";
-  message.style.display = "none";
+  message.hidden = true;
   try {
     await request("/api/auth/login", "POST", {
       email: document.querySelector("#email").value.trim(),

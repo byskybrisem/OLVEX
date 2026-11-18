@@ -11,9 +11,7 @@ const joining = new URLSearchParams(location.search).get("next") === "join";
 let termsVersion;
 
 function status(text) {
-  message.style.display = "block";
-  message.style.background = "#FFF1F0";
-  message.style.color = "#B42318";
+  message.hidden = false;
   message.textContent = text;
 }
 
@@ -45,7 +43,7 @@ form.addEventListener("submit", async (event) => {
 
   submit.disabled = true;
   submit.textContent = "Hesap oluşturuluyor…";
-  message.style.display = "none";
+  message.hidden = true;
   try {
     await request("/api/auth/register", "POST", {
       fullName: document.querySelector("#name").value.trim(),
