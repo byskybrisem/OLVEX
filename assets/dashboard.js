@@ -15,10 +15,12 @@ function icon(name) {
 }
 
 function change(current, prior) {
-  if (!(prior > 0)) return "";
-  const delta = (current - prior) / prior;
-  const percent = delta.toLocaleString("tr-TR", {style:"percent", maximumFractionDigits:1, signDisplay:"exceptZero"});
-  return `<small class="delta" title="Önceki eşit uzunluktaki döneme göre">${h(percent)} · önceki döneme göre</small>`;
+  if (!Number.isFinite(prior) || prior === 0) return "";
+  const difference = current - prior;
+  const amount = prior > 0
+    ? (difference / prior).toLocaleString("tr-TR", { style: "percent", maximumFractionDigits: 1, signDisplay: "exceptZero" })
+    : (difference > 0 ? "+" : "") + money(difference);
+  return `<small class="delta" data-direction="${Math.sign(difference)}" title="Önceki eşit uzunluktaki döneme göre">${h(amount)} · önceki döneme göre</small>`;
 }
 
 function metric(symbol, title, value, detail) {

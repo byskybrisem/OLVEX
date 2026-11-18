@@ -94,12 +94,25 @@ function customers(data, state) {
 }
 
 function finance(data, state) {
-  const { totals, unpaid } = data.summary;
-  return filters(state, { range: true }) + stats(
-    stat("Toplam nakit girişi", money(totals.revenue), "teal") + stat("Toplam nakit çıkışı", money(totals.spending)) +
-    stat("Net nakit hareketi", money(totals.revenue - totals.spending)) +
-    stat("Tahsilat bekleyen satışlar", money(unpaid.sale), "warm") +
-    stat("Ödeme bekleyen alışlar", money(unpaid.purchase), "warm")) +
+  const { totals, unpaid, days } = data.summary;
+  const net = totals.revenue - totals.spending;
+  const daily = days.filter(row => row.revenue || row.spending).reverse();
+  const ledger = daily.length ? `<details class="cash-days"><summary>Günlük nakit dökümü (${count(daily.length)} gün)</summary>${table(
+    ["Tarih", "Giriş", "Çıkış", "Net hareket"], daily.map(row => [
+      h(day(row.day)), h(money(row.revenue)), h(money(row.spending)), h(money(row.revenue - row.spending))
+    ]))}</details>` : empty("Seçilen dönemde nakit hareketi yok.");
+  return filters(state, { range: true }) + `<div class="cash-grid">
+    <section class="cash-period" aria-label="Seçilen dönemde nakit hareketi">
+      <h2>Net nakit hareketi</h2><strong class="cash-value">${h(money(net))}</strong>
+      <dl class="cash-breakdown"><div><dt>Nakit girişi</dt><dd>${h(money(totals.revenue))}</dd></div>
+      <div><dt>Nakit çıkışı</dt><dd>${h(money(totals.spending))}</dd></div></dl>
+      ${ledger}
+    </section>
+    <section class="cash-open" aria-label="Tüm dönemlerde açık tutarlar">
+      <h2>Açık tutarlar</h2><p class="muted">Tüm dönemler</p>
+      <dl><div><dt>Tahsilat bekleyen satışlar</dt><dd>${h(money(unpaid.sale))}</dd></div>
+      <div><dt>Ödeme bekleyen alışlar</dt><dd>${h(money(unpaid.purchase))}</dd></div></dl>
+    </section></div>` +
     withPage("Diğer nakit kayıtları", data, table(["Tarih", "Açıklama", "Tür", "Tutar", "İşlemler"], data.rows.map((row) => [
       h(day(row.occurred_on)), rowName(row.description, row.category), badge(row.kind === "income" ? "Gelir" : "Gider"),
       h(money(row.amount_minor)), row.voided_at ? badge("İptal") : state.demo ? "Örnek kayıt" : button("İptal et", "void-cash", { id: row.id, kind: "small danger" })

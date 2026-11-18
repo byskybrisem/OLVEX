@@ -629,3 +629,41 @@ dialog { background: var(--solid); border-color: #ffffff25; }
   #module-search[open] { max-height: min(580px, 78dvh); }
   .module-search-open { min-width: 44px; }
 }
+
+.cash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(210px, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+.cash-period, .cash-open {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-large);
+  padding: clamp(14px, 1.8vw, 24px);
+}
+.cash-period { background: linear-gradient(125deg, #202736, #151a24 74%); }
+.cash-open { background: var(--glass); }
+.cash-grid h2 { margin: 0; font-size: 1rem; }
+.cash-open > p { margin: 2px 0 0; font-size: .8rem; }
+.cash-value, .cash-grid dd { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cash-value { display: block; margin-top: 3px; font-size: clamp(1.65rem, 3vw, 2.55rem); letter-spacing: -.045em; }
+.cash-grid dl { margin: var(--space-3) 0 0; }
+.cash-breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.cash-grid dt { color: var(--soft); font-size: .82rem; }
+.cash-grid dd { margin: 3px 0 0; font-weight: 650; }
+.cash-open dl > div + div { border-top: 1px solid var(--line); margin-top: var(--space-2); padding-top: var(--space-2); }
+.cash-days { margin-top: var(--space-3); border-top: 1px solid var(--line); }
+.cash-days summary { color: var(--teal); width: fit-content; padding-block: 12px; cursor: pointer; }
+.cash-days .data-table { max-height: 20rem; overscroll-behavior: contain; }
+.cash-days td { font-variant-numeric: tabular-nums; }
+.cash-period > .empty { margin-block: var(--space-3) 0; }
+.metrics:has(.metric:only-child) { grid-template-columns: minmax(0, 1fr); align-self: start; }
+
+@media (max-width: 920px) {
+  .cash-grid { grid-template-columns: minmax(0, 1fr); }
+  .cash-open dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .cash-open dl > div + div { border-top: 0; border-left: 1px solid var(--line); margin: 0; padding: 0 0 0 var(--space-3); }
+}
+.delta[data-direction="1"] { color: var(--teal); }
+.delta[data-direction="-1"] { color: var(--danger); }

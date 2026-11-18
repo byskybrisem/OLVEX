@@ -2,6 +2,9 @@ import { day, h, money } from "./ui.js";
 
 export function salesChart(days) {
   if (!days.length || !days.some(row => row.sales > 0)) {
+    if (days.some(row => row.saleCount > 0)) {
+      return '<div class="chart-empty"><strong>Satış toplamı ₺0,00</strong><p>Bu dönemde kaydedilen satışların tutarı sıfır.</p></div>';
+    }
     return '<div class="chart-empty"><strong>Seçilen dönemde satış tutarı yok</strong><p>Satış kaydedildiğinde tutarı burada görebilirsiniz.</p></div>';
   }
   const buckets = [];

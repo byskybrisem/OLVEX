@@ -117,6 +117,7 @@ function demoData(view) {
   if (view === "finance") return {
     summary: {
       totals,
+      days: [{ day: now, revenue: totals.revenue, spending: totals.spending }],
       unpaid: { sale: 12950, purchase: 0 }
     },
     rows: [{ occurred_on: now, description: "Kargo hizmeti", category: "Nakliye", kind: "expense", amount_minor: totals.spending }],
