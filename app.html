@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#090b12">
 <meta name="robots" content="noindex">
 <title>İşletme Paneli | OLVEX</title>
+<link rel="stylesheet" href="/assets/tokens.css">
 <link rel="stylesheet" href="/assets/app.css">
 <script type="module" src="/assets/app.js"></script>
 </head>
@@ -51,7 +52,7 @@
         <button id="menu" type="button" class="icon-button" aria-label="Menüyü aç" aria-controls="sidebar" aria-expanded="false">☰</button>
         <span id="workspace-name">OLVEX</span><span class="separator" aria-hidden="true">/</span><b id="breadcrumb">Genel Bakış</b>
       </div>
-      <div class="account-tools"><span id="today" class="top-date"></span>
+      <div class="account-tools"><button type="button" class="icon-button module-search-open" id="module-search-open" aria-label="Modül ara" aria-haspopup="dialog" aria-controls="module-search" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span>Modül ara</span></button><span id="today" class="top-date"></span>
         <details id="alerts" hidden><summary aria-label="İşletme bildirimleri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h16l-2-4v-3a6 6 0 0 0-12 0v3z M10 20h4"/></svg></summary>
         <div class="account-card"><strong>Bildirimler</strong><div id="alert-items"></div></div></details>
         <details id="account"><summary aria-label="Kullanıcı menüsü"><span id="initial">O</span></summary>
@@ -68,6 +69,13 @@
     <noscript>OLVEX panelini kullanmak için JavaScript’i etkinleştirin.</noscript>
   </main>
 </div>
+
+<dialog id="module-search" aria-labelledby="module-search-title">
+  <header class="dialog-head"><h2 id="module-search-title">Modüllere git</h2><button class="icon-button" id="module-search-close" type="button" aria-label="Aramayı kapat">×</button></header>
+  <div class="module-query"><label for="module-query">Modül ara</label><input id="module-query" type="search" autocomplete="off" maxlength="100" placeholder="Modül adı veya konu"></div>
+  <nav id="module-results" aria-label="Bulunan modüller"></nav>
+  <p id="module-count" role="status"></p>
+</dialog>
 
 <dialog id="editor" aria-labelledby="editor-title">
   <form id="editor-form">

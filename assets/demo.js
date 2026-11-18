@@ -1,6 +1,7 @@
+import { bindDrawer, bindModuleSearch } from "./navigation.js";
 import { bindSalesChart } from "./sales-chart.js";
-import { newOrder } from "./orders.js";
-import { actions, renderers, views } from "./views.js";
+import { newOrder, orderDetail } from "./orders.js";
+import { renderers, views } from "./views.js";
 import { offsetDay, today } from "./ui.js";
 
 const now = today();
@@ -18,12 +19,18 @@ const customers = [
 ];
 const sales = [
   { id: "demo-s1", occurred_on: now, customer: "Ayşe Yılmaz", reference: "DEMO-1001",
-    source: "manual", total_minor: 37980, status: "posted", paid_on: now },
+    product: products[0], quantity: 2, source: "manual", total_minor: 37980, status: "posted", paid_on: now },
   { id: "demo-s2", occurred_on: offsetDay(now, -1), customer: "Perakende",
-    reference: "DEMO-1000", source: "manual", total_minor: 12950, status: "posted", paid_on: null },
+    reference: "DEMO-1000", product: products[1], quantity: 1, source: "manual", total_minor: 12950, status: "posted", paid_on: null },
   { id: "demo-s3", occurred_on: offsetDay(now, -2), customer: "Perakende",
-    reference: "DEMO-0999", source: "manual", total_minor: 5950, status: "posted", paid_on: now }
+    reference: "DEMO-0999", product: products[2], quantity: 1, source: "manual", total_minor: 5950, status: "posted", paid_on: now }
 ];
+const totals = {
+  sales: sales.reduce((sum, row) => sum + row.total_minor, 0),
+  cost: sales.reduce((sum, row) => sum + row.product.cost_minor * row.quantity, 0),
+  revenue: sales.reduce((sum, row) => sum + (row.paid_on ? row.total_minor : 0), 0),
+  spending: 15000, saleCount: sales.length
+};
 const state = {
   demo: true, manager: true, business: { id: "demo", name: "Örnek İşletme", role: "owner" },
   from: offsetDay(now, -6), to: now, q: "", archived: false, page: 1, chat: []
@@ -35,9 +42,10 @@ const title = document.querySelector("#title");
 const subtitle = document.querySelector("#subtitle");
 const breadcrumb = document.querySelector("#breadcrumb");
 const actionBar = document.querySelector("#actions");
-const sidebar = document.querySelector("#sidebar");
-const menu = document.querySelector("#menu");
-const backdrop = document.querySelector("#backdrop");
+const closeMenu = bindDrawer();
+const visibleRoutes = new Set([...document.querySelectorAll("#sidebar [data-view]")].map(item => item.dataset.view));
+bindModuleSearch(route => visibleRoutes.has(route));
+document.querySelector("#module-search-open").disabled = false;
 
 function showNotice(message, error = false) {
   notice.textContent = message;
@@ -75,12 +83,12 @@ function demoData(view) {
     page: 1, hasMore: false
   };
   if (view === "sales") return {
-    rows: sales.filter((s) => [s.customer, s.reference].some((v) =>
+    rows: sales.filter((s) => (!state.unpaid || !s.paid_on) && [s.customer, s.reference, s.product.name, s.product.sku].some((v) =>
       v.toLocaleLowerCase("tr-TR").includes(q))),
     page: 1, hasMore: false
   };
   if (view === "overview") return {
-    totals: { sales: 56880, cost: 25900, revenue: 43930, spending: 15000, saleCount: 3 },
+    totals,
     leaders: [
       {name:products[0].name, sales:37980, quantity:2},
       {name:products[1].name, sales:12950, quantity:1},
@@ -92,14 +100,14 @@ function demoData(view) {
     lowStock: [{ total: 1, name: "Seramik Kupa", sku: "KUPA-01", stock: 3 }],
     days: Array.from({ length: 7 }, (_, i) => ({
       day: offsetDay(now, i - 6),
-      sales: [0, 5950, 0, 12950, 0, 0, 37980][i]
+      sales: sales.filter(row => row.occurred_on === offsetDay(now, i - 6)).reduce((sum, row) => sum + row.total_minor, 0)
     }))
   };
   if (view === "ai") return {
     mode: "off", proposals: [],
     facts: {
       from: offsetDay(now, -6), to: now,
-      totals: { sales: 56880, revenue: 43930, spending: 15000 },
+      totals,
       previousSales: 70000,
       lowStock: [{ name: "Seramik Kupa", sku: "KUPA-01", stock: 3 }],
       lowStockCount: 1,
@@ -108,29 +116,29 @@ function demoData(view) {
   };
   if (view === "finance") return {
     summary: {
-      totals: { sales: 56880, revenue: 43930, spending: 15000 },
+      totals,
       unpaid: { sale: 12950, purchase: 0 }
     },
-    rows: [], hasMore: false, page: 1
+    rows: [{ occurred_on: now, description: "Kargo hizmeti", category: "Nakliye", kind: "expense", amount_minor: totals.spending }],
+    hasMore: false, page: 1
   };
   return null;
 }
 
-function closeMenu() {
-  sidebar.classList.remove("open");
-  document.body.classList.remove("menuopen");
-  menu.setAttribute("aria-expanded", "false");
-  backdrop.hidden = true;
-}
-
+let view;
 function render() {
-  const selected = location.hash.slice(1);
-  const view = ["sales", "products", "ai", "overview", "finance"].includes(selected)
-    ? selected : "sales";
+  const route = location.hash.slice(1);
+  const next = visibleRoutes.has(route) ? route : "sales";
+  if (next !== view) {
+    state.q = "";
+    state.unpaid = false;
+    showNotice("");
+  }
+  view = next;
   const meta = views[view];
   title.textContent = breadcrumb.textContent = meta[0];
   subtitle.textContent = meta[1];
-  state.q = "";
+  document.title = meta[0] + " · Örnek işletme | OLVEX";
   document.querySelectorAll("[data-view]").forEach((item) => {
     const active = item.dataset.view === view;
     if (active) item.setAttribute("aria-current", "page");
@@ -149,41 +157,39 @@ function render() {
   closeMenu();
 }
 
-document.querySelector("#today").textContent = new Date().toLocaleDateString("tr-TR", {
-  day: "numeric", month: "long", year: "numeric"
-});
 document.querySelector("#avatar").textContent = "D";
 document.querySelector("#user-name").textContent = "Demo Kullanıcısı";
 document.querySelector("#user-role").textContent = "Örnek veriler";
 
-menu.addEventListener("click", () => {
-  const open = !sidebar.classList.contains("open");
-  sidebar.classList.toggle("open", open);
-  document.body.classList.toggle("menuopen", open);
-  backdrop.hidden = !open;
-  menu.setAttribute("aria-expanded", String(open));
+window.addEventListener("hashchange", () => {
+  render();
+  title.focus({ preventScroll: true });
+  window.scrollTo(0, 0);
 });
-backdrop.addEventListener("click", closeMenu);
-window.addEventListener("hashchange", render);
 document.addEventListener("click", (event) => {
   const cmd = event.target.closest("[data-cmd]");
   if (!cmd) return;
   if (cmd.dataset.cmd === "new-order") {
     newOrder(ctx, false);
+    const save = document.querySelector("#editor-submit");
+    save.disabled = true;
+    save.textContent = "Demoda kayıt kapalı";
     return;
   }
-  showNotice("Bu işlem girişsiz demoda etkin değil. Gerçek veri değiştirilmez.");
+  if (cmd.dataset.cmd === "order-detail") {
+    const sale = sales.find(row => row.id === cmd.dataset.id);
+    if (!sale) return;
+    const {name, sku, price_minor, cost_minor} = sale.product;
+    orderDetail(ctx, {...sale, items_json: JSON.stringify([{name, sku, unit: price_minor, cost: cost_minor, quantity: sale.quantity}])}, false);
+  }
 });
 document.addEventListener("submit", (event) => {
   if (!event.target.matches("[data-filter]")) return;
   event.preventDefault();
-  const q = event.target.elements.namedItem("q");
-  if (!q) return;
-  const view = location.hash.slice(1);
-  const data = demoData(view);
-  const query = q.value.trim().toLocaleLowerCase("tr-TR");
-  const rows = data.rows.filter((row) => Object.values(row).some((value) =>
-    typeof value === "string" && value.toLocaleLowerCase("tr-TR").includes(query)));
-  content.innerHTML = renderers[view]({ ...data, rows }, { ...state, q: q.value.trim() });
+  const fields = new FormData(event.target);
+  state.q = String(fields.get("q") || "").trim();
+  state.unpaid = fields.has("unpaid");
+  render();
+  content.querySelector('[name="q"]')?.focus();
 });
 render();

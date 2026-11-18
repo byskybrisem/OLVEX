@@ -11,7 +11,7 @@ export function salesChart(days) {
     const first = day(group[0].day);
     const range = group.length === 1 ? first : first + " – " + day(group.at(-1).day);
     const total = group.reduce((sum, row) => sum + row.sales, 0);
-    buckets.push({ total, label: range + " · " + money(total) });
+    buckets.push({ total, range, label: range + " · " + money(total) });
   }
   const peak = Math.max(...buckets.map(bucket => bucket.total));
   const points = buckets.map(({total}, index) => ({
@@ -38,6 +38,10 @@ export function salesChart(days) {
       ${points.map(({x,y}, i) => `<button type="button" class="chart-point" style="left:${x}%;top:${y}%" aria-label="${h(buckets[i].label)}" aria-pressed="${i === points.length - 1}"></button>`).join("")}
     </div><div class="plot-labels" aria-hidden="true">${[peak, peak/2, 0].map((v, i) =>
         `<small style="top:${10+41*i}%">${h(axisMoney.format(v/100))}</small>`).join("")}</div></div><div class="chart-axis"><span>${h(day(days[0].day))}</span>${days.length > 1 ? h(day(days.at(-1).day)) : ""}</div>
+    <details class="chart-data"><summary>Grafik verilerini göster</summary>
+      <table aria-label="Dönemlere göre satış tutarları"><thead><tr><th scope="col">Tarih aralığı</th><th scope="col">Satış tutarı</th></tr></thead>
+      <tbody>${buckets.map(({range, total}) => `<tr><th scope="row">${h(range)}</th><td>${h(money(total))}</td></tr>`).join("")}</tbody></table>
+    </details>
   </figure>`;
 }
 
