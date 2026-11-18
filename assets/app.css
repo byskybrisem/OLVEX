@@ -1,5 +1,7 @@
 :root {
   color-scheme: dark;
+  --radius: 12px;
+  --space: clamp(12px, 1.4vw, 20px);
   --bg: #0a0e1c;
   --glass: rgba(20, 29, 51, .76);
   --solid: #171f36;
@@ -52,8 +54,7 @@ h1, h2, h3, p { margin: 0; }
 .glass {
   border: 1px solid var(--line);
   background: var(--glass);
-  box-shadow: 0 18px 40px #03051338;
-  backdrop-filter: blur(19px) saturate(125%);
+  box-shadow: 0 4px 14px #03051320;
 }
 .sidebar {
   position: sticky;
@@ -155,34 +156,24 @@ h3 { font-size: 1rem; }
 .button.small { min-height: 34px; padding: 5px 8px; font-size: .79rem; }
 .icon-button { min-width: 35px; padding: 4px 7px; font-size: 1.1rem; }
 .content { display: grid; gap: 15px; }
-.panel { border-radius: 16px; padding: 17px; min-width: 0; }
+.panel { border-radius: var(--radius); padding: var(--space); min-width: 0; }
 .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .panel-title h2 { margin: 0; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 12px; }
 .stat {
   position: relative;
   overflow: hidden;
-  min-height: 104px;
+  min-height: 82px;
   display: grid;
   align-content: center;
   gap: 4px;
-  background: linear-gradient(140deg, #302557a8, #171f38a8 72%);
+  background: linear-gradient(145deg, #202440, #141c30);
 }
 .stat small { color: var(--soft); font-size: .81rem; }
 .stat strong { font-size: clamp(1.09rem, 2.1vw, 1.7rem); line-height: 1.2; word-break: break-word; font-variant-numeric: tabular-nums; }
 .stat.teal strong { color: var(--teal); }
 .stat.warm strong { color: var(--warm); }
 .split { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 15px; }
-.chart {
-  height: 153px;
-  display: flex;
-  align-items: end;
-  gap: clamp(2px, 1vw, 10px);
-  padding: 10px 0 0;
-  border-bottom: 1px solid var(--line);
-  background: repeating-linear-gradient(0deg, transparent 0 35px, #aebee611 35px 36px);
-}
-.bar { flex: 1; min-width: 0; border-radius: 4px 4px 0 0; background: linear-gradient(0deg, #6758e5, #a69aff); }
 .chart-axis { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: .8rem; margin-top: 7px; }
 .data-table { width: 100%; overflow: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .87rem; text-align: left; }
@@ -284,7 +275,7 @@ dialog::backdrop { background: #020610ba; backdrop-filter: blur(4px); }
   .topbar { margin-bottom: 13px; }
   .panel { padding: 13px; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .stat { min-height: 86px; }
+  .stat { min-height: 64px; }
   .filters:has(input[name="from"]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
   .filters input[type="date"] { width: 100%; padding-inline: 6px; }
   .filters input, .editor-content input, .editor-content select, .editor-content textarea, .ai-form textarea { font-size: 16px; }
@@ -297,162 +288,6 @@ dialog::backdrop { background: #020610ba; backdrop-filter: blur(4px); }
 @media (max-width: 365px) {
   .filters:has(input[name="from"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filters:has(input[name="from"]) button { justify-self: start; }
-}
-
-/* OLVEX - Mobil tablo ve filtre duzeltmeleri */
-
-.data-table {
-  max-width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.data-table table {
-  width: 100%;
-  min-width: max-content;
-}
-
-.data-table th,
-.data-table td {
-  overflow-wrap: normal;
-  word-break: normal;
-}
-
-.data-table td .inline {
-  flex-wrap: nowrap;
-}
-
-.data-table td .button {
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-@media (max-width: 760px) {
-  .filters:has(input[name="from"]) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .filters:has(input[name="from"]) > label {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .filters:has(input[name="from"]) input[type="date"] {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .filters:has(input[name="from"]) > button[type="submit"] {
-    grid-column: 1;
-    justify-self: stretch;
-  }
-}
-
-/* OLVEX - Hafif arayuz animasyonlari */
-
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes olvex-menu-open {
-    from {
-      opacity: 0;
-      transform: translateX(-14px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-
-  @keyframes olvex-chart-rise {
-    from {
-      transform: scaleY(0);
-    }
-    to {
-      transform: scaleY(1);
-    }
-  }
-
-  @media (max-width: 760px) {
-    .sidebar.open {
-      animation: olvex-menu-open 180ms ease-out both;
-    }
-  }
-
-  .chart .bar {
-    transform-origin: bottom center;
-    animation: olvex-chart-rise 420ms ease-out both;
-  }
-
-  .button,
-  .icon-button {
-    transition:
-      background-color 160ms ease,
-      border-color 160ms ease;
-  }
-}
-
-/* OLVEX - Grafik gorunumunu gelistirme */
-
-.chart {
-  position: relative;
-  height: clamp(210px, 25vw, 280px);
-  min-width: 0;
-  padding: 20px 12px 0;
-  gap: clamp(3px, 0.6vw, 9px);
-  border: 1px solid rgba(169, 159, 255, 0.18);
-  border-radius: 14px;
-  background:
-    radial-gradient(
-      ellipse at 55% 0%,
-      rgba(113, 101, 248, 0.14),
-      transparent 75%
-    ),
-    repeating-linear-gradient(
-      to top,
-      transparent 0 48px,
-      rgba(174, 190, 230, 0.1) 48px 49px
-    ),
-    rgba(10, 14, 28, 0.28);
-}
-
-.chart .bar {
-  position: relative;
-  min-width: 3px;
-  border-radius: 7px 7px 2px 2px;
-  border: 1px solid rgba(189, 181, 255, 0.3);
-  background: linear-gradient(
-    to top,
-    #5947cf 0%,
-    #8473f5 55%,
-    #b6aaff 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 0 15px rgba(113, 101, 248, 0.12);
-  transition:
-    filter 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.chart .bar:hover {
-  filter: brightness(1.2);
-  box-shadow: 0 0 20px rgba(149, 132, 255, 0.4);
-}
-
-.chart-axis {
-  padding: 5px 3px;
-  color: var(--soft);
-  font-size: 0.78rem;
-}
-
-@media (max-width: 760px) {
-  .chart {
-    height: 230px;
-    padding-inline: 9px;
-    gap: 3px;
-  }
 }
 
 /* OLVEX - Hızlı satış formu */
@@ -499,3 +334,60 @@ dialog::backdrop { background: #020610ba; backdrop-filter: blur(4px); }
     grid-column: 2;
   }
 }
+.sidebar nav svg { width: 18px; height: 18px; stroke: var(--purple); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+#close-menu { display: none; }
+.account-tools, .period-bar, .period-bar > label { display: flex; align-items: center; gap: 10px; }
+#account { position: relative; z-index: 2; }
+#account summary { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--teal); background: #18333e; cursor: pointer; font-weight: 700; }
+#account summary::-webkit-details-marker { display: none; }
+.account-card { position: absolute; right: 0; top: 100%; background: var(--solid); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 170px; display: grid; gap: 10px; overflow-wrap: anywhere; }
+.period-bar { flex-wrap: wrap; justify-content: space-between; font-size: .84rem; color: var(--muted); }
+.period-bar select { font-weight: 650; }
+.custom-period { flex-basis: 100%; background: var(--solid); border-radius: var(--radius); }
+.sales-chart { margin: 0; }
+.sales-chart figcaption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); font-size: .82rem; }
+.sales-chart output { color: var(--teal); font-variant-numeric: tabular-nums; }
+.plot { position: relative; height: clamp(118px, 13vw, 205px); margin: 10px 7px; background: repeating-linear-gradient(to top, transparent 0 calc(25% - 1px), #aebee620 calc(25% - 1px) 25%); }
+.plot svg { width: 100%; height: 100%; }
+.plot .area { fill: #8978ff20; }
+.plot .trend { stroke: var(--purple); stroke-width: 2.5; fill: none; vector-effect: non-scaling-stroke; }
+.chart-point { position: absolute; transform: translate(-50%, -50%); width: min(12%, 44px); height: 44px; padding: 0; border: 0; background: transparent; }
+.chart-point::after { content: ""; display: block; margin: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--purple); }
+.chart-point[aria-pressed="true"]::after { background: var(--teal); box-shadow: 0 0 0 4px #66e2ce30; }
+.chart-empty { padding: 20px 14px; border-left: 2px solid var(--purple); background: #9892ff09; }
+.chart-empty p { margin-top: 4px; color: var(--muted); font-size: .86rem; }
+@media (max-width:760px) {
+  .workspace-app { padding-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+  .workspace-app .sidebar { inset: auto 0 0; width: 100%; max-height: calc(94dvh - env(safe-area-inset-top)); padding: 14px max(14px,env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left)); border-radius: 18px 18px 0 0; }
+  .menuopen { overflow: hidden; }
+  .workspace-app .sidebar nav { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .nav-group { grid-column: 1/-1; }
+  #close-menu { display: grid; position: absolute; right: 14px; top: 9px; }
+  .workspace-app .brand { padding-bottom: 12px; }
+  .workspace-app .sidebar nav a, .button, .button.small, .icon-button, .period-bar select { min-height: 44px; }
+  .workspace-app .separator, .workspace-app #breadcrumb { display: none; }
+  .workspace-app .page-heading { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .workspace-app .page-heading:has(+ .notice + .content .period-bar) #subtitle { display: none; }
+  .topbar { margin-bottom: 8px; }
+  .stat-grid { gap: 6px; }
+  .stat-grid .stat:last-child:nth-child(odd) { grid-column: 1/-1; display: flex; align-items: center; justify-content: space-between; min-height: 45px; }
+  .stat small { font-size: .77rem; }
+  .stat strong { min-width: 0; }
+  .period-bar { gap: 4px 10px; }
+  .period-bar select { font-size: 16px; }
+  .custom-period label { flex: 1 1 110px; min-width: 0; }
+  .custom-period input { width: 100%; }
+  .data-table table:has(th:nth-child(3)) :is(tbody,tr) { display: block; }
+  .data-table table:has(th:nth-child(3)) thead { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+  .data-table table:has(th:nth-child(3)) td { display: grid; grid-template-columns: minmax(72px,30%) minmax(0,1fr); gap: 2px 8px; border: 0; padding: 4px 0; }
+  .data-table table:has(th:nth-child(3)) td::before { content: attr(data-label); color: var(--muted); font-size: .76rem; grid-row: 1 / span 2; }
+  .data-table td .inline { flex-wrap: wrap; }
+  .data-table tr + tr { border-top: 1px solid var(--line); }
+  .panel-title { flex-wrap: wrap; }
+  .data-table td > .badge, .data-table td > .button { justify-self: start; }
+  .workspace-app .order-line > [data-product-picker] { grid-column: 1/-1; }
+}
+@media (prefers-reduced-motion:no-preference) {
+  .button, .icon-button, .sidebar nav a { transition: background-color .15s, border-color .15s; }
+}
+.data-table .badge { white-space: normal; }

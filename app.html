@@ -11,29 +11,30 @@
 </head>
 <body>
 <a class="skip" href="#main">İçeriğe geç</a>
-<div class="shell">
+<div class="shell workspace-app">
   <aside class="sidebar glass" id="sidebar" aria-label="İşletme menüsü">
     <a class="brand" href="#overview"><span class="mark" aria-hidden="true">O</span>OLVEX</a>
+    <button id="close-menu" type="button" class="icon-button" aria-label="Menüyü kapat">×</button>
     <div class="workspace">
       <label for="business">İşletme</label>
       <select id="business" disabled><option>Yükleniyor…</option></select>
     </div>
     <nav aria-label="Panel bölümleri">
       <div class="nav-group">İşletme</div>
-      <a href="#overview" data-view="overview"><span aria-hidden="true">◫</span>Genel Bakış</a>
-      <a href="#sales" data-view="sales"><span aria-hidden="true">↗︎</span>Satışlar</a>
-      <a href="#products" data-view="products"><span aria-hidden="true">▦</span>Ürünler ve Stok</a>
-      <a href="#purchases" data-view="purchases" data-manager hidden><span aria-hidden="true">↓</span>Satın Alma</a>
-      <a href="#customers" data-view="customers"><span aria-hidden="true">♙</span>Müşteriler</a>
-      <a href="#finance" data-view="finance" data-manager hidden><span aria-hidden="true">◈</span>Finans</a>
-      <a href="#invoices" data-view="invoices" data-manager hidden><span aria-hidden="true">▤</span>Faturalar</a>
+      <a href="#overview" data-view="overview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg>Genel Bakış</a>
+      <a href="#sales" data-view="sales"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-10 M15 5h6v6"/></svg>Satışlar</a>
+      <a href="#products" data-view="products"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4-9 5z M3 7v10l9 5 9-5V7 M12 12v10"/></svg>Ürünler ve Stok</a>
+      <a href="#purchases" data-view="purchases" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h3l2 12h10l3-9H7 M9 20h1m7 0h1"/></svg>Satın Alma</a>
+      <a href="#customers" data-view="customers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20v-2a6 6 0 0112 0v2 M14 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>Müşteriler</a>
+      <a href="#finance" data-view="finance" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v13H3z M3 10h18 M15 15h3"/></svg>Finans</a>
+      <a href="#invoices" data-view="invoices" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2z M8 8h8 M8 12h6"/></svg>Faturalar</a>
       <div class="nav-group">Yönetim</div>
-      <a href="#employees" data-view="employees" data-manager hidden><span aria-hidden="true">♧</span>Personel</a>
-      <a href="#tasks" data-view="tasks"><span aria-hidden="true">▥</span>Görev ve Takvim</a>
-      <a href="#branches" data-view="branches"><span aria-hidden="true">⌘</span>İşletmeler</a>
-      <a href="#reports" data-view="reports" data-manager hidden><span aria-hidden="true">▥</span>Raporlar</a>
-      <a href="#ai" data-view="ai" data-manager hidden><span aria-hidden="true">✦</span>OLVEX AI</a>
-      <a href="#settings" data-view="settings" data-manager hidden><span aria-hidden="true">⚙︎</span>Ayarlar</a>
+      <a href="#employees" data-view="employees" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v13H3z M8 7V4h8v3 M3 12h18"/></svg>Personel</a>
+      <a href="#tasks" data-view="tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v16H3z M7 3v4 M17 3v4 M3 10h18 M8 15l2 2 5-4"/></svg>Görev ve Takvim</a>
+      <a href="#branches" data-view="branches"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l11-2v18 M15 10h5v11 M7 8h4 M7 12h4 M7 16h4"/></svg>İşletmeler</a>
+      <a href="#reports" data-view="reports" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18 M7 16v-5 M12 16V6 M17 16V9"/></svg>Raporlar</a>
+      <a href="#ai" data-view="ai" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z"/></svg>OLVEX AI</a>
+      <a href="#settings" data-view="settings" data-manager hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h9m5 0h4 M3 12h3m5 0h10 M3 18h11m5 0h2 M12 3v6 M7 9v6 M15 15v6"/></svg>Ayarlar</a>
     </nav>
     <div class="profile">
       <span id="avatar" class="avatar" aria-hidden="true">O</span>
@@ -49,7 +50,9 @@
         <button id="menu" type="button" class="icon-button" aria-label="Menüyü aç" aria-controls="sidebar" aria-expanded="false">☰</button>
         <span id="workspace-name">OLVEX</span><span class="separator" aria-hidden="true">/</span><b id="breadcrumb">Genel Bakış</b>
       </div>
-      <span id="today" class="top-date"></span>
+      <div class="account-tools"><span id="today" class="top-date"></span>
+        <details id="account"><summary aria-label="Kullanıcı menüsü"><span id="initial">O</span></summary>
+        <div class="account-card"><strong id="account-name"></strong><button class="button" type="button" id="account-logout">Çıkış yap</button></div></details></div>
     </header>
     <section class="page-heading" aria-labelledby="title">
       <div><h1 id="title" tabindex="-1">Genel Bakış</h1><p id="subtitle"></p></div>

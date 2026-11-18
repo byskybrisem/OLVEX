@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { chromium, webkit } from "playwright-core";
+import { views } from "../assets/views.js";
 import { localPages } from "./local.mjs";
 
-const local = await localPages();
+const local = await localPages({ https: true });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
 const snapshots = process.env.OLVEX_SCREENSHOT_DIR;
@@ -15,8 +16,8 @@ const browser = await chromium.launch({ executablePath }).catch(async (error) =>
   throw error;
 });
 
-async function safeContext(options) {
-  const context = await browser.newContext({ locale: "tr-TR", ...options });
+async function safeContext(options, engine = browser) {
+  const context = await engine.newContext({ locale: "tr-TR", ignoreHTTPSErrors: true, ...options });
   await context.route("**/*", (route) => {
     if (new URL(route.request().url()).origin === local.url) return route.continue();
     return route.abort();
@@ -53,7 +54,7 @@ async function prepareScreenshot(page, filename) {
 }
 
 try {
-  const desktop = await safeContext({ viewport: { width: 1365, height: 850 }, acceptDownloads: true });
+  const desktop = await safeContext({ viewport: { width: 1366, height: 850 }, acceptDownloads: true });
   const page = await desktop.newPage();
   watch(page);
   await page.goto(local.url);
@@ -143,6 +144,18 @@ try {
   await navigate(page, "overview", "Genel Bakış");
   await page.getByText("Filtre kahve", { exact: true }).waitFor();
   await prepareScreenshot(page, "panel-desktop.png");
+  await page.getByRole("button", {name:"Bekleyenleri aç"}).click();
+  await heading(page, "Satışlar");
+  await loaded(page);
+  assert.equal(await page.getByLabel("Tahsilat bekleyenler").isChecked(), true);
+  assert.equal(await page.locator("tbody tr").count(), 1);
+  await page.getByText("CSV-BROWSER", {exact:false}).waitFor();
+  await page.route("**/api/workspace/*/customers?**", route => route.fulfill({
+    status:503, contentType:"application/json", body:JSON.stringify({error:"Geçici bağlantı hatası"})
+  }), {times:1});
+  await page.locator('a[data-view="customers"]').click();
+  await page.getByRole("button", {name:"Yeniden dene"}).click();
+  await page.getByText("Bu görünümde müşteri yok.").waitFor();
 
   for (const [section, text] of [
     ["purchases", "Satın Alma"], ["customers", "Müşteriler"], ["invoices", "Faturalar"],
@@ -173,9 +186,46 @@ try {
   await navigate(handset, "products", "Ürünler ve Stok");
   await handset.getByText("Filtre kahve", { exact: true }).waitFor();
   assert.equal(await handset.locator("#sidebar").isVisible(), false);
-  for (const width of [320, 390, 430, 844]) {
-    await handset.setViewportSize({ width, height: width === 844 ? 390 : 844 });
-    assert.equal(await handset.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${width}px yatay taşma`);
+  for (const width of [320, 375, 390, 430, 440, 768, 1366, 1920]) {
+    await handset.setViewportSize({width, height: 900});
+    for (const [route, [title]] of Object.entries(views)) {
+      await handset.evaluate(hash => { location.hash = hash; }, route);
+      await heading(handset, title);
+      await loaded(handset);
+      assert.equal(await handset.locator('[data-cmd="retry"]').count(), 0, route);
+      assert.equal(await handset.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+        true, route + " at " + width);
+    }
+  }
+  if (process.env.OLVEX_WEBKIT) {
+    const safari = await webkit.launch();
+    try {
+      const context = await safeContext({ viewport: { width: 440, height: 956 }, isMobile: true,
+        hasTouch: true, deviceScaleFactor: 3, storageState: await desktop.storageState() }, safari);
+      const phone = await context.newPage();
+      watch(phone);
+      await phone.goto(local.url + "/app.html#overview");
+      await loaded(phone);
+      await phone.locator("[data-period]").selectOption({label:"Bugün"});
+      await loaded(phone);
+      assert.equal(await phone.locator(".chart-point").count(), 1);
+      await phone.locator(".chart-point").tap();
+      await prepareScreenshot(phone, "panel-webkit-mobile.png");
+      await phone.locator("[data-period]").selectOption("custom");
+      await phone.locator("[name=from]").fill("2020-01-01");
+      await phone.locator("[name=to]").fill("2020-01-02");
+      await phone.getByRole("button", {name:"Uygula"}).tap();
+      await phone.locator(".chart-empty").waitFor();
+      await phone.getByRole("button", {name:"Menüyü aç"}).tap();
+      await prepareScreenshot(phone, "menu-webkit-mobile.png");
+      await phone.locator("#close-menu").tap();
+      await navigate(phone, "products", "Ürünler ve Stok");
+      await phone.locator('[data-cmd="edit-product"]').first().tap();
+      await dialog(phone).getByLabel("Ürün adı").fill("Yerel taslak");
+      await phone.setViewportSize({width:440,height:500});
+      await dialog(phone).getByRole("button", { name: "Vazgeç" }).tap();
+      await dialog(phone).waitFor({state:"hidden"});
+    } finally { await safari.close(); }
   }
   await handset.setViewportSize({ width: 390, height: 844 });
   await handset.getByRole("button", { name: "Menüyü aç" }).click();

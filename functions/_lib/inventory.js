@@ -14,11 +14,13 @@ export async function products(ctx) {
 
 export function stockHistory(ctx) {
   const productId = ctx.paramsUrl.get("product");
+  const query = searchTerm(ctx.paramsUrl.get("q"));
   return list(ctx, `SELECT m.id, m.kind, m.delta, m.note, m.created_at, p.name, p.sku
     FROM olvex_stock_movements m JOIN olvex_products p
       ON p.business_id = m.business_id AND p.id = m.product_id
     WHERE m.business_id = ? AND (? IS NULL OR m.product_id = ?)
-    ORDER BY m.created_at DESC, m.id DESC LIMIT ? OFFSET ?`, [productId, productId]);
+      AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR m.note LIKE ? ESCAPE '\\')
+    ORDER BY m.created_at DESC, m.id DESC LIMIT ? OFFSET ?`, [productId, productId, query, query, query]);
 }
 
 function stockStatement(ctx, id, productId, kind, delta, note) {
@@ -83,12 +85,13 @@ export function orders(ctx, kind) {
     FROM olvex_orders o JOIN olvex_order_items i ON i.business_id = o.business_id AND i.order_id = o.id
     LEFT JOIN olvex_customers c ON c.business_id = o.business_id AND c.id = o.customer_id
     WHERE o.business_id = ? AND o.kind = ?
+      AND (? = 0 OR (o.status = 'posted' AND o.paid_on IS NULL))
       AND (COALESCE(o.reference, '') LIKE ? ESCAPE '\\' OR o.supplier LIKE ? ESCAPE '\\'
         OR COALESCE(c.name, '') LIKE ? ESCAPE '\\' OR o.note LIKE ? ESCAPE '\\'
         OR EXISTS (SELECT 1 FROM olvex_order_items oi WHERE oi.business_id = o.business_id
           AND oi.order_id = o.id AND (oi.product_sku LIKE ? ESCAPE '\\' OR oi.product_name LIKE ? ESCAPE '\\')))
     GROUP BY o.business_id, o.id ORDER BY o.occurred_on DESC, o.created_at DESC, o.id DESC LIMIT ? OFFSET ?`,
-  [kind, query, query, query, query, query, query]);
+  [kind, ctx.paramsUrl.get("unpaid") === "1" ? 1 : 0, query, query, query, query, query, query]);
 }
 
 const lineSql = `

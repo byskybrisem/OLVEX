@@ -182,6 +182,15 @@ test("stok girişi, satış, satır hatasında atomik geri alma, tekrar ve eşza
   assert.deepEqual(responses.map((item) => item.status).sort(), [200, 409]);
   await Promise.all(responses.map((item) => item.text()));
   assert.equal(await stockFor(owner, thisBusiness, "ELMA"), 2);
+  const dashboard = await owner.read(thisBusiness, "overview");
+  const waiting = await owner.read(thisBusiness, "sales", "?unpaid=1");
+  assert.deepEqual(waiting.rows.map(row => row.total_minor), [62750]);
+  const movements = await owner.read(thisBusiness, "stock", "?q=ELMA");
+  assert.ok(movements.rows.length > 0);
+  assert.ok(movements.rows.every(row => row.sku === "ELMA"));
+  assert.equal(dashboard.receivables.length, 1);
+  assert.equal(dashboard.receivables[0].total_minor, 62750);
+  assert.equal(dashboard.unpaid.sale, dashboard.receivables[0].total_minor);
   const { rows } = await owner.read(thisBusiness, "customer-history", `?id=${customer.id}`);
   assert.equal(rows[0].total_minor, 37650);
 });
@@ -257,6 +266,7 @@ test("davet, roller ve hassas maliyet alanlarının üyeye dönmemesi", async ()
   assert.equal(Object.hasOwn(JSON.parse(memberSales.rows[0].items_json)[0], "cost"), false);
   assert.equal(Object.hasOwn((await teammate.read(thisBusiness, "overview")).totals, "cost"), false);
   await teammate.read(thisBusiness, "finance", "", 403);
+  assert.equal((await teammate.read(thisBusiness, "overview")).receivables, undefined);
   await teammate.read(thisBusiness, "settings", "", 403);
   await teammate.mutate(thisBusiness, "products", "archive", { id: product.id }, 403);
   const { data: memberSession } = await teammate.call("/api/auth/me");

@@ -62,13 +62,18 @@ export async function summary(ctx) {
         GROUP BY o.business_id, o.id ORDER BY o.occurred_on DESC, o.created_at DESC, o.id DESC LIMIT 6`).bind(...scope),
       ctx.db.prepare(`SELECT kind, SUM(i.quantity * i.unit_minor) AS total_minor
         FROM olvex_orders o JOIN olvex_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
-        WHERE o.business_id = ? AND o.status = 'posted' AND o.paid_on IS NULL GROUP BY kind`).bind(ctx.businessId)
+        WHERE o.business_id = ? AND o.status = 'posted' AND o.paid_on IS NULL GROUP BY kind`).bind(ctx.businessId),
+      ...(manager ? [ctx.db.prepare(`SELECT o.occurred_on, o.reference, c.name AS customer, SUM(i.quantity * i.unit_minor) AS total_minor
+        FROM olvex_orders o JOIN olvex_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
+        LEFT JOIN olvex_customers c ON c.business_id = o.business_id AND c.id = o.customer_id
+        WHERE o.business_id = ? AND o.kind = 'sale' AND o.status = 'posted' AND o.paid_on IS NULL
+        GROUP BY o.id ORDER BY o.occurred_on, o.id LIMIT 5`).bind(ctx.businessId)] : [])
     ])
   ]);
-  const [lowStock, latest, unpaid] = results.map((result) => result.results);
+  const [lowStock, latest, unpaid, receivables] = results.map((result) => result.results);
   const sums = manager ? totals : { sales: totals.sales, saleCount: totals.saleCount };
   return {
-    from: start, to: end, totals: sums, lowStock, latest,
+    from: start, to: end, totals: sums, lowStock, latest, receivables,
     days: manager ? days : days.map(({ day, sales, saleCount }) => ({ day, sales, saleCount })),
     unpaid: manager ? Object.fromEntries(unpaid.map((row) => [row.kind, row.total_minor])) : null
   };

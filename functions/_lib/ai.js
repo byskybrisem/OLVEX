@@ -62,7 +62,7 @@ async function askOpenAI(ctx, facts, messages) {
         "SKU, tutar veya adet bilgisi eksikse soru sor. Kullanılmayan taslak alanlarını null yap."
       ].join(" "),
       input: [
-        { role: "developer", content: `İşletme özeti (JSON): ${JSON.stringify(facts)}` },
+        { role: "user", content: `İşletme özeti (JSON): ${JSON.stringify(facts)}` },
         ...messages
       ],
       text: { format: { type: "json_schema", name: "olvex_answer", strict: true, schema: outputSchema } }
