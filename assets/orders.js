@@ -1,6 +1,6 @@
 import { parseSalesCsv } from "./csv.js";
 import { amount, check, editor, field, fields, intField, note } from "./editor.js";
-import { button, count, day, empty, h, money, table, today, toMinor, whole } from "./ui.js";
+import { button, count, day, empty, fromMinor, h, money, table, today, toMinor, whole } from "./ui.js";
 
 export function lookup(ctx, root, { section, field: name, label, labelFor, query = {} }) {
   const wrapper = root.querySelector(`[data-lookup="${name}"]`);
@@ -267,6 +267,7 @@ export function orderDetail(ctx, row, purchase) {
   const items = JSON.parse(row.items_json);
   const columns = ["Ürün", "Adet", "Birim fiyat", "Toplam"];
   if (ctx.manager && !purchase) columns.push("Birim maliyet");
+  const history = ctx.manager && !purchase && row.revision > 0;
   editor(ctx, {
     title: purchase ? "Satın alma ayrıntısı" : "Satış ayrıntısı",
     html: orderSummary(row, purchase) +
@@ -275,12 +276,85 @@ export function orderDetail(ctx, row, purchase) {
         `<strong>${h(item.name)}</strong><small class="row-sub">${h(item.sku)}</small>`,
         h(count(item.quantity)), h(money(item.unit)), h(money(item.unit * item.quantity)),
         ...(ctx.manager && !purchase ? [h(money(item.cost))] : [])
-      ]))
+      ])) +
+      (history ? '<section><h3>Düzeltme geçmişi</h3><div data-edits></div><button class="button" type="button" data-more>Düzeltmeleri göster</button><p class="hint" role="status" data-feedback></p></section>' : ""),
+    init(root) {
+      if (history) bindSaleHistory(ctx, row.id, root);
+    }
+  });
+}
+
+function bindSaleHistory(ctx, id, root) {
+  const entries = root.querySelector("[data-edits]");
+  const more = root.querySelector("[data-more]");
+  const status = root.querySelector("[data-feedback]");
+  let page = 1;
+  more.addEventListener("click", async () => {
+    more.disabled = true;
+    status.textContent = "Geçmiş yükleniyor…";
+    try {
+      const data = await ctx.get("sale-edits", { id, page });
+      const cards = data.rows.map(edit => {
+        const details = [];
+        if (edit.old_reference !== edit.new_reference) details.push(`Referans · ${edit.old_reference || "—"} → ${edit.new_reference || "—"}`);
+        if (edit.old_note !== edit.new_note) details.push(`Not · ${edit.old_note || "—"} → ${edit.new_note || "—"}`);
+        for (const line of JSON.parse(edit.line_changes)) {
+          details.push(`${line.sku} · ${count(line.oldQuantity)} × ${money(line.oldUnit)} → ${count(line.newQuantity)} × ${money(line.newUnit)}`);
+        }
+        return `<article class="panel"><strong>${h(edit.reason)}</strong><small class="row-sub">${h(day(edit.created_at))} · ${h(edit.actor || "Kullanıcı")} · Sürüm ${h(edit.revision)}</small>${details.map(detail => `<p>${h(detail)}</p>`).join("")}</article>`;
+      });
+      entries.insertAdjacentHTML("beforeend", cards.join(""));
+      page++;
+      more.hidden = !data.hasMore;
+      more.textContent = "Daha eski düzeltmeleri göster";
+      status.textContent = data.rows.length + " düzeltme gösterildi.";
+    } catch (error) {
+      status.textContent = error.message;
+    } finally { more.disabled = false; }
+  });
+}
+
+function editSale(ctx, row) {
+  const items = JSON.parse(row.items_json);
+  const lines = row.paid_on ? '<p class="hint">Tahsil edilmiş satışın referansını ve notunu düzenleyebilirsiniz. Tutar düzeltmesi için iade işlemini kullanın.</p>' :
+    items.map((item, index) => `<fieldset class="order-line"><legend>${h(item.name)} · ${h(item.sku)}</legend>${
+      intField("Adet", "quantity-" + index, String(item.quantity))}${
+      amount("Birim fiyat", "unit-" + index, fromMinor(item.unit))}</fieldset>`).join("");
+  const values = form => items.map((item, index) => ({
+    id: item.id, quantity: whole(form.get("quantity-" + index), "Adet"), unit: toMinor(form.get("unit-" + index))
+  }));
+  editor(ctx, {
+    title: "Satışı düzenle", label: "Düzeltmeyi kaydet",
+    html: orderSummary(row, false) +
+      field("Referans", "reference", row.reference || "", { required: false, max: 100 }) +
+      note("Satış notu", "note", row.note) + lines +
+      (row.paid_on ? "" : `<p class="hint">Düzeltilmiş satış tutarı · <output data-edited-total>${h(money(row.total_minor))}</output></p>`) +
+      field("Düzeltme nedeni", "reason", "", { max: 180 }),
+    init(root) {
+      const total = root.querySelector("[data-edited-total]");
+      if (!total) return;
+      const form = root.closest("form");
+      root.querySelectorAll(".order-line").forEach(fieldset => fieldset.addEventListener("input", () => {
+        try {
+          const rows = values(new FormData(form));
+          const sum = rows.reduce((amount, item) => amount + item.unit * item.quantity, 0);
+          total.value = rows.every(item => item.quantity > 0) && Number.isSafeInteger(sum) ? money(sum) : "—";
+        } catch { total.value = "—"; }
+      }));
+    },
+    submit: (form, send) => {
+      const changed = row.paid_on ? [] : values(form).filter((line, index) =>
+        line.quantity !== items[index].quantity || line.unit !== items[index].unit);
+      return send("sales", "edit", { id: row.id, revision: row.revision, lines: changed,
+        reference: form.get("reference"), note: form.get("note"), reason: form.get("reason") });
+    },
+    done: () => ctx.changed("Satış ve düzeltme geçmişi güncellendi.")
   });
 }
 
 export function orderCommand(ctx, row, command, purchase) {
   const section = purchase ? "purchases" : "sales";
+  if (command === "edit-sale") return editSale(ctx, row);
   if (command === "order-detail") {
     orderDetail(ctx, row, purchase);
     return;
@@ -293,7 +367,7 @@ export function orderCommand(ctx, row, command, purchase) {
         `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde bu satıştaki ürünler stoka döner."}</p>` +
         (row.paid_on ? '<p class="hint">Tam iadenin tamamlandığı tarihi girin. İade bu tarihte nakit akışına eklenir.</p>' : '') +
         field("İptal / iade tarihi", "date", today(), { type: "date", extra: `min="${h(row.paid_on || row.occurred_on)}" max="${today()}"` }),
-      submit: (form, send) => send(section, "void", { id: row.id, date: form.get("date") }),
+      submit: (form, send) => send(section, "void", { id: row.id, revision: row.revision, date: form.get("date") }),
       done: () => ctx.changed("Kayıt iptal edildi. Stok güncellendi.")
     });
     return;
@@ -303,7 +377,7 @@ export function orderCommand(ctx, row, command, purchase) {
     label: purchase ? "Ödemeyi kaydet" : "Tahsilatı kaydet",
     html: orderSummary(row, purchase) +
       field("Tarih", "date", today(), { type: "date", extra: `min="${h(row.occurred_on)}" max="${today()}"` }),
-    submit: (form, send) => send(section, "settle", { id: row.id, date: form.get("date") }),
+    submit: (form, send) => send(section, "settle", { id: row.id, revision: row.revision, date: form.get("date") }),
     done: () => ctx.changed(purchase ? "Ödeme kaydedildi." : "Tahsilat kaydedildi.")
   });
 }

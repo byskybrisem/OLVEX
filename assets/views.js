@@ -72,7 +72,8 @@ function orderList(data, state, purchase) {
       rowName(party, [row.reference, sources[row.source]].filter(Boolean).join(" · ")),
       h(money(row.total_minor)), status,
       group(button("Ayrıntı", "order-detail", { id: row.id, kind: "small" }) +
-        (active && state.manager && !state.demo ? (!row.paid_on ?
+        (active && state.manager && !state.demo ?
+          (!purchase && row.source === "manual" ? button("Düzenle", "edit-sale", { id: row.id, kind: "small" }) : "") + (!row.paid_on ?
           button(purchase ? "Ödeme kaydet" : "Tahsilat kaydet", "settle-order", { id: row.id, kind: "small" }) : "") +
           button(purchase ? "İptal et" : "Tam iade / iptal", "void-order", { id: row.id, kind: "small danger" }) : ""))
     ];

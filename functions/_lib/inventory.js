@@ -78,9 +78,9 @@ export function stockAdjustment(ctx, body) {
 export function orders(ctx, kind) {
   const query = searchTerm(ctx.paramsUrl.get("q"));
   const manager = MANAGERS.includes(ctx.role);
-  return list(ctx, `SELECT o.id, o.source, o.reference, o.occurred_on, o.paid_on, o.status,
+  return list(ctx, `SELECT o.id, o.source, o.reference, o.revision, o.occurred_on, o.paid_on, o.status,
       o.note, o.supplier, o.voided_on, c.name AS customer, COALESCE(SUM(i.quantity * i.unit_minor), 0) AS total_minor,
-      json_group_array(json_object('sku', i.product_sku, 'name', i.product_name, 'quantity', i.quantity,
+      json_group_array(json_object(${manager && kind === "sale" ? "'id', i.id, " : ""}'sku', i.product_sku, 'name', i.product_name, 'quantity', i.quantity,
         'unit', i.unit_minor${manager ? ", 'cost', i.cost_minor" : ""})) AS items_json
     FROM olvex_orders o JOIN olvex_order_items i ON i.business_id = o.business_id AND i.order_id = o.id
     LEFT JOIN olvex_customers c ON c.business_id = o.business_id AND c.id = o.customer_id
@@ -144,10 +144,11 @@ export function voidOrder(ctx, body, kind) {
   const requestedDay = body.date == null ? null : date(body.date, "İade tarihi");
   const day = requestedDay || today();
   if (day > today()) throw new HttpError(400, "İade tarihi bugünden ileri olamaz.");
+  const revision = integer(body.revision ?? 0, "Sürüm", 0, Number.MAX_SAFE_INTEGER);
   const guard = rowExists("olvex_orders", id,
-    "AND kind = ? AND status = 'posted' AND occurred_on <= ? AND (paid_on IS NULL OR paid_on <= ?)", kind, day, day);
-  guard.message = "Kayıt iptal edilmiş veya iade tarihi satış ya da ödeme tarihinden önce.";
-  return transact(ctx, `${kind}-void`, { requestId: body.requestId, id, date: requestedDay }, [
+    "AND kind = ? AND revision = ? AND status = 'posted' AND occurred_on <= ? AND (paid_on IS NULL OR paid_on <= ?)", kind, revision, day, day);
+  guard.message = "İptal uygulanamadı. Kaydın güncel durumunu ve iade tarihini kontrol edin.";
+  return transact(ctx, `${kind}-void`, { requestId: body.requestId, id, date: requestedDay, revision: body.revision }, [
     ctx.db.prepare("UPDATE olvex_orders SET status = 'void', voided_by = ?, voided_on = ? WHERE business_id = ? AND id = ?")
       .bind(ctx.actorId, day, ctx.businessId, id)
   ], guard);
@@ -157,9 +158,11 @@ export function settleOrder(ctx, body, kind) {
   const id = identifier(body.id);
   const paidOn = date(body.date, "Ödeme tarihi");
   if (paidOn > today()) throw new HttpError(400, "Ödeme tarihi bugünden ileri olamaz.");
-  const guard = rowExists("olvex_orders", id, "AND kind = ? AND status = 'posted' AND paid_on IS NULL AND occurred_on <= ?", kind, paidOn);
-  guard.message = "Ödenmemiş bir işlem seçin. Ödeme tarihi işlem tarihinden önce olamaz.";
-  return transact(ctx, `${kind}-settle`, { requestId: body.requestId, id, paidOn }, [
+  const revision = integer(body.revision ?? 0, "Sürüm", 0, Number.MAX_SAFE_INTEGER);
+  const guard = rowExists("olvex_orders", id,
+    "AND kind = ? AND revision = ? AND status = 'posted' AND paid_on IS NULL AND occurred_on <= ?", kind, revision, paidOn);
+  guard.message = "Ödeme uygulanamadı. Kaydın güncel durumunu ve ödeme tarihini kontrol edin.";
+  return transact(ctx, `${kind}-settle`, { requestId: body.requestId, id, paidOn, revision: body.revision }, [
     ctx.db.prepare("UPDATE olvex_orders SET paid_on = ? WHERE business_id = ? AND id = ?")
       .bind(paidOn, ctx.businessId, id)
   ], guard);

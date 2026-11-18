@@ -377,6 +377,7 @@ function command(event) {
       return load();
     case "new-order": return newOrder(ctx, view === "purchases");
     case "import-sales": return importSales(ctx);
+    case "edit-sale":
     case "order-detail":
     case "settle-order":
     case "void-order":

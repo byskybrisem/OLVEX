@@ -7,8 +7,10 @@ import { archiveCustomer, archiveEmployee, cashEntries, completeTask, createCash
 import { branches, reports, overview } from "../../../_lib/reports.js";
 import { changeMember, createPos, invite, posConnections, rename, revokeInvite, revokePos, settings } from "../../../_lib/team.js";
 import { aiDashboard, ask, resolveProposal } from "../../../_lib/ai.js";
+import { editSale, saleEditHistory } from "../../../_lib/sale-edits.js";
 
 const READ = {
+  "sale-edits": [MANAGERS, saleEditHistory],
   overview: [EVERY_ROLE, overview],
   products: [EVERY_ROLE, products],
   stock: [EVERY_ROLE, stockHistory],
@@ -37,6 +39,7 @@ const WRITE = {
   },
   stock: { adjust: [MANAGERS, stockAdjustment] },
   sales: {
+    edit: [MANAGERS, editSale],
     create: [EVERY_ROLE, (ctx, data) => createOrder(ctx, data, "sale")],
     import: [MANAGERS, (ctx, data) => createOrder(ctx, data, "sale", "csv")],
     void: [MANAGERS, (ctx, data) => voidOrder(ctx, data, "sale")],
