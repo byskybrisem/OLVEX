@@ -62,20 +62,24 @@ export async function summary(ctx) {
         GROUP BY o.business_id, o.id ORDER BY o.occurred_on DESC, o.created_at DESC, o.id DESC LIMIT 6`).bind(...scope),
       ctx.db.prepare(`SELECT kind, SUM(i.quantity * i.unit_minor) AS total_minor
         FROM olvex_orders o JOIN olvex_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
-        WHERE o.business_id = ? AND o.status = 'posted' AND o.paid_on IS NULL GROUP BY kind`).bind(ctx.businessId)
+        WHERE o.business_id = ? AND o.status = 'posted' AND o.paid_on IS NULL GROUP BY kind`).bind(ctx.businessId),
+      ...(manager ? [ctx.db.prepare(`SELECT o.occurred_on, o.reference, c.name AS customer, SUM(i.quantity * i.unit_minor) AS total_minor
+        FROM olvex_orders o JOIN olvex_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
+        LEFT JOIN olvex_customers c ON c.business_id = o.business_id AND c.id = o.customer_id
+        WHERE o.business_id = ? AND o.kind = 'sale' AND o.status = 'posted' AND o.paid_on IS NULL
+        GROUP BY o.id ORDER BY o.occurred_on, o.id LIMIT 5`).bind(ctx.businessId)] : [])
     ])
   ]);
-  const [lowStock, latest, unpaid] = results.map((result) => result.results);
+  const [lowStock, latest, unpaid, receivables] = results.map((result) => result.results);
   const sums = manager ? totals : { sales: totals.sales, saleCount: totals.saleCount };
   return {
-    from: start, to: end, totals: sums, lowStock, latest,
+    from: start, to: end, totals: sums, lowStock, latest, receivables,
     days: manager ? days : days.map(({ day, sales, saleCount }) => ({ day, sales, saleCount })),
     unpaid: manager ? Object.fromEntries(unpaid.map((row) => [row.kind, row.total_minor])) : null
   };
 }
 
-export async function reports(ctx) {
-  const result = await summary(ctx);
+async function rankedProducts(ctx, start, end) {
   const { results } = await ctx.db.prepare(`
     SELECT i.product_id AS id, p.sku, p.name, SUM(i.quantity) AS quantity,
       SUM(i.quantity * i.unit_minor) AS sales, SUM(i.quantity * i.cost_minor) AS cost
@@ -83,8 +87,30 @@ export async function reports(ctx) {
     JOIN olvex_products p ON p.business_id = i.business_id AND p.id = i.product_id
     WHERE o.business_id = ? AND o.status = 'posted' AND o.kind = 'sale' AND o.occurred_on BETWEEN ? AND ?
     GROUP BY i.product_id ORDER BY sales DESC, p.sku LIMIT 20
-  `).bind(ctx.businessId, result.from, result.to).all();
-  return { ...result, topProducts: results };
+  `).bind(ctx.businessId, start, end).all();
+  return results;
+}
+
+export async function reports(ctx) {
+  const { start, end } = period(ctx.paramsUrl);
+  const [result, topProducts] = await Promise.all([summary(ctx), rankedProducts(ctx, start, end)]);
+  return { ...result, topProducts };
+}
+
+export async function overview(ctx) {
+  if (ctx.paramsUrl.get("detail") !== "dashboard") return summary(ctx);
+  const { start, end } = period(ctx.paramsUrl);
+  const span = (Date.parse(end) - Date.parse(start)) / 86400000 + 1;
+  const manager = MANAGERS.includes(ctx.role);
+  const [current, previous, products] = await Promise.all([
+    summary(ctx), financials(ctx, addDays(start, -span), addDays(start, -1)),
+    rankedProducts(ctx, start, end)
+  ]);
+  return {
+    ...current,
+    previous: manager ? previous.totals : {sales: previous.totals.sales, saleCount: previous.totals.saleCount},
+    leaders: products.slice(0, 4).map(({name, sales, quantity}) => ({name, sales, quantity}))
+  };
 }
 
 export async function branches(ctx) {

@@ -1,7 +1,8 @@
+import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
 import { customerHistory, importSales, newOrder, orderCommand } from "./orders.js";
 import { actions, renderers, roles, views } from "./views.js";
-import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, panel, request, today } from "./ui.js";
+import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
 
 const $ = (selector) => document.querySelector(selector);
 const content = $("#content");
@@ -25,8 +26,11 @@ let productName = "";
 let calendar = monthSpan(today());
 let taskDay = "";
 
+let noticeTimer;
 function appNotice(message = "", error = false) {
+  clearTimeout(noticeTimer);
   noticeBox.textContent = message;
+  if (message && !error) noticeTimer = setTimeout(() => { noticeBox.hidden = true; }, 5500);
   noticeBox.classList.toggle("error", error);
   noticeBox.hidden = !message;
 }
@@ -53,18 +57,18 @@ function viewManager() {
   return business.role === "owner" || business.role === "admin";
 }
 
-function viewFilter() {
-  if (!filters.has(view)) {
-    const end = view === "shifts" ? offsetDay(today(), 29) : today();
-    const start = view === "shifts" ? today() : offsetDay(end, -29);
-    filters.set(view, { page: 1, q: "", archived: false, from: start, to: end });
+function viewFilter(section = view) {
+  if (!filters.has(section)) {
+    const end = section === "shifts" ? offsetDay(today(), 29) : today();
+    const start = section === "shifts" ? today() : offsetDay(end, -29);
+    filters.set(section, { page: 1, q: "", archived: false, from: start, to: end });
   }
-  return filters.get(view);
+  return filters.get(section);
 }
 
 function state() {
   return {
-    ...viewFilter(), business, manager: viewManager(), product, productName, calendar, taskDay,
+    ...viewFilter(), view, business, manager: viewManager(), product, productName, calendar, taskDay,
     chat: conversations.get(business.id) || []
   };
 }
@@ -105,8 +109,8 @@ function commandContext() {
         return;
       }
       setBusiness(businesses.find((item) => item.id === businessId) || businesses[0], false);
+      navigate();
       appNotice(message);
-      await load();
     }
   };
 }
@@ -131,6 +135,8 @@ function setBusiness(selected, reset = true) {
 
 function closeMenu(restoreFocus = false) {
   if (!sidebar.classList.contains("open")) return;
+  $("#main").inert = false;
+  document.body.classList.remove("menuopen");
   sidebar.classList.remove("open");
   backdrop.hidden = true;
   menu.setAttribute("aria-expanded", "false");
@@ -138,18 +144,53 @@ function closeMenu(restoreFocus = false) {
   if (restoreFocus) menu.focus();
 }
 
+const railToggle = $("#rail-toggle");
+function setRail(collapsed) {
+  $(".shell").classList.toggle("rail", collapsed);
+  railToggle.setAttribute("aria-expanded", String(!collapsed));
+  railToggle.setAttribute("aria-label", collapsed ? "Menüyü genişlet" : "Menüyü daralt");
+}
+try { setRail(localStorage.getItem("olvex:collapsed") === "1"); } catch {}
+railToggle.addEventListener("click", () => {
+  const collapsed = railToggle.getAttribute("aria-expanded") === "true";
+  setRail(collapsed);
+  try { localStorage.setItem("olvex:collapsed", collapsed ? "1" : "0"); } catch {}
+});
+
+for (const dropdown of document.querySelectorAll(".account-tools details")) {
+  dropdown.addEventListener("toggle", () => {
+    if (dropdown.open) for (const other of document.querySelectorAll(".account-tools details[open]")) {
+      if (other !== dropdown) other.open = false;
+    }
+  });
+}
+document.addEventListener("click", event => {
+  for (const dropdown of document.querySelectorAll(".account-tools details[open]")) {
+    if (!dropdown.contains(event.target)) dropdown.open = false;
+  }
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  const open = document.querySelector(".account-tools details[open]");
+  if (open) { open.open = false; open.querySelector("summary").focus(); }
+});
+
 menu.addEventListener("click", () => {
   if (sidebar.classList.contains("open")) {
     closeMenu();
     return;
   }
+  $("#main").inert = true;
+  document.body.classList.add("menuopen");
   sidebar.classList.add("open");
   backdrop.hidden = false;
   menu.setAttribute("aria-expanded", "true");
   menu.setAttribute("aria-label", "Menüyü kapat");
   
-sidebar.querySelector('nav a[aria-current="page"]')?.focus();
+  sidebar.querySelector('nav a[aria-current="page"]')?.focus();
 });
+$("#close-menu").addEventListener("click", () => closeMenu(true));
+matchMedia("(max-width: 760px)").addEventListener("change", () => closeMenu());
 backdrop.addEventListener("click", () => closeMenu(true));
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#editor").open) closeMenu(true);
@@ -168,12 +209,16 @@ async function load() {
   const to = selected.to;
   const params = { page: selected.page, q: selected.q, archived: selected.archived ? "1" : "" };
   if (sectionsWithPeriod.has(tab)) Object.assign(params, { from, to });
+  if (selected.unpaid) params.unpaid = "1";
+  if (tab === "overview") params.detail = "dashboard";
   if (tab === "stock") params.product = product;
   if (tab === "tasks") Object.assign(params, taskDay ?
     { from: taskDay, to: taskDay, exact: "1" } : calendar);
 
   content.setAttribute("aria-busy", "true");
-  content.innerHTML = panel("", '<p class="empty">Kayıtlar yükleniyor…</p>');
+  $("#alerts").hidden = true;
+  $("#alerts").open = false;
+  content.innerHTML = '<div class="loading-panel" role="status">Kayıtlar yükleniyor…<i></i><i></i><i></i></div>';
   data = null;
   try {
     const [result, additional] = await Promise.all([
@@ -185,57 +230,17 @@ async function load() {
     data = result;
     if (tab === "finance") data.summary = additional;
     if (tab === "tasks") data.calendar = additional;
+    if (tab === "overview") {
+      const alerts = [];
+      const critical = result.lowStock[0]?.total;
+      if (critical) alerts.push(`<a href="#products">${h(critical)} ürün kritik stokta</a>`);
+      if (result.unpaid?.sale > 0) alerts.push(button("Bekleyen tahsilatları aç", "open-receivables", {kind:"small"}));
+      $("#alert-items").innerHTML = alerts.join("") || "Stok ve tahsilat uyarısı yok.";
+      $("#alerts").classList.toggle("has-alert", alerts.length > 0);
+      $("#alerts").hidden = false;
+    }
     content.innerHTML = renderers[tab](data, state());
     
-    // OLVEX - Etkilesimli grafik inceleme
-    for (const chart of content.querySelectorAll('.chart')) {
-      const bars = [...chart.querySelectorAll('.bar[title]')];
-      if (!bars.length) continue;
-
-      chart.setAttribute('role', 'group');
-
-      const details = document.createElement('p');
-      details.className = 'hint';
-      details.setAttribute('role', 'status');
-      details.textContent =
-        'Bir sütuna dokunarak satış tutarını inceleyin.';
-
-      const axis = chart.nextElementSibling;
-      (axis?.classList.contains('chart-axis') ? axis : chart)
-        .insertAdjacentElement('afterend', details);
-
-      const selectBar = (selected) => {
-        for (const bar of bars) {
-          const active = bar === selected;
-          bar.setAttribute('aria-pressed', String(active));
-          bar.style.outline = active
-            ? '2px solid var(--teal)' : '';
-          bar.style.outlineOffset = active ? '2px' : '';
-        }
-        details.textContent =
-          selected.getAttribute('title') || '';
-      };
-
-      for (const bar of bars) {
-        bar.removeAttribute('aria-hidden');
-        bar.setAttribute('role', 'button');
-        bar.setAttribute(
-          'aria-label', bar.getAttribute('title')
-        );
-        bar.setAttribute('tabindex', '0');
-        bar.setAttribute('aria-pressed', 'false');
-        bar.style.cursor = 'pointer';
-
-        bar.addEventListener('click', () => selectBar(bar));
-        bar.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            selectBar(bar);
-          }
-        });
-      }
-    }
-
     content.scrollTop = 0;
     const chat = content.querySelector(".chat");
     if (chat) chat.scrollTop = chat.scrollHeight;
@@ -255,7 +260,7 @@ function navigate({ focus = false } = {}) {
   const [name, hint, parent] = views[view];
   title.textContent = name;
   $("#breadcrumb").textContent = name;
-  $("#subtitle").textContent = hint;
+  $("#subtitle").textContent = view === "overview" ? `Hoş geldiniz, ${user.fullName || user.email}.` : hint;
   $("#actions").innerHTML = actions(view, state());
   document.title = `${name} | OLVEX`;
   for (const link of sidebar.querySelectorAll("[data-view]")) {
@@ -283,6 +288,7 @@ selector.addEventListener("change", () => {
   navigate({ focus: true });
 });
 
+$("#account-logout").addEventListener("click", () => $("#logout").click());
 $("#logout").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   button.disabled = true;
@@ -321,6 +327,20 @@ async function askAI(form) {
   }
 }
 
+bindSalesChart(content);
+content.addEventListener("change", event => {
+  if (!event.target.matches("[data-period]")) return;
+  if (event.target.value === "custom") {
+    const form = content.querySelector(".custom-period");
+    form.hidden = false;
+    form.elements.from.focus();
+    return;
+  }
+  const { from, to, label } = periods(today(), view === "shifts")[Number(event.target.value)];
+  Object.assign(viewFilter(), { from, to, periodLabel: label, page: 1 });
+  load();
+});
+
 content.addEventListener("submit", (event) => {
   const form = event.target;
   if (form.id === "ai-form") {
@@ -336,8 +356,13 @@ content.addEventListener("submit", (event) => {
     appNotice("Başlangıç tarihi bitiş tarihinden sonra olamaz.", true);
     return;
   }
+  if (fields.get("from") && fields.get("to") > offsetDay(fields.get("from"), 365)) {
+    appNotice("En fazla 366 günlük bir dönem seçin.", true);
+    return;
+  }
+  if (fields.has("from")) current.periodLabel = "custom";
   Object.assign(current, {
-    q: fields.get("q") || "", archived: fields.has("archived"),
+    q: fields.get("q") || "", unpaid: fields.has("unpaid"), archived: fields.has("archived"),
     from: fields.get("from") || current.from, to: fields.get("to") || current.to, page: 1
   });
   appNotice();
@@ -369,6 +394,10 @@ function command(event) {
   const row = id ? rows.find((item) => item.id === id) : undefined;
   switch (cmd) {
     case "retry": return load();
+    case "open-receivables":
+      Object.assign(viewFilter("sales"), {unpaid: true, q: "", page: 1});
+      location.hash = "#sales";
+      return;
     case "page":
       viewFilter().page = Number(id);
       return load();
@@ -416,6 +445,7 @@ function command(event) {
 
 content.addEventListener("click", command);
 $("#actions").addEventListener("click", command);
+$("#alert-items").addEventListener("click", command);
 
 async function start() {
   $("#today").textContent = day(today());
@@ -429,6 +459,8 @@ async function start() {
     }
     $("#user-name").textContent = user.fullName || user.email;
     $("#avatar").textContent = (user.fullName || user.email).trim().slice(0, 1).toLocaleUpperCase("tr-TR") || "O";
+    $("#initial").textContent = $("#avatar").textContent;
+    $("#account-name").textContent = $("#user-name").textContent;
     const preferred = new URLSearchParams(location.search).get("business") || localSelection();
     setBusiness(businesses.find((item) => item.id === preferred) || businesses[0]);
     if (location.search) history.replaceState(null, "", location.pathname + location.hash);

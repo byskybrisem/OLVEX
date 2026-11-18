@@ -4,12 +4,12 @@ import { archiveProduct, catalog, createOrder, orders, products, saveProduct, se
 import { archiveCustomer, archiveEmployee, cashEntries, completeTask, createCashEntry, createShift, customerHistory,
   customers, employees, invoices, removeShift, removeTask, saveCustomer, saveEmployee, saveInvoice, saveTask, shifts,
   taskDays, tasks, voidCash } from "../../../_lib/records.js";
-import { branches, reports, summary } from "../../../_lib/reports.js";
+import { branches, reports, overview } from "../../../_lib/reports.js";
 import { changeMember, createPos, invite, posConnections, rename, revokeInvite, revokePos, settings } from "../../../_lib/team.js";
 import { aiDashboard, ask, resolveProposal } from "../../../_lib/ai.js";
 
 const READ = {
-  overview: [EVERY_ROLE, summary],
+  overview: [EVERY_ROLE, overview],
   products: [EVERY_ROLE, products],
   stock: [EVERY_ROLE, stockHistory],
   catalog: [EVERY_ROLE, catalog],

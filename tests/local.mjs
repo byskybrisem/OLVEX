@@ -1,6 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
 import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { get as httpsGet } from "node:https";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -21,7 +22,7 @@ async function openPort() {
   return port;
 }
 
-export async function localPages({ seed, bindings = {}, registration = "preview" } = {}) {
+export async function localPages({ seed, https = false, bindings = {}, registration = "preview" } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "olvex-test-"));
   const dbId = crypto.randomUUID();
   const config = join(dir, "wrangler.test.toml");
@@ -46,7 +47,7 @@ export async function localPages({ seed, bindings = {}, registration = "preview"
   }
 
   try {
-    const assets = ["_headers", "_routes.json", "assets", "index.html", "app.html", "login.html", "register.html", "setup.html",
+    const assets = ["_headers", "_routes.json", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
       "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts"];
     await Promise.all([...assets, "functions", "migrations"].map((name) =>
       cp(join(root, name), join(dir, name), { recursive: true })));
@@ -61,8 +62,9 @@ export async function localPages({ seed, bindings = {}, registration = "preview"
     }
 
     const port = await openPort();
-    const url = `http://127.0.0.1:${port}`;
-    worker = spawn(process.execPath, [cli, "pages", "dev", "dist", "--ip", "127.0.0.1", "--port", String(port),
+    const protocol = https ? "https" : "http";
+    const url = `${protocol}://127.0.0.1:${port}`;
+    worker = spawn(process.execPath, [cli, "pages", "dev", "dist", "--local-protocol", protocol, "--ip", "127.0.0.1", "--port", String(port),
       "--compatibility-date", "2025-10-01", "--d1", `DB=${dbId}`, "--persist-to", storage,
       "--show-interactive-dev-session=false", "--log-level", "warn",
       ...Object.entries(testEnv).flatMap(([key, value]) => ["--binding", `${key}=${value}`])
@@ -73,8 +75,14 @@ export async function localPages({ seed, bindings = {}, registration = "preview"
     for (let attempt = 0; attempt < 90; attempt++) {
       if (worker.exitCode !== null || worker.signalCode !== null) break;
       try {
-        const response = await fetch(`${url}/api/health`);
-        if (response.ok) return { url, close, logs: () => logs };
+        const health = url + "/api/health";
+        const ready = https ? await new Promise((resolve, reject) => {
+          httpsGet(health, { rejectUnauthorized: false }, response => {
+            response.resume();
+            resolve(response.statusCode === 200);
+          }).on("error", reject);
+        }) : (await fetch(health)).ok;
+        if (ready) return { url, close, logs: () => logs };
       } catch {}
       await delay(180);
     }

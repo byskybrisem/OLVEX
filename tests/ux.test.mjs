@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { periods, offsetDay } from "../assets/ui.js";
 import { renderers } from "../assets/views.js";
 
 const initialState = {
@@ -29,25 +30,25 @@ const emptyFacts = {
   unpaid: {}
 };
 
-test("overview renders an SVG chart with zero sales instead of disappearing", () => {
+test("overview explains an empty sales period without plotting a flat line", () => {
   const html = overview([
     { day: "2026-11-17", sales: 0 },
     { day: "2026-11-18", sales: 0 }
   ]);
-  assert.match(html, /<svg/);
+  assert.doesNotMatch(html, /class="plot"/);
   assert.match(html, /Seçilen tarihlerde satış yok/);
   assert.doesNotMatch(html, /NaN|Infinity/);
 });
 
 test("overview shows one point with a single day of actual sales", () => {
   const html = overview([{ day: "2026-11-18", sales: 15050 }]);
-  assert.match(html, /<circle/);
+  assert.match(html, /class="chart-point"/);
   assert.match(html, /150,50/);
   assert.doesNotMatch(html, /NaN|Infinity/);
 });
 
 test("overview handles missing dates without throwing", () => {
-  assert.match(overview([]), /Grafik için tarih verisi bulunamadı/);
+  assert.match(overview([]), /Seçilen dönemde satış tutarı yok/);
 });
 
 test("AI provides truthful and useful no-key business insights", () => {
@@ -79,4 +80,30 @@ test("AI safely escapes product names in low-stock reporting", () => {
   });
   assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
   assert.match(html, /&lt;script&gt;/);
+});
+
+test("long periods retain the full total and bounded point count", () => {
+  const html = overview(Array.from({length:366}, (_, index) =>
+    ({day:offsetDay("2024-01-01", index), sales:10000000000})));
+  assert.equal(html.match(/class="chart-point"/g).length, 8);
+  assert.match(html, /4.600.000.000,00/);
+  assert.doesNotMatch(html, /NaN|Infinity/);
+});
+
+test("period presets cross month boundaries including leap years", () => {
+  assert.deepEqual(periods("2024-03-01").map(x => x.from),
+    ["2024-03-01", "2024-02-24", "2024-02-01", "2024-03-01"]);
+});
+
+test("comparisons use posted totals from the previous period and handle a missing baseline", () => {
+  const snapshot = {
+    totals: {sales:15000, cost:4000, revenue:15000, spending:3000, saleCount:2},
+    previous: {sales:10000, cost:3000, revenue:5000, spending:5000},
+    days: [], latest: [], lowStock: []
+  };
+  const html = renderers.overview(snapshot, initialState);
+  assert.match(html, /\+%50 · önceki döneme göre/);
+  assert.equal(html.match(/class="delta"/g).length, 2);
+  const noHistory = renderers.overview({...snapshot, previous:undefined}, initialState);
+  assert.doesNotMatch(noHistory, /class="delta"/);
 });

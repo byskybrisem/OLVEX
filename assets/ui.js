@@ -84,7 +84,7 @@ export function table(columns, rows, placeholder) {
   if (!rows.length) return empty(placeholder || "Henüz kayıt yok.");
   return `<div class="data-table" tabindex="0" role="region" aria-label="Kayıt tablosu"><table><thead><tr>
     ${columns.map((col) => `<th scope="col">${h(col)}</th>`).join("")}</tr></thead><tbody>
-    ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}
+    ${rows.map((row) => `<tr>${row.map((cell, i) => `<td data-label="${h(columns[i])}">${cell}</td>`).join("")}</tr>`).join("")}
     </tbody></table></div>`;
 }
 
@@ -103,12 +103,33 @@ export function tabs(entries, active) {
   ).join("")}</nav>`;
 }
 
-export function filters(state, { query = "", archive = false, range = false } = {}) {
+export function periods(end = today(), upcoming = false) {
+  const choices = [
+    ["Bugün", end], ["Son 7 gün", offsetDay(end, -6)],
+    ["Son 30 gün", offsetDay(end, -29)], ["Bu ay", monthSpan(end).from]
+  ].map(([label, from]) => ({label, from, to: end}));
+  if (upcoming) choices.push({label: "Gelecek 30 gün", from: end, to: offsetDay(end, 29)});
+  return choices;
+}
+
+export function filters(state, { query = "", archive = false, range = false, unpaid = "" } = {}) {
+  if (range && state.demo) return `<p class="hint">Örnek dönem · ${h(day(state.from))} – ${h(day(state.to))}</p>`;
+  if (range) {
+    const choices = periods(today(), state.view === "shifts");
+    const active = choices.findIndex(item => item.from === state.from && item.to === state.to && (!state.periodLabel || item.label === state.periodLabel));
+    return `<div class="period-bar"><label>Dönem <select data-period>
+      ${choices.map((item, index) => `<option value="${index}" ${index === active ? "selected" : ""}>${item.label}</option>`).join("")}
+      <option value="custom" ${active < 0 ? "selected" : ""}>Özel tarih</option></select></label>
+      <span>${h(day(state.from))} – ${h(day(state.to))}</span>
+      <form data-filter class="filters custom-period" ${active >= 0 ? "hidden" : ""}>
+        <label>Başlangıç<input name="from" type="date" required value="${h(state.from)}"></label>
+        <label>Bitiş<input name="to" type="date" required value="${h(state.to)}"></label>
+        <button class="button" type="submit">Uygula</button></form></div>`;
+  }
   return `<form class="glass panel filters" data-filter>
     ${query ? `<label>${h(query)}<input type="search" name="q" maxlength="80" value="${h(state.q)}" placeholder="Ara"></label>` : ""}
     ${archive ? `<label class="check"><input name="archived" type="checkbox"${state.archived ? " checked" : ""}> Arşivi de göster</label>` : ""}
-    ${range ? `<label>Başlangıç<input name="from" type="date" required value="${h(state.from)}"></label>
-      <label>Bitiş<input name="to" type="date" required value="${h(state.to)}"></label>` : ""}
+    ${unpaid ? `<label class="check"><input name="unpaid" type="checkbox"${state.unpaid ? " checked" : ""}> ${h(unpaid)}</label>` : ""}
     <button type="submit" class="button small">Uygula</button>
   </form>`;
 }

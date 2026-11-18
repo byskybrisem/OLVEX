@@ -1,3 +1,5 @@
+import { overview } from "./dashboard.js";
+import { salesChart } from "./sales-chart.js";
 import { badge, button, count, day, empty, filters, h, link, money, offsetDay, pagination, panel, rowName, stat, table, tabs, today } from "./ui.js";
 
 export const roles = { owner: "İşletme sahibi", admin: "Yönetici", member: "Ekip üyesi" };
@@ -34,110 +36,6 @@ const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
 
 
-function chart(days) {
-  if (!days.length) {
-    return empty("Grafik için tarih verisi bulunamadı.");
-  }
-
-  const bucketSize = Math.max(1, Math.ceil(days.length / 14));
-  const groups = [];
-
-  for (let i = 0; i < days.length; i += bucketSize) {
-    const segment = days.slice(i, i + bucketSize);
-    groups.push({
-      from: segment[0].day,
-      to: segment.at(-1).day,
-      sales: segment.reduce((sum, row) => sum + row.sales, 0)
-    });
-  }
-
-  const highest = Math.max(0, ...groups.map((item) => item.sales));
-  const ceiling = highest || 1;
-  const baseY = 218;
-
-  const points = groups.map((item, index) => ({
-    ...item,
-    x: groups.length === 1
-      ? 380
-      : 24 + index * 712 / (groups.length - 1),
-    y: baseY - item.sales / ceiling * 166
-  }));
-
-  const linePath = points.map((point, index) =>
-    `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`
-  ).join(" ");
-
-  const areaPath = `${linePath} L${points.at(-1).x.toFixed(2)} ${baseY} L${points[0].x.toFixed(2)} ${baseY} Z`;
-
-  return `<div class="chart" role="group" aria-label="Satış grafiği"
-    style="display:block;height:auto;padding:12px 12px 8px;">
-    <svg viewBox="0 0 760 250" role="group" aria-label="Dönemsel satışlar"
-      style="display:block;width:100%;height:auto;overflow:visible;">
-      <defs>
-        <linearGradient id="olvex-sales-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#9b8aff" stop-opacity="0.34" />
-          <stop offset="100%" stop-color="#9b8aff" stop-opacity="0.01" />
-        </linearGradient>
-      </defs>
-
-      ${[52, 107, 162, 218].map((y) =>
-        `<line x1="24" y1="${y}" x2="736" y2="${y}"
-          stroke="#aab7d2" stroke-opacity="0.17" stroke-dasharray="4 7" />`
-      ).join("")}
-
-      <path d="${areaPath}" fill="url(#olvex-sales-gradient)" />
-
-      <path d="${linePath}" fill="none" stroke="#a99fff"
-        stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
-        vector-effect="non-scaling-stroke" />
-
-      ${points.map((point) => {
-        const range = point.from === point.to
-          ? day(point.from)
-          : `${day(point.from)} – ${day(point.to)}`;
-
-        const label = `${range} · ${money(point.sales)}`;
-
-        return `<circle class="bar" cx="${point.x.toFixed(2)}"
-          cy="${point.y.toFixed(2)}" r="7" fill="#b6aaff"
-          stroke="#111a31" stroke-width="2" title="${h(label)}"
-          style="animation:none;transform:none;cursor:pointer;" />`;
-      }).join("")}
-
-      <text x="24" y="22" fill="#aab7d2" font-size="14">
-        En yüksek dönem: ${h(money(highest))}
-      </text>
-    </svg>
-  </div>
-
-  <div class="chart-axis">
-    <span>${h(day(days[0].day))}</span>
-    <span>${h(day(days.at(-1).day))}</span>
-  </div>
-
-  ${highest === 0
-    ? '<p class="hint">Seçilen tarihlerde satış yok. Grafik sıfır düzeyinde.</p>'
-    : '<p class="hint">Noktalara dokunarak ilgili dönemin satışını inceleyin.</p>'}`;
-}
-
-
- 
-function overview(data, state) {
-  const { totals, latest, lowStock, days } = data;
-  const cards = stat("Satış tutarı", money(totals.sales)) +
-    (state.manager ? stat("Brüt kâr", money(totals.sales - totals.cost), "teal") +
-      stat("Net nakit", money(totals.revenue - totals.spending)) : stat("Satış sayısı", count(totals.saleCount))) +
-    stat("Kritik stok", count(lowStock[0]?.total), "warm");
-  return filters(state, { range: true }) + stats(cards) +
-    grid(panel("Satış seyri", chart(days)),
-      panel("Kritik stok", table(["Ürün", "Stok"], lowStock.map((row) =>
-        [rowName(row.name, row.sku), badge(count(row.stock), "warn")]), "Kritik stok kaydı yok."),
-      link("Ürünler", "#products", "small"))) +
-    panel("Son satışlar", table(["Tarih", "Referans", "Tutar"], latest.map((row) =>
-      [h(day(row.occurred_on)), h(row.reference || "Manuel kayıt"), h(money(row.total_minor))]),
-    "Seçilen tarihlerde satış yok."), link("Satışları aç", "#sales", "small"));
-}
-
 function productList(data, state) {
   const columns = ["Ürün", "Satış fiyatı", ...(state.manager ? ["Maliyet"] : []), "Stok", "İşlemler"];
   const rows = data.rows.map((row) => [
@@ -157,6 +55,7 @@ function productList(data, state) {
 function stock(data, state) {
   return inventoryTabs("stock") + (state.product ?
     group(`<span class="muted">${h(state.productName || "Seçilen ürün")}</span>` + button("Tüm hareketler", "clear-product", { kind: "small" })) : "") +
+    filters(state, { query: "Ürün, SKU veya açıklama" }) +
     withPage("Hareket geçmişi", data, table(["Ürün", "Tür", "Stok farkı", "Tarih", "Açıklama"], data.rows.map((row) =>
       [rowName(row.name, row.sku), h(movementKinds[row.kind]), badge(`${row.delta > 0 ? "+" : ""}${count(row.delta)}`, row.delta > 0 ? "ok" : "warn"),
         h(day(row.created_at)), h(row.note || "—")]), "Stok hareketi kaydı yok."));
@@ -178,7 +77,7 @@ function orderList(data, state, purchase) {
           button(purchase ? "İptal et" : "Tam iade / iptal", "void-order", { id: row.id, kind: "small danger" }) : ""))
     ];
   });
-  return filters(state, { query: purchase ? "Tedarikçi, ürün veya referans" : "Müşteri, ürün veya referans" }) +
+  return filters(state, { unpaid: state.demo ? "" : purchase ? "Ödeme bekleyenler" : "Tahsilat bekleyenler", query: purchase ? "Tedarikçi, ürün veya referans" : "Müşteri, ürün veya referans" }) +
     withPage(purchase ? "Alış geçmişi" : "Satış geçmişi", data,
       table(["Tarih", purchase ? "Tedarikçi" : "Müşteri", "Tutar", "Durum", "İşlemler"], rows, "Bu görünümde işlem yok."));
 }
@@ -281,7 +180,7 @@ function reports(data, state) {
   return filters(state, { range: true }) + stats(
     stat("Satış tutarı", money(totals.sales)) + stat("Satılan ürün maliyeti", money(totals.cost)) +
     stat("Brüt kâr", money(totals.sales - totals.cost), "teal") + stat("Satın alma tutarı", money(totals.purchases))) +
-    panel("Günlük satış grafiği", chart(days)) +
+    panel("Satış seyri", salesChart(days)) +
     panel("En çok satış tutarı getiren 20 ürün", table(["Ürün", "Adet", "Satış", "Brüt kâr"],
       topProducts.map((row) => [rowName(row.name, row.sku), h(count(row.quantity)), h(money(row.sales)), h(money(row.sales - row.cost))]),
       "Seçilen tarihlerde ürün satışı yok.")) +

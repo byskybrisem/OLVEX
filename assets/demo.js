@@ -1,3 +1,4 @@
+import { bindSalesChart } from "./sales-chart.js";
 import { newOrder } from "./orders.js";
 import { actions, renderers, views } from "./views.js";
 import { offsetDay, today } from "./ui.js";
@@ -24,11 +25,12 @@ const sales = [
     reference: "DEMO-0999", source: "manual", total_minor: 5950, status: "posted", paid_on: now }
 ];
 const state = {
-  manager: true, business: { id: "demo", name: "Örnek İşletme", role: "owner" },
+  demo: true, manager: true, business: { id: "demo", name: "Örnek İşletme", role: "owner" },
   from: offsetDay(now, -6), to: now, q: "", archived: false, page: 1, chat: []
 };
 const notice = document.querySelector("#notice");
 const content = document.querySelector("#content");
+bindSalesChart(content);
 const title = document.querySelector("#title");
 const subtitle = document.querySelector("#subtitle");
 const breadcrumb = document.querySelector("#breadcrumb");
@@ -79,6 +81,12 @@ function demoData(view) {
   };
   if (view === "overview") return {
     totals: { sales: 56880, cost: 25900, revenue: 43930, spending: 15000, saleCount: 3 },
+    leaders: [
+      {name:products[0].name, sales:37980, quantity:2},
+      {name:products[1].name, sales:12950, quantity:1},
+      {name:products[2].name, sales:5950, quantity:1}
+    ],
+    unpaid: { sale: 12950 }, receivables: sales.filter(row => !row.paid_on),
     latest: sales.map((s) => ({ occurred_on: s.occurred_on,
       reference: s.reference, total_minor: s.total_minor })),
     lowStock: [{ total: 1, name: "Seramik Kupa", sku: "KUPA-01", stock: 3 }],
