@@ -1,6 +1,8 @@
+
 import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { importRegisterSale } from "../../../_lib/register.js";
+import { importProducts } from "../../../_lib/product-bulk.js";
 import { createBranch, createTransfer, locations, transferHistory } from "../../../_lib/branches.js";
 import { reconcilePos } from "../../../_lib/pos-identity.js";
 import { handle, HttpError, json, readJson, sameOrigin } from "../../../_lib/http.js";
@@ -49,6 +51,7 @@ const WRITE = {
   },
   products: {
     save: [MANAGERS, saveProduct],
+    bulk: [MANAGERS, importProducts],
     archive: [MANAGERS, archiveProduct]
   },
   stock: { adjust: [MANAGERS, stockAdjustment] },
@@ -69,10 +72,19 @@ const WRITE = {
     save: [EVERY_ROLE, saveCustomer],
     archive: [MANAGERS, archiveCustomer]
   },
-  finance: { create: [MANAGERS, createCashEntry], void: [MANAGERS, voidCash] },
+  finance: {
+    create: [MANAGERS, createCashEntry],
+    void: [MANAGERS, voidCash]
+  },
   invoices: { save: [MANAGERS, saveInvoice] },
-  employees: { save: [MANAGERS, saveEmployee], archive: [MANAGERS, archiveEmployee] },
-  shifts: { create: [MANAGERS, createShift], remove: [MANAGERS, removeShift] },
+  employees: {
+    save: [MANAGERS, saveEmployee],
+    archive: [MANAGERS, archiveEmployee]
+  },
+  shifts: {
+    create: [MANAGERS, createShift],
+    remove: [MANAGERS, removeShift]
+  },
   tasks: {
     save: [EVERY_ROLE, saveTask],
     complete: [EVERY_ROLE, completeTask],
@@ -86,8 +98,11 @@ const WRITE = {
   },
   locations: { create: [MANAGERS, createBranch] },
   pos: {
-    create: [MANAGERS, createPos], revoke: [MANAGERS, revokePos],
-    rotate: [MANAGERS, rotatePos], identity: [MANAGERS, setPosIdentity], reconcile: [MANAGERS, reconcilePos],
+    create: [MANAGERS, createPos],
+    revoke: [MANAGERS, revokePos],
+    rotate: [MANAGERS, rotatePos],
+    identity: [MANAGERS, setPosIdentity],
+    reconcile: [MANAGERS, reconcilePos],
     "link-csv": [MANAGERS, linkLegacyCsv]
   },
   ai: {
@@ -99,25 +114,46 @@ const WRITE = {
 
 export const onRequestGet = handle(async (context) => {
   const section = context.params.section;
-  if (!Object.hasOwn(READ, section)) throw new HttpError(404, "Bölüm bulunamadı.");
+  if (!Object.hasOwn(READ, section)) {
+    throw new HttpError(404, "Bölüm bulunamadı.");
+  }
+
   const [roles, action] = READ[section];
   const ctx = await workspace(context, roles);
   ctx.paramsUrl = new URL(context.request.url).searchParams;
+
   return json(await action(ctx));
 });
 
 export const onRequestPost = handle(async (context) => {
   sameOrigin(context.request);
+
   const section = context.params.section;
   const data = await readJson(context.request);
-  if (typeof data.action !== "string") throw new HttpError(400, "Geçerli bir işlem adı gerekli.");
-  if (!Object.hasOwn(WRITE, section) || !Object.hasOwn(WRITE[section], data.action)) {
+
+  if (typeof data.action !== "string") {
+    throw new HttpError(400, "Geçerli bir işlem adı gerekli.");
+  }
+
+  if (
+    !Object.hasOwn(WRITE, section) ||
+    !Object.hasOwn(WRITE[section], data.action)
+  ) {
     throw new HttpError(404, "İşlem bulunamadı.");
   }
+
   const [roles, action] = WRITE[section][data.action];
   const ctx = await workspace(context, roles);
-  if (Object.hasOwn(data, "businessId") && data.businessId !== ctx.businessId) {
-    throw new HttpError(403, "İstek işletmesi çalışma alanıyla uyuşmuyor.");
+
+  if (
+    Object.hasOwn(data, "businessId") &&
+    data.businessId !== ctx.businessId
+  ) {
+    throw new HttpError(
+      403,
+      "İstek işletmesi çalışma alanıyla uyuşmuyor."
+    );
   }
+
   return json(await action(ctx, data));
 });
