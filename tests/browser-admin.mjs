@@ -90,8 +90,8 @@ try {
   // dashboard is not yet ready (it depends on a separate admin-only API).
   const accountPage=await context.newPage();
   await accountPage.goto(local.url+"/app.html");
-  await accountPage.locator("#platform-admin-shortcut").waitFor({state:"visible"});
   await accountPage.locator("#account summary").click();
+  await accountPage.locator("#platform-admin-shortcut").waitFor({state:"visible"});
   await accountPage.locator("#platform-admin-shortcut").click();
   await accountPage.waitForURL(url=>["/admin","/admin.html"].includes(url.pathname));
   await accountPage.getByRole("heading",{name:"Genel Bakış",level:1}).waitFor();
