@@ -33,7 +33,7 @@ try {
   await page.locator('#admin-content[aria-busy="false"]').waitFor();
   await page.getByRole("heading",{name:"Genel Bakış",level:1}).waitFor();
   await page.getByText("Toplam işletme").waitFor();
-  assert.equal(await page.locator(".admin-kpi").count(),4);
+  assert.equal(await page.locator("#admin-content > .admin-kpis > .admin-kpi").count(),4);
   assert.equal(await page.locator(".admin-sidebar.glass").count(),1);
   const snapshots=process.env.OLVEX_SCREENSHOT_DIR;
   if(snapshots){await mkdir(snapshots,{recursive:true});await page.screenshot({path:join(snapshots,"admin-desktop.png"),fullPage:true,animations:"disabled"});}
