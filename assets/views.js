@@ -249,6 +249,7 @@ const posTime = new Intl.DateTimeFormat("tr-TR", {
 
 function posView(data) {
   return settingsTabs("pos") +
+    panel("Kasanızı ve yazılımınızı seçin", `<p class="muted">Yeni nesil yazarkasa POS veya AKINSOFT kullanıyorsanız önce cihazınızı ve programınızı seçin. Size uygun bağlantı rehberini görüntüleyin; anahtar yalnızca teknik aktarım mümkünse gerekir.</p><div class="inline">${button("Kasa ve yazılım seç", "pos-guide", { kind: "primary" })}</div>`) +
     panel("Satış aktarım yöntemleri", `<ol class="pos-methods">
       <li><strong>Otomatik kasa bağlantısı</strong><p>Kasa sağlayıcınız API, webhook, SDK veya dışa aktarma arayüzü sunuyorsa sağlayıcınız ya da teknik ekibiniz bir bağlayıcı hazırlayabilir. İşletmeyi ve şubeyi seçip her fiziksel kasa için ayrı kayıt oluşturun. Anahtar, bağlayıcının OLVEX’e hangi kasadan yazdığını doğrular. Sunucuda gizli saklayın.</p>
         ${button("API örnekleri", "pos-help", { kind: "small" })}</li>
@@ -386,7 +387,7 @@ export function actions(view, state) {
     case "settings": return state.business.role === "owner"
       ? button("İşletme adını düzenle", "rename-business") + primary("+ Ekip daveti", "invite")
       : "";
-    case "pos": return link("Şubeler", "#locations") + button("Durumu yenile", "refresh-pos") + primary("+ Bağlantı oluştur", "create-pos");
+    case "pos": return link("Şubeler", "#locations") + button("Durumu yenile", "refresh-pos") + button("+ Bağlantı oluştur", "create-pos") + primary("Kasa ve yazılım seç", "pos-guide");
     default: return "";
   }
 }
