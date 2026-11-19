@@ -16,7 +16,10 @@ test("free Workers AI binding sends scoped facts and structured JSON and validat
     calls++;
     assert.equal(model, WORKERS_AI_MODEL);
     assert.equal(input.response_format.type, "json_schema");
-    assert.deepEqual(input.response_format.json_schema.required, ["answer", "proposal"]);
+    assert.deepEqual(input.response_format.json_schema.schema.required, ["answer", "proposal"]);
+    assert.equal(input.response_format.json_schema.name, "olvex_answer");
+    assert.equal(input.chat_template_kwargs.enable_thinking, false);
+    assert.deepEqual(input.response_format.json_schema.schema.properties.proposal.properties.kind.enum, ["none"]);
     assert.deepEqual(input.messages.map(m => m.role), ["system", "user", "user"]);
     const context = JSON.parse(input.messages[1].content);
     assert.equal(context.facts.cash.inflowMinor, 12500);
@@ -24,13 +27,15 @@ test("free Workers AI binding sends scoped facts and structured JSON and validat
     assert.equal(context.history[0].role, "assistant");
     assert.equal(input.messages.at(-1).content, messages.at(-1).content);
     assert.ok(input.max_tokens <= 1100);
-    return { response: JSON.stringify({ answer: "Nakit girişiniz çıkışınızdan yüksek.", proposal }),
-      usage: { input_tokens: 200, output_tokens: 75 } };
+    return { choices: [{ finish_reason: "stop", message: {
+      content: JSON.stringify({ answer: "Nakit girişiniz çıkışınızdan yüksek.", proposal })
+    } }], usage: { prompt_tokens: 200, completion_tokens: 75 } };
   }};
   const result = await requestWorkersAI(binding, facts, messages, null);
   assert.equal(calls, 1);
   assert.equal(result.result.proposal.kind, "none");
   assert.equal(result.usage.input_tokens, 200);
+  assert.equal(result.usage.output_tokens, 75);
 });
 
 test("free Workers AI rejects malformed or unauthorized-style responses", async () => {
@@ -48,4 +53,21 @@ test("free quota errors do not trigger a paid fallback", async () => {
   const binding = { async run() { calls++; throw new Error("Daily Neurons quota exceeded"); } };
   await assert.rejects(requestWorkersAI(binding, facts, messages, null), { status: 429 });
   assert.equal(calls, 1);
+});
+
+test("Cloudflare draft schema restricts actions to the user-requested kind", async () => {
+  const binding = { async run(_model, input) {
+    assert.deepEqual(input.response_format.json_schema.schema.properties.proposal.properties.kind.enum, ["none", "expense"]);
+    return { choices: [{ finish_reason: "stop", message: { content: JSON.stringify({
+      answer: "Gider taslağı hazır.", proposal: { kind: "expense", description: "Kırtasiye", amount: 100, sku: null, delta: null }
+    }) } }] };
+  } };
+  const result = await requestWorkersAI(binding, facts, messages, "expense");
+  assert.equal(result.result.proposal.kind, "expense");
+});
+
+test("incomplete Cloudflare reasoning output is never treated as a completed answer", async () => {
+  await assert.rejects(requestWorkersAI({ run: async () => ({
+    choices: [{ finish_reason: "length", message: { content: null, reasoning: "incomplete" } }]
+  }) }, facts, messages, null), { status: 502 });
 });

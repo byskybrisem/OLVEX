@@ -11,6 +11,23 @@ export async function requestWorkersAI(binding, facts, messages, allowedDraft) {
     throw new HttpError(503, "Cloudflare AI bağlantısı kurulmamış. Yöneticinize bildirin.");
   }
 
+  // Keep an answer-only schema when no operation was requested. A smaller
+  // enum reduces irrelevant proposals from smaller open-weight models.
+  const allowedKinds = allowedDraft === "expense" || allowedDraft === "stock"
+    ? ["none", allowedDraft] : ["none"];
+  const schema = {
+    ...aiOutputSchema,
+    properties: {
+      ...aiOutputSchema.properties,
+      proposal: {
+        ...aiOutputSchema.properties.proposal,
+        properties: {
+          ...aiOutputSchema.properties.proposal.properties,
+          kind: { type: "string", enum: allowedKinds }
+        }
+      }
+    }
+  };
   const parameters = {
     messages: [
       { role: "system", content: aiInstructions },
@@ -19,8 +36,10 @@ export async function requestWorkersAI(binding, facts, messages, allowedDraft) {
       }) },
       { role: "user", content: messages.at(-1).content }
     ],
-    response_format: { type: "json_schema", json_schema: aiOutputSchema },
-    max_tokens: 1100,
+    response_format: { type: "json_schema",
+      json_schema: { name: "olvex_answer", strict: true, schema } },
+    chat_template_kwargs: { enable_thinking: false },
+    max_tokens: 800,
     temperature: 0.2
   };
 
@@ -37,10 +56,13 @@ export async function requestWorkersAI(binding, facts, messages, allowedDraft) {
     throw new HttpError(502, "OLVEX AI yanıt oluşturamadı. Daha sonra tekrar deneyin.");
   }
 
-  // Workers AI uses { response, usage } for non-streaming text requests.
-  // JSON mode can return a string or an already decoded object. Reuse the
-  // existing OpenAI response validator before any operational proposal.
-  const raw = payload?.response;
+  // GLM-4.7-Flash returns OpenAI-style chat completions. Other Workers
+  // AI text models can return {response}. Accept both but never unvalidated
+  // tool calls or unfinished generations.
+  if (payload?.choices?.[0]?.finish_reason === "length") {
+    throw new HttpError(502, "AI yanıtı tamamlanmadı. Daha kısa bir soru deneyin.");
+  }
+  const raw = payload?.choices?.[0]?.message?.content ?? payload?.response;
   const value = typeof raw === "string" ? raw : raw && typeof raw === "object" ? JSON.stringify(raw) : null;
   if (!value) throw new HttpError(502, "AI sağlayıcısından geçerli yanıt alınamadı.");
 
@@ -48,5 +70,13 @@ export async function requestWorkersAI(binding, facts, messages, allowedDraft) {
     status: "completed",
     output: [{ type: "message", content: [{ type: "output_text", text: value }] }]
   });
-  return { result, usage: payload?.usage };
+  const usage = payload?.usage;
+  const normalizedUsage = usage && {
+    input_tokens: usage.input_tokens ?? usage.prompt_tokens,
+    output_tokens: usage.output_tokens ?? usage.completion_tokens,
+    input_tokens_details: {
+      cached_tokens: usage.input_tokens_details?.cached_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0
+    }
+  };
+  return { result, usage: normalizedUsage };
 }
