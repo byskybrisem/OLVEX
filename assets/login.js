@@ -7,6 +7,7 @@ const message = document.querySelector("#message");
 const submit = document.querySelector("#submitButton");
 const url = new URL(location.href);
 const joining = url.searchParams.get("next") === "join";
+const adminLogin = url.searchParams.get("next") === "admin";
 
 function status(text, success = false) {
   message.hidden = false;
