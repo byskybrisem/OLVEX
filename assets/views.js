@@ -382,7 +382,9 @@ export function aiOverview(data, state) {
 export const renderers = {
   overview, "stock-alerts": stockAlerts, products: productList, stock, transfers, sales: (data, state) => orderList(data, state, false),
   purchases: (data, state) => orderList(data, state, true), customers, finance, invoices,
-  employees, shifts, tasks, branches, locations, reports, settings: settingView, pos: posView, ai: aiOverview
+  employees, shifts, tasks, branches, locations, reports, settings: settingView, pos: posView,
+  ai: (data, state) => (data.mode === "off" ? empty("Canlı AI sohbeti bu görünümde etkinleştirilmemiş.") : "") +
+    aiOverview(data, state)
 };
 
 export function actions(view, state) {
