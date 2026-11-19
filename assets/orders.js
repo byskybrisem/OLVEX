@@ -2,7 +2,7 @@ import { parseSalesCsv } from "./csv.js";
 import { amount, check, editor, field, fields, intField, note } from "./editor.js";
 import { button, count, day, empty, fromMinor, h, money, table, today, toMinor, whole } from "./ui.js";
 
-export function lookup(ctx, root, { section, field: name, label, labelFor, query = {}, selectOnlyOption = false }) {
+export function lookup(ctx, root, { section, field: name, label, labelFor, query = {}, selectOnlyOption = false, hideSearchForShortList = false }) {
   const wrapper = root.querySelector(`[data-lookup="${name}"]`);
   const input = wrapper.querySelector("input");
   const select = wrapper.querySelector("select");
@@ -25,6 +25,7 @@ export function lookup(ctx, root, { section, field: name, label, labelFor, query
         select.value = data.rows[0].id;
         select.dispatchEvent(new Event("change"));
       }
+      if (hideSearchForShortList && !input.value) input.closest("label").hidden = !data.hasMore;
       status.textContent = data.hasMore ? `Daha fazla ${label} için aramayı daraltın.` : "";
     } catch (error) {
       if (token === revision) status.textContent = error.message;

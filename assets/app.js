@@ -1,10 +1,11 @@
 import { bindBrowserPreferences, browserPreference } from "./browser-preferences.js";
 import { bindDrawer, bindModuleSearch } from "./navigation.js";
+import { mountAI } from "./ai-chat.js";
 import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
 import { importProducts } from "./product-import.js";
 import { customerHistory, importSales, lookup, lookupField, newOrder, orderCommand } from "./orders.js";
-import { actions, aiChat, renderers, roles, views } from "./views.js";
+import { actions, renderers, roles, views } from "./views.js";
 import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -17,10 +18,7 @@ const closeMenu = bindDrawer();
 bindModuleSearch(route => Boolean(business) && (!views[route][3] || viewManager()));
 const sectionsWithPeriod = new Set(["overview", "finance", "shifts", "branches", "reports"]);
 const filters = new Map();
-const conversations = new Map();
-const aiBranches = new Map();
-const pendingAI = new Set();
-const conversationKey = (businessId, branchId) => `${businessId}:${branchId || ""}`;
+let unmountAI;
 let user;
 let businesses = [];
 let business;
@@ -68,8 +66,7 @@ function viewFilter(section = view) {
 
 function state() {
   return {
-    ...viewFilter(), view, business, manager: viewManager(), product, productName, calendar, taskDay,
-    chat: conversations.get(conversationKey(business.id, aiBranches.get(business.id)?.id)) || []
+    ...viewFilter(), view, business, manager: viewManager(), product, productName, calendar, taskDay
   };
 }
 
@@ -176,6 +173,8 @@ $(".skip").addEventListener("click", (event) => {
 });
 
 async function load() {
+  unmountAI?.();
+  unmountAI = null;
   const current = ++revision;
   const selected = state();
   const tab = view;
@@ -187,6 +186,7 @@ async function load() {
   if (selected.unpaid) params.unpaid = "1";
   if (tab === "products" || tab === "stock") params.branchId = selected.branchId;
   if (tab === "overview") params.detail = "dashboard";
+  if (tab === "ai") params.chat = "1";
   if (tab === "stock") params.product = product;
   if (tab === "tasks") Object.assign(params, taskDay ?
     { from: taskDay, to: taskDay, exact: "1" } : calendar);
@@ -215,26 +215,9 @@ async function load() {
       $("#alerts").classList.toggle("has-alert", alerts.length > 0);
       $("#alerts").hidden = false;
     }
-    content.innerHTML = renderers[tab](data, state());
-    const aiBranch = content.querySelector("[data-ai-branch]");
-    if (aiBranch) {
-      aiBranch.innerHTML = lookupField("Analiz ve stok şubesi", "branchId", "Tüm işletme");
-      const location = aiBranch.querySelector("select");
-      const selectedBranch = aiBranches.get(businessId);
-      if (selectedBranch) location.add(new Option(selectedBranch.name, selectedBranch.id, true, true));
-      lookup(commandContext(), aiBranch, { section: "locations", field: "branchId", label: "şube", labelFor: row => row.name });
-      location.addEventListener("change", () => {
-        aiBranches.set(businessId, location.value ? { id: location.value, name: location.selectedOptions[0].textContent } : null);
-        const chat = content.querySelector(".chat");
-        chat.innerHTML = aiChat(state().chat);
-        chat.scrollTop = chat.scrollHeight;
-      });
-      setAIPending(aiBranch.closest("form"), pendingAI.has(businessId));
-    }
-    
+    if (tab === "ai") unmountAI = mountAI(content, commandContext(), data.mode, user.id);
+    else content.innerHTML = renderers[tab](data, state());
     content.scrollTop = 0;
-    const chat = content.querySelector(".chat");
-    if (chat) chat.scrollTop = chat.scrollHeight;
   } catch (error) {
     if (current !== revision || loginIfNeeded(error)) return;
     content.innerHTML = panel("", `<p class="empty">${h(error.message)}</p>${button("Yeniden dene", "retry")}`);
@@ -251,7 +234,8 @@ function navigate({ focus = false } = {}) {
   const [name, hint, parent] = views[view];
   title.textContent = name;
   $("#breadcrumb").textContent = name;
-  $("#subtitle").textContent = view === "overview" ? `Hoş geldiniz, ${user.fullName || user.email}.` : hint;
+  $("#subtitle").textContent = view === "overview" ? `Hoş geldiniz, ${user.fullName || user.email}.` : view === "ai" ? "" : hint;
+  $("#main").classList.toggle("ai-route", view === "ai");
   $("#actions").innerHTML = actions(view, state());
   document.title = `${name} | OLVEX`;
   for (const link of sidebar.querySelectorAll("[data-view]")) {
@@ -281,6 +265,9 @@ $("#logout").addEventListener("click", async (event) => {
   button.disabled = true;
   try {
     await request("/api/auth/logout", "POST", {});
+    try {
+      for (const key of Object.keys(sessionStorage)) if (key.startsWith(`olvex:ai-outbox:${user.id}:`)) sessionStorage.removeItem(key);
+    } catch {}
     location.replace("/login.html");
   } catch (error) {
     button.disabled = false;
@@ -288,54 +275,7 @@ $("#logout").addEventListener("click", async (event) => {
   }
 });
 
-function setAIPending(form, busy) {
-  if (!form) return;
-  form.querySelector('button[type="submit"]').disabled = busy;
-  form.elements.branchId.disabled = busy;
-  form.querySelector("[data-ai-progress]").textContent = busy ? "Yanıt bekleniyor…" : "";
-}
-
-async function askAI(form) {
-  const fields = new FormData(form);
-  const prompt = fields.get("prompt")?.trim();
-  if (!prompt) return;
-  const context = commandContext();
-  const businessId = context.business.id;
-  if (pendingAI.has(businessId)) return;
-  const branchId = fields.get("branchId") || undefined;
-  const key = conversationKey(businessId, branchId);
-  const messages = [...(conversations.get(key) || []), { role: "user", content: prompt }];
-  pendingAI.add(businessId);
-  setAIPending(form, true);
-  appNotice();
-  try {
-    const result = await context.post("ai", "ask", { messages: messages.slice(-5), branchId });
-    conversations.set(key, [...messages, { role: "assistant", content: result.answer, evidence: result.evidence }].slice(-20));
-    if (view === "ai" && business.id === businessId) {
-      await load();
-      const nextForm = content.querySelector("#ai-form");
-      if (nextForm && business.id === businessId) {
-        if (result.needsBranch) nextForm.elements.prompt.value = prompt;
-        setAIPending(nextForm, false);
-        nextForm.elements[result.needsBranch ? "branchId" : "prompt"].focus();
-      }
-    }
-  } catch (error) {
-    if (view === "ai" && business.id === businessId) appNotice(error.message, true);
-  } finally {
-    pendingAI.delete(businessId);
-    if (view === "ai" && business.id === businessId) setAIPending(content.querySelector("#ai-form"), false);
-  }
-}
-
 bindSalesChart(content);
-content.addEventListener("click", event => {
-  const suggestion = event.target.closest("button[data-prompt]");
-  if (!suggestion) return;
-  const field = suggestion.form.elements.prompt;
-  if (!field.value) field.value = suggestion.dataset.prompt;
-  field.focus();
-});
 content.addEventListener("change", event => {
   if (!event.target.matches("[data-period]")) return;
   if (event.target.value === "custom") {
@@ -351,11 +291,6 @@ content.addEventListener("change", event => {
 
 content.addEventListener("submit", (event) => {
   const form = event.target;
-  if (form.id === "ai-form") {
-    event.preventDefault();
-    askAI(form);
-    return;
-  }
   if (!form.hasAttribute("data-filter")) return;
   event.preventDefault();
   const fields = new FormData(form);

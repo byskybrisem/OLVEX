@@ -2,7 +2,7 @@
 
 ## Yayın
 
-`0012_olvex_ai_usage.sql` geçişini önce izole D1, yayın onayından sonra doğru üretim D1 bağı üzerinde çalıştırın. Tablo yalnızca yeni istek ölçümlerini ve kota rezervasyonlarını tutar. Ücretsiz işletme analizi OpenAI anahtarına bağlı değildir.
+`0012_olvex_ai_usage.sql` ve `0013_olvex_ai_conversations.sql` geçişlerini önce izole D1, yayın onayından sonra doğru üretim D1 bağı üzerinde çalıştırın. Tablo yalnızca yeni istek ölçümlerini ve kota rezervasyonlarını tutar. Ücretsiz işletme analizi OpenAI anahtarına bağlı değildir.
 
 - `OPENAI_API_KEY` proje anahtarını yalnızca Cloudflare Pages Secret olarak tanımlayın. Anahtarı erişimi gereken test ve üretim projelerinde ayrı tutun.
 - `OPENAI_MODEL` varsayılanı `gpt-6-luna`. `gpt-6.2-sol` seçilebilir. Otomatik model yükseltmesi yoktur. Eski `gpt-4.1-mini` yapılandırması reasoning parametresi olmadan desteklenir.
@@ -28,7 +28,7 @@ Standart metin fiyatları, milyon token başına USD. Reasoning tokenları çık
 
 - Satış ve brüt sonuç, kayıtlı kalem maliyetleri ile satış, iade ve iptal hareketlerinden hesaplanır. Brüt zarar işletmenin toplam net kârını temsil etmez. Şube nakit raporları o şubeye bağlı satış ve alış ödemelerini içerir. İşletme genelindeki bağımsız nakit kayıtları şube kapsamına dahil değildir.
 - Kritik stok önerileri kayıtlı eşiklere dayanır. Sistem sipariş oluşturmaz ve tedarik süresi veya tahmin verisi kullanmaz. Serbest metindeki tüm tarih, ürün veya şube adları çözümlenemez. Doğrulanmış kapsam ve dönem yanıtın altında gösterilir. Şube seçimi panelden yapılır. Tarihleri YYYY-AA-GG biçiminde de yazabilirsiniz.
-- Sağlayıcıya hesap, müşteri ve personel kayıt alanları gönderilmez. Serbest metindeki bazı e-posta, telefon ve kimlik numarası biçimleri maskelenir. Kullanıcı mesajları ile ürün/şube etiketleri yine kişisel bilgi içerebilir. Sohbet geçmişi tarayıcı belleğindedir. Sunucudaki kota/maliyet kaydına mesaj metni yazılmaz. Onaya sunulan gider veya stok açıklaması bekleyen taslakta saklanır.
+- Sağlayıcıya hesap, müşteri ve personel kayıt alanları gönderilmez. Serbest metindeki bazı e-posta, telefon ve kimlik numarası biçimleri maskelenir. Kullanıcı mesajları ile ürün/şube etiketleri yine kişisel bilgi içerebilir. Sohbet başlıkları ve mesajlar D1’de kullanıcı ve işletmeye özel saklanır. Şube kapsamı sohbet boyunca sabittir. Doğrulanmamış gönderim, sekmede geçici olarak tutulur ve gönderim tamamlandığında veya kullanıcı oturumu kapattığında kaldırılır. Kullanıcı sohbeti sildiğinde mesajlar ve başlık temizlenir. Kullanılmış bir sohbet kimliği tekrar kayıt oluşturamaz. Sunucudaki kota/maliyet kaydına mesaj metni yazılmaz. Onaya sunulan gider veya stok açıklaması bekleyen taslakta saklanır.
 - Responses çağrısında `store: false` ayarlanır. Canlı sohbet açılmadan önce veri sorumlusu, OpenAI sözleşmesi, servis bölgesi, saklama koşulları, 6698 sayılı Kanun kapsamındaki aktarım mekanizması ve yerel kullanım kayıtlarının saklama süresini doğrulamalıdır. [OpenAI veri denetimleri](https://developers.openai.com/api/docs/guides/your-data)
 - Model araç, SQL veya kayıt yazma yetkisine sahip değildir. Son mesaj açıkça isterse yalnızca gider veya stok taslağı üretilebilir. Kayıt, yetkili taslak sahibinin açık onayı ve atomik D1 kontrolleriyle yapılır. Şube stoku değişmişse yeni stok taslağı gerekir.
 
