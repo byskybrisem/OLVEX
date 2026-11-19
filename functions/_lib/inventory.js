@@ -87,9 +87,11 @@ export async function stockAdjustment(ctx, body) {
   const requestId = identifier(body.requestId);
   const branchId = await resolveBranch(ctx, body.branchId);
   const data = { requestId, id, delta, note, ...(body.branchId != null && { branchId }) };
+  const guard = rowExists("olvex_products", id, "AND active = 1");
+  guard.message = "Stok düzeltmesi için işletmenizdeki etkin bir ürünü seçin.";
   return transact(ctx, "stock-adjustment", data, [
     stockStatement(ctx, requestId, id, "adjustment", delta, note, branchId)
-  ]);
+  ], guard);
 }
 
 export function orders(ctx, kind) {
