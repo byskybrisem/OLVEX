@@ -1,6 +1,6 @@
 import { HttpError, isPreviewRequest } from "./http.js";
 import { cashInsert } from "./records.js";
-import { insights } from "./reports.js";
+import { financials, insights } from "./reports.js";
 import { choice, identifier, integer, MAX_STOCK, MAX_UNIT_MINOR, sku, text, today } from "./validate.js";
 import { rowExists, transact } from "./workspace.js";
 import { factsForAI, normalizeAI, verifiedFacts } from "./ai-facts.js";
@@ -8,10 +8,7 @@ import { aiUsage, recordAIUsage, reserveAI } from "./ai-usage.js";
 import { openAIConfig, parseOpenAI, requestOpenAI } from "./openai.js";
 import { WORKERS_AI_MODEL, requestWorkersAI } from "./workers-ai.js";
 
-const format = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
-const money = (amount) => format.format(amount / 100);
-
-function mode(ctx) {
+export function mode(ctx) {
   if (ctx.env.OLVEX_AI_MODE === "off") return "off";
   if (ctx.env.OLVEX_AI_MODE === "mock") return isPreviewRequest(ctx.env, ctx.request) ? "mock" : "off";
   if (ctx.env.OLVEX_AI_PROVIDER === "cloudflare") return typeof ctx.env.AI?.run === "function" ? "cloudflare" : "off";
@@ -19,14 +16,21 @@ function mode(ctx) {
 }
 
 export async function aiDashboard(ctx) {
-  const [facts, pending, usage] = await Promise.all([
+  const full = ctx.paramsUrl?.get("summary") === "1";
+  const day = today();
+  const [facts, pending, usage, daily, branches] = await Promise.all([
     insights(ctx),
     ctx.db.prepare(`SELECT id, kind, payload, expires_at FROM olvex_ai_proposals
       WHERE business_id = ? AND user_id = ? AND state = 'pending' AND expires_at > ?
+      ${full ? `AND NOT EXISTS (SELECT 1 FROM olvex_ai_turns t
+        WHERE t.business_id = olvex_ai_proposals.business_id AND t.user_id = olvex_ai_proposals.user_id
+          AND t.proposal_id = olvex_ai_proposals.id)` : ""}
       ORDER BY created_at DESC, id DESC LIMIT 20`).bind(ctx.businessId, ctx.actorId, new Date().toISOString()).all(),
-    aiUsage(ctx)
+    aiUsage(ctx),
+    full ? financials(ctx, day, day) : null,
+    full ? factsForAI(ctx, [{ role: "user", content: "Son 7 gün hangi şube daha fazla satış yapıyor?" }], null, null) : null
   ]);
-  return { mode: mode(ctx), facts, usage, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
+  return { mode: mode(ctx), facts, usage, daily: daily?.totals, branches: branches?.rows, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
 }
 
 function draftKind(message) {
@@ -50,7 +54,7 @@ function externalMessages(messages) {
   }));
 }
 
-function mockAnswer(facts, prompt) {
+function mockAnswer(prompt) {
   const expense = prompt.trim().match(/^gider\s+(\d{1,7})(?:[,.](\d{1,2}))?\s+(.+)$/i);
   if (expense) {
     return {
@@ -66,7 +70,7 @@ function mockAnswer(facts, prompt) {
     };
   }
   return {
-    answer: `${facts.from} – ${facts.to} arasında ${facts.receipts} satış fişi, ${money(facts.totals.sales)} net satış tutarı ve ${facts.lowStockCount} kritik stok kaydı var.`,
+    answer: "Seçtiğiniz kapsamdaki kayıtları aşağıda görebilirsiniz.",
     proposal: { kind: "none" }
   };
 }
@@ -103,7 +107,7 @@ async function proposedAction(ctx, proposal, branch) {
   return null;
 }
 
-export async function ask(ctx, body) {
+export async function ask(ctx, body, { deferProposal = false } = {}) {
   const activeMode = mode(ctx);
   if (activeMode === "off") throw new HttpError(503, "OLVEX AI şu anda kullanılamıyor.");
   if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 8 ||
@@ -126,7 +130,8 @@ export async function ask(ctx, body) {
   let response;
   let evidence;
   if (activeMode === "mock") {
-    response = mockAnswer(await insights(ctx), messages.at(-1).content);
+    response = mockAnswer(messages.at(-1).content);
+    evidence = verifiedFacts(await factsForAI(ctx, messages, branch, allowedDraft));
   } else {
     const config = activeMode === "cloudflare" ? { model: WORKERS_AI_MODEL } : openAIConfig(ctx.env);
     const safeMessages = externalMessages(messages);
@@ -160,11 +165,13 @@ export async function ask(ctx, body) {
   if (proposal) {
     const id = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 1800 * 1000).toISOString();
-    const result = await ctx.db.prepare(`INSERT INTO olvex_ai_proposals (business_id, id, user_id, kind, payload, expires_at)
-      SELECT ?, ?, user_id, ?, ?, ? FROM business_members
-      WHERE business_id = ? AND user_id = ? AND role IN ('owner', 'admin')`)
-      .bind(ctx.businessId, id, proposal.kind, JSON.stringify(proposal), expiresAt, ctx.businessId, ctx.actorId).run();
-    if (result.meta.changes !== 1) throw new HttpError(403, "İşlem yetkisi sona ermiş.");
+    if (!deferProposal) {
+      const result = await ctx.db.prepare(`INSERT INTO olvex_ai_proposals (business_id, id, user_id, kind, payload, expires_at)
+        SELECT ?, ?, user_id, ?, ?, ? FROM business_members
+        WHERE business_id = ? AND user_id = ? AND role IN ('owner', 'admin')`)
+        .bind(ctx.businessId, id, proposal.kind, JSON.stringify(proposal), expiresAt, ctx.businessId, ctx.actorId).run();
+      if (result.meta.changes !== 1) throw new HttpError(403, "İşlem yetkisi sona ermiş.");
+    }
     proposal = { ...proposal, id, expires_at: expiresAt };
   }
   return { answer, proposal, evidence };

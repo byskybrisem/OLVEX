@@ -13,7 +13,8 @@ import { archiveCustomer, archiveEmployee, cashEntries, completeTask, createCash
   taskDays, tasks, voidCash } from "../../../_lib/records.js";
 import { branches, reports, overview, stockAlerts } from "../../../_lib/reports.js";
 import { changeMember, createPos, invite, posConnections, rename, revokeInvite, revokePos, rotatePos, setPosIdentity, settings } from "../../../_lib/team.js";
-import { aiDashboard, ask, resolveProposal } from "../../../_lib/ai.js";
+import { ask, resolveProposal } from "../../../_lib/ai.js";
+import { readAI, sendChat, renameChat, removeChat } from "../../../_lib/ai-conversations.js";
 import { editSale, saleEditHistory } from "../../../_lib/sale-edits.js";
 
 const READ = {
@@ -40,7 +41,7 @@ const READ = {
   reports: [MANAGERS, reports],
   settings: [MANAGERS, settings],
   pos: [MANAGERS, posConnections],
-  ai: [MANAGERS, aiDashboard]
+  ai: [MANAGERS, readAI]
 };
 
 const WRITE = {
@@ -106,7 +107,10 @@ const WRITE = {
     "link-csv": [MANAGERS, linkLegacyCsv]
   },
   ai: {
-    ask: [MANAGERS, ask],
+    ask: [MANAGERS, (ctx, data) => ask(ctx, data)],
+    send: [MANAGERS, sendChat],
+    rename: [MANAGERS, renameChat],
+    remove: [MANAGERS, removeChat],
     apply: [MANAGERS, (ctx, data) => resolveProposal(ctx, data, true)],
     discard: [MANAGERS, (ctx, data) => resolveProposal(ctx, data, false)]
   }

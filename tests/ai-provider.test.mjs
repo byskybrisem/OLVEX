@@ -64,9 +64,9 @@ test("AI anahtarsız güvenli kapanır ve sağlayıcıya yalnızca yetkili işle
   });
   const env = { DB, OLVEX_AI_MODE: "mock" };
   const origin = "https://olvex.com.tr";
-  const call = async (businessId, body, status, section = "ai") => {
+  const call = async (businessId, body, status, section = "ai", token = session) => {
     const request = new Request(`${origin}/api/workspace/${businessId}/${section}`, {
-      method: body ? "POST" : "GET", headers: { Origin: origin, "Content-Type": "application/json", Cookie: `olvex_session=${session}` },
+      method: body ? "POST" : "GET", headers: { Origin: origin, "Content-Type": "application/json", Cookie: `olvex_session=${token}` },
       body: body ? JSON.stringify(body) : undefined
     });
     const handler = body ? onRequestPost : onRequestGet;
@@ -174,6 +174,27 @@ test("AI anahtarsız güvenli kapanır ve sağlayıcıya yalnızca yetkili işle
   for (let i = 0; i < 8; i++) await reserveAI({ db: DB, env, businessId: "our", actorId: "other" }, "gpt-6-luna");
   await assert.rejects(reserveAI({ db: DB, env, businessId: "our", actorId: "other" }, "gpt-6-luna"), { status: 429 });
   await reserveAI({ db: DB, env, businessId: "private", actorId: "other" }, "gpt-6-luna");
+  delete env.OLVEX_AI_MODE;
+  env.OLVEX_AI_PROVIDER = "cloudflare";
+  const otherToken = randomToken();
+  await DB.prepare("INSERT INTO user_sessions (id,user_id,token_hash,expires_at) VALUES ('s2','other',?,'2099-01-01T00:00:00Z')")
+    .bind(await sha256(otherToken)).run();
+  let workerCalls = 0;
+  env.AI = { async run(model) {
+    assert.equal(model, "@cf/zai-org/glm-4.7-flash");
+    if (++workerCalls === 1) throw new Error("Daily Neurons quota exceeded");
+    return { response: { answer: "Yerel cevap", proposal: { kind: "none" } }, usage: { prompt_tokens: 10, completion_tokens: 4 } };
+  }};
+  const message = { action: "send", id: crypto.randomUUID(), requestId: crypto.randomUUID(),
+    newChat: true, prompt: "Bugün satışlar?" };
+  const cloud = (payload, status) => call("private", payload, status, "ai", otherToken);
+  await cloud(message, 429);
+  assert.equal((await cloud(message, 200)).state, "failed");
+  assert.equal(workerCalls, 1);
+  assert.equal((await cloud({ ...message, retry: true }, 200)).state, "complete");
+  assert.equal((await cloud({ ...message, retry: true }, 200)).state, "complete");
+  assert.equal(workerCalls, 2);
+  assert.equal(calls, 7);
 });
 
 test("Responses API gerçek Workers çalışma zamanında istek gönderir ve 302 yönlendirmesini izlemez", async (t) => {

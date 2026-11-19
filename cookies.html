@@ -19,6 +19,7 @@
   <ul>
     <li><strong><code>olvex_session</code></strong> · OLVEX oturum çerezi. Kimlik doğrulama için kullanılır. “Beni hatırla” seçilirse en fazla 30 gün kalır. Diğer durumda tarayıcı oturumu süresince kalır ve sunucudaki oturum en fazla 1 gün geçerlidir. Çıkışta temizlenir.</li>
     <li><strong><code>olvex-pending-invite</code></strong> · OLVEX sekme depolaması. Davet bağlantısından girişe yönlendirildiğinizde katılımı sürdürür. Başarılı katılımda temizlenir veya sekme oturumu sonunda sona erer.</li>
+    <li><strong><code>olvex:ai-outbox:&lt;kullanıcı&gt;:&lt;işletme&gt;</code></strong> · OLVEX sekme depolaması. AI mesajının gönderimi doğrulanana kadar aynı istekle yeniden denemeyi sağlar. Gönderim doğrulandığında, çıkış yapıldığında veya sekme oturumu sona erdiğinde temizlenir.</li>
     <li><strong><code>olvex:browser-preferences</code></strong> · OLVEX yerel depolaması. Tarayıcı tercihinizi yeniden sormamak ve uygulamak için kararı 180 güne kadar geçerli tutar.</li>
   </ul>
   <h2>İsteğe bağlı panel tercihleri</h2>

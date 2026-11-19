@@ -331,12 +331,6 @@ function freeBusinessInsights(facts, demo) {
     '</div>';
 }
 
-export function aiChat(messages) {
-  return messages.map(msg => `<article class="${msg.role === "user" ? "user" : "assistant"}">
-    <strong>${msg.role === "user" ? "Siz" : "OLVEX AI"}</strong><p>${h(msg.content)}</p>
-    ${msg.evidence ? `<div class="ai-evidence"><strong>OLVEX kayıtları</strong><p>${h(msg.evidence)}</p></div>` : ""}</article>`).join("");
-}
-
 const dollars = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "USD", maximumFractionDigits: 6 });
 
 function usageReport(usage) {
@@ -359,25 +353,13 @@ function usageReport(usage) {
     Ölçümü veya fiyatı bulunmayan istekler tutara dahil edilmez.</p></details>`);
 }
 
-function ai(data, state) {
+export function aiOverview(data, state) {
   const { facts, mode, proposals, usage } = data;
   const change = facts.previousSales > 0 ?
     `Önceki 7 güne göre %${count(Math.round((facts.totals.sales - facts.previousSales) * 100 / facts.previousSales))}.` :
     "Önceki 7 günde karşılaştırılabilir satış kaydı yok.";
-  const chatForm = mode === "off" ? empty("Canlı AI sohbeti bu ortamda etkinleştirilmemiş. Yukarıdaki ücretsiz veri analizleri çalışmaya devam eder.") :
-    `<form class="ai-form" id="ai-form"><div data-ai-branch></div><label>Mesaj
-      <textarea name="prompt" required maxlength="2000" rows="3" placeholder="Son 7 günlük satışlarımı değerlendir"></textarea></label>
-      <p class="hint">${mode === "mock" ? "Test modu. Örnek gider taslağı için “gider 125,50 elektrik” yazın." :
-      mode === "cloudflare"
-        ? "Mesajınız, sınırlı sohbet geçmişi ve soruyla ilgili işletme özeti Cloudflare Workers AI tarafından işlenir. Günlük ücretsiz kota sınırlıdır. Kişisel bilgi veya parola girmeyin."
-        : "Mesajınız, sınırlı sohbet geçmişi ve soruyla ilgili işletme özeti OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
-      <div class="ai-prompts" role="group" aria-label="Örnek sorular">
-        <button class="button small" type="button" data-prompt="Son 7 günlük satışlarımı önceki dönemle karşılaştır.">Satışları karşılaştır</button>
-        <button class="button small" type="button" data-prompt="Hangi ürünler kritik stok eşiğinde?">Kritik stokları özetle</button>
-        <button class="button small" type="button" data-prompt="Bu ay nakit akışım nasıl?">Nakit akışımı incele</button>
-      </div><div class="actions"><button class="button primary" type="submit">Gönder</button>
-        <span class="hint" role="status" data-ai-progress></span></div></form>`;
-  return stats(stat("Son 7 gün satış", money(facts.totals.sales)) + stat("Kritik stok", count(facts.lowStockCount), "warm") +
+  return stats((data.daily ? stat("Bugün satış", money(data.daily.sales)) : "") +
+    stat("Son 7 gün satış", money(facts.totals.sales)) + stat("Kritik stok", count(facts.lowStockCount), "warm") +
     stat("Bekleyen tahsilat", money(facts.unpaid.sale), "teal")) +
     grid(panel("İşletme analizi", `<p class="hint">${h(day(facts.from))} – ${h(day(facts.to))} · ${h(change)}</p>` +
       stockAlertTable(facts.lowStock)),
@@ -387,14 +369,20 @@ function ai(data, state) {
         button("Reddet", "discard-proposal", { id: proposal.id, kind: "small" }))}</article>`
     ).join("")}</div>` : empty("Onay bekleyen işlem yok."))) +
     panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts, state.demo)) +
-    panel("OLVEX AI sohbeti", `<div class="chat" role="log" aria-label="Sohbet mesajları">${aiChat(state.chat)}</div>${chatForm}`,
-      mode === "mock" ? badge("Test modu", "warn") : "") + usageReport(usage);
+    (data.daily ? panel("7 günlük finans özeti", `<dl class="ai-finances">
+      <div><dt>Nakit girişi</dt><dd>${h(money(facts.totals.revenue))}</dd></div>
+      <div><dt>Nakit çıkışı</dt><dd>${h(money(facts.totals.spending))}</dd></div>
+      <div><dt>Net nakit hareketi</dt><dd>${h(money(facts.totals.revenue - facts.totals.spending))}</dd></div>
+    </dl>`) : "") +
+    (data.branches ? panel("Şube performansı · Son 7 gün", table(["Şube", "Net satış"],
+      data.branches.map(row => [h(row.name), h(money(row.salesMinor))]), "Bu dönemde şube satış kaydı yok.")) : "") +
+    usageReport(usage);
 }
 
 export const renderers = {
   overview, "stock-alerts": stockAlerts, products: productList, stock, transfers, sales: (data, state) => orderList(data, state, false),
   purchases: (data, state) => orderList(data, state, true), customers, finance, invoices,
-  employees, shifts, tasks, branches, locations, reports, settings: settingView, pos: posView, ai
+  employees, shifts, tasks, branches, locations, reports, settings: settingView, pos: posView, ai: aiOverview
 };
 
 export function actions(view, state) {

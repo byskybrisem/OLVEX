@@ -729,3 +729,94 @@ test("şube stoku yoksa kritik stok uyarısı panelde ve AI özetinde işletme t
   await owner.mutate(business, "stock", "adjust", { branchId: branch.id, productId: cola.id, delta: 1, note: "Eşiğin üzeri" });
   assert.deepEqual(await snapshot(), []);
 });
+
+test("AI sohbeti sahibine özeldir, şubeyi korur ve aynı mesajı iki kez işlemez", async () => {
+  async function signedIn(name) {
+    const userId = id();
+    const token = randomToken();
+    await pages.query(`INSERT INTO users(id,email) VALUES ('${userId}','${name}@example.test');
+      INSERT INTO user_sessions(id,user_id,token_hash,expires_at) VALUES ('${id()}','${userId}','${await sha256(token)}','2099-01-01T00:00:00Z');`);
+    const client = new Client(pages.url);
+    client.cookie = "olvex_session=" + token;
+    return client;
+  }
+  const owner = await signedIn("chat-owner");
+  const teammate = await signedIn("chat-manager");
+  const other = await signedIn("chat-outsider");
+  const { data: unrelated } = await owner.post("/api/businesses", { name: "Başka sohbet işletmesi" }, 201);
+  const thisBusiness = unrelated.business.id;
+  const { data } = await owner.post("/api/businesses", { name: "Sohbet testi" }, 201);
+  const business = data.business.id;
+  const branch = (await owner.read(business, "locations")).rows[0].id;
+  const external = (await owner.read(thisBusiness, "locations")).rows[0].id;
+  const { id: alternate } = await owner.mutate(business, "locations", "create", { name: "İskele" });
+  const secret = randomToken();
+  await owner.mutate(business, "settings", "invite", { email: "chat-manager@example.test", role: "admin", secret });
+  await teammate.post("/api/join", { token: secret });
+  const chat = id();
+  const payload = { id: chat, newChat: true, requestId: id(), prompt: "gider 25,50 kırtasiye", branchId: branch };
+  const send = (value, status = 200) => owner.mutate(business, "ai", "send", value, status);
+  const read = () => owner.read(business, "ai", "?conversation=" + chat);
+  await send({ ...payload, branchId: external }, 404);
+  await Promise.all([send(payload), send(payload)]);
+  const opened = await read();
+  assert.equal(opened.chat.branch_id, branch);
+  assert.equal(opened.turns.length, 1);
+  assert.equal(opened.turns[0].state, "complete");
+  const proposal = opened.turns[0].proposal;
+  assert.equal(proposal.amount, 2550);
+  assert.equal(proposal.state, "pending");
+  assert.deepEqual((await owner.read(business, "finance")).rows, []);
+  assert.equal((await owner.read(business, "ai")).proposals.length, 1);
+  await send({ ...payload, prompt: "Başka mesaj" }, 409);
+  await send({ ...payload, branchId: alternate, requestId: id() }, 409);
+  await teammate.read(business, "ai", "?conversation=" + chat, 404);
+  assert.deepEqual((await teammate.read(business, "ai", "?conversations=1")).rows, []);
+  await teammate.mutate(business, "ai", "rename", { id: chat, title: "Yanlış sahip" }, 404);
+  await teammate.mutate(business, "ai", "remove", { id: chat }, 404);
+  await owner.read(thisBusiness, "ai", "?conversation=" + chat, 404);
+  await other.read(business, "ai", "?conversation=" + chat, 404);
+  await new Client(pages.url).read(business, "ai", "?conversation=" + chat, 401);
+
+  const approval = { id: proposal.id, requestId: id() };
+  await owner.mutate(business, "ai", "apply", approval);
+  assert.equal((await owner.mutate(business, "ai", "apply", approval)).repeated, true);
+  assert.equal((await read()).turns[0].proposal.state, "applied");
+  assert.equal((await owner.read(business, "finance")).rows.length, 1);
+  const title = "<img src=x onerror=alert(1)>";
+  await owner.mutate(business, "ai", "rename", { id: chat, title });
+  assert.equal((await read()).chat.title, title);
+
+  for (let index = 0; index < 21; index++) {
+    await send({ id: chat, requestId: id(), prompt: "Bugün satışım nasıl?", branchId: branch });
+  }
+  const latest = await read();
+  assert.equal(latest.turns.length, 20);
+  assert.ok(latest.before);
+  const earlier = await owner.read(business, "ai", `?conversation=${chat}&before=${latest.before}`);
+  assert.equal(earlier.turns.length, 2);
+  assert.equal(earlier.turns[0].requestId, payload.requestId);
+
+  const ownerSession = (await owner.call("/api/auth/me")).data.user.id;
+  await pages.query(`INSERT INTO olvex_ai_conversations (business_id,user_id,id,title,updated_at) VALUES
+    ${Array.from({length: 20}, (_, index) => `('${business}','${ownerSession}','${id()}','Sohbet ${index}','2026-01-01T00:00:00.000Z')`).join(",")};`);
+  const history = await owner.read(business, "ai", "?conversations=1");
+  assert.equal(history.rows.length, 20);
+  const next = await owner.read(business, "ai", "?conversations=1&cursor=" + encodeURIComponent(history.cursor));
+  assert.equal(next.rows.length, 1);
+  assert.ok(!history.rows.some(row => row.id === next.rows[0].id));
+  const personal = id();
+  await teammate.mutate(business, "ai", "send", { id: personal, newChat: true, prompt: "Bugün satışlar?" });
+  await owner.read(business, "ai", "?conversation=" + personal, 404);
+  const { data: session } = await teammate.call("/api/auth/me");
+  await owner.mutate(business, "settings", "member", { userId: session.user.id, role: "remove" });
+  await teammate.read(business, "ai", "?conversation=" + personal, 404);
+  const toDiscard = await send({ id: chat, requestId: id(), prompt: "gider 1,50 kağıt", branchId: branch });
+  assert.equal(toDiscard.state, "complete");
+  const pending = (await read()).turns.at(-1).proposal;
+  await owner.mutate(business, "ai", "remove", { id: chat });
+  await owner.read(business, "ai", "?conversation=" + chat, 404);
+  await send(payload, 404);
+  await owner.mutate(business, "ai", "apply", { id: pending.id }, 409);
+  assert.equal((await owner.read(business, "finance")).rows.length, 1);
+});
