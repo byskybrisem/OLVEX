@@ -31,3 +31,21 @@ Standart metin fiyatları, milyon token başına USD. Reasoning tokenları çık
 - Sağlayıcıya hesap, müşteri ve personel kayıt alanları gönderilmez. Serbest metindeki bazı e-posta, telefon ve kimlik numarası biçimleri maskelenir. Kullanıcı mesajları ile ürün/şube etiketleri yine kişisel bilgi içerebilir. Sohbet geçmişi tarayıcı belleğindedir. Sunucudaki kota/maliyet kaydına mesaj metni yazılmaz. Onaya sunulan gider veya stok açıklaması bekleyen taslakta saklanır.
 - Responses çağrısında `store: false` ayarlanır. Canlı sohbet açılmadan önce veri sorumlusu, OpenAI sözleşmesi, servis bölgesi, saklama koşulları, 6698 sayılı Kanun kapsamındaki aktarım mekanizması ve yerel kullanım kayıtlarının saklama süresini doğrulamalıdır. [OpenAI veri denetimleri](https://developers.openai.com/api/docs/guides/your-data)
 - Model araç, SQL veya kayıt yazma yetkisine sahip değildir. Son mesaj açıkça isterse yalnızca gider veya stok taslağı üretilebilir. Kayıt, yetkili taslak sahibinin açık onayı ve atomik D1 kontrolleriyle yapılır. Şube stoku değişmişse yeni stok taslağı gerekir.
+
+
+## Ücretsiz Cloudflare Workers AI seçeneği (OLVEX)
+
+Varsayılan OpenAI altyapısı korunur. Ancak daha düşük maliyetli kullanım için üretimde aşağıdaki seçenek kullanılabilir:
+
+- Cloudflare Pages projesinin Production ortamına `AI` adlı **Workers AI** bağını ekleyin ve projeyi yeniden dağıtın.
+- Pages Production ortam değişkeni: `OLVEX_AI_PROVIDER=cloudflare`. Bu ayarda OLVEX'in sohbet özelliği `OPENAI_API_KEY` olmadan çalışır.
+- Seçilen model: `@cf/zai-org/glm-4.7-flash`. Model kimliği kod içinde sabittir; beklenmedik ücretli modellere otomatik geçilmez.
+- Kullanıcı / işletme / sistem kota ve gider-stok onay güvenlikleri aynen korunur. Lansman başlangıcında sistem kotası `OLVEX_OPENAI_DAILY_LIMIT=20` önerilir. İsim eski OpenAI değişkeninden kalmıştır; kota iki sağlayıcı için de geçerlidir.
+- Cloudflare Workers AI'nın toplam hesap kotası **günlük 10.000 Neuron ücretsiz**; Free planda aşılınca istekler hata verir, Paid planda aşım **ücretli olabilir**. Bu hak OLVEX dışındaki Cloudflare AI kullanımınızla da ortaktır. Uygulamanın istek sayısı limiti kesin bir ücret limiti değildir.
+- Cloudflare kapasite veya ücretsiz kota dolunca kullanıcıya hata gösterilir, OpenAI'ya otomatik yönlendirilmez.
+- JSON çıktı sunucu tarafında mevcut OpenAI şemasıyla doğrulanır. Modelin oluşturduğu taslaklar aynı sunucu izni, şube, SKU ve atomik onay denetimlerinden geçer. Cihazla veya kullanıcı parasıyla model doğrudan işlem yapamaz.
+- Cloudflare modelinin çıktı tokenı ve ücretsiz Neuron kullanımı ayrı bir faturalandırma biçimidir. Mevcut USD OpenAI tahmini fiyat tablosu Cloudflare modeline uygulanmaz; bu modele ilişkin sayısal maliyet tahmini boş bırakılır.
+- Gerçek Workers AI testi ücretsiz kotadan düşebilir; izole testler fake binding ile çalışır. Üretimde canlı AI'nın çalıştığı ancak gerçek sunucu isteğiyle doğrulanabilir.
+- KVKK, yurt dışı veri aktarımı ve hizmet sağlayıcı şartları Cloudflare Workers AI kullanımı için ayrıca değerlendirilmelidir.
+
+Resmî referanslar: https://developers.cloudflare.com/workers-ai/platform/pricing/ · https://developers.cloudflare.com/pages/functions/bindings/#workers-ai · https://developers.cloudflare.com/workers-ai/models/glm-4.7-flash/

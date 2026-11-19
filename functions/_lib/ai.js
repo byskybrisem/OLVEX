@@ -6,6 +6,7 @@ import { rowExists, transact } from "./workspace.js";
 import { factsForAI, normalizeAI, verifiedFacts } from "./ai-facts.js";
 import { aiUsage, recordAIUsage, reserveAI } from "./ai-usage.js";
 import { openAIConfig, parseOpenAI, requestOpenAI } from "./openai.js";
+import { WORKERS_AI_MODEL, requestWorkersAI } from "./workers-ai.js";
 
 const format = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 const money = (amount) => format.format(amount / 100);
@@ -13,6 +14,7 @@ const money = (amount) => format.format(amount / 100);
 function mode(ctx) {
   if (ctx.env.OLVEX_AI_MODE === "off") return "off";
   if (ctx.env.OLVEX_AI_MODE === "mock") return isPreviewRequest(ctx.env, ctx.request) ? "mock" : "off";
+  if (ctx.env.OLVEX_AI_PROVIDER === "cloudflare") return typeof ctx.env.AI?.run === "function" ? "cloudflare" : "off";
   return ctx.env.OPENAI_API_KEY?.trim() ? "openai" : "off";
 }
 
@@ -126,13 +128,19 @@ export async function ask(ctx, body) {
   if (activeMode === "mock") {
     response = mockAnswer(await insights(ctx), messages.at(-1).content);
   } else {
-    const config = openAIConfig(ctx.env);
+    const config = activeMode === "cloudflare" ? { model: WORKERS_AI_MODEL } : openAIConfig(ctx.env);
     const safeMessages = externalMessages(messages);
     const id = await reserveAI(ctx, config.model);
     const facts = await factsForAI(ctx, safeMessages, branch, allowedDraft);
-    const payload = await requestOpenAI(ctx.env.OPENAI_API_KEY.trim(), config, facts, safeMessages, allowedDraft);
-    await recordAIUsage(ctx, id, config.model, payload?.usage).catch(() => console.warn("OLVEX AI kullanım ölçümü kaydedilemedi."));
-    response = parseOpenAI(payload);
+    if (activeMode === "cloudflare") {
+      const result = await requestWorkersAI(ctx.env.AI, facts, safeMessages, allowedDraft);
+      await recordAIUsage(ctx, id, config.model, result.usage).catch(() => console.warn("OLVEX AI kullanım ölçümü kaydedilemedi."));
+      response = result.result;
+    } else {
+      const payload = await requestOpenAI(ctx.env.OPENAI_API_KEY.trim(), config, facts, safeMessages, allowedDraft);
+      await recordAIUsage(ctx, id, config.model, payload?.usage).catch(() => console.warn("OLVEX AI kullanım ölçümü kaydedilemedi."));
+      response = parseOpenAI(payload);
+    }
     evidence = verifiedFacts(facts);
   }
   if (response.proposal?.kind !== "none" && response.proposal?.kind !== allowedDraft) {
