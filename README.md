@@ -51,7 +51,8 @@ Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_d
 | `OLVEX_MAIL_PROVIDER` | Varsayılan `resend`. Cloudflare Email Sending için `cloudflare` |
 | `OLVEX_EMAIL_ACCOUNT_ID` | Cloudflare Email Sending kullanıldığında hesap kimliği |
 | `OLVEX_EMAIL_API_TOKEN` | Cloudflare Email Sending yetkili API anahtarı. Secret olarak saklanır |
-| `OPENAI_API_KEY` | Canlı AI sohbeti için Cloudflare secret |
+| `OLVEX_AI_PROVIDER` | `cloudflare` ise, Pages projesinde `AI` Workers AI binding'i varsa OpenAI anahtarı gerekmeden sohbet sunar. Diğer durumda mevcut OpenAI ayarları geçerlidir. |
+| `OPENAI_API_KEY` | OpenAI sağlayıcısı seçilmişse canlı AI sohbeti için Cloudflare secret |
 | `OPENAI_MODEL` | Varsayılan `gpt-6-luna`. Alternatif `gpt-6.2-sol` |
 | `OLVEX_AI_REASONING_EFFORT` | Desteklenen GPT-6 modelleri için varsayılan `medium` |
 | `OLVEX_OPENAI_DAILY_LIMIT` | İstanbul gününe göre tüm kurulum için varsayılan 100. Ayrıca işletme başına 20, kullanıcı başına 12 |
