@@ -24,7 +24,7 @@ let browser;
 try {
   browser=await chromium.launch({executablePath,args:["--enable-unsafe-swiftshader"]});
   const context=await browser.newContext({locale:"tr-TR",ignoreHTTPSErrors:true,viewport:{width:1366,height:860}});
-  await context.route("**/*",route=>new URL(route.request().url).origin===local.url ? route.continue():route.abort());
+  await context.route("**/*",route=>new URL(route.request().url()).origin===local.url ? route.continue():route.abort());
   await context.addCookies([{name:"olvex_session",value:token,url:local.url,secure:true,httpOnly:true,sameSite:"Lax"}]);
   const page=await context.newPage();
   const errors=[];
