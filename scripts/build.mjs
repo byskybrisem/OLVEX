@@ -9,7 +9,6 @@ await mkdir(dist, { recursive: true });
 
 const deployable = [ 
   "_headers", "_routes.json", "sitemap.xml", "favicon.ico", "assets", "index.html", "app.html", "demo.html", "login.html", "register.html", "setup.html",
-  "_headers", "_routes.json", "favicon.ico", "assets", "index.html", "app.html", "demo.html", "login.html", "register.html", "setup.html",
   "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html"
 ];
 for (const name of deployable) {
