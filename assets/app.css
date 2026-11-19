@@ -696,3 +696,28 @@ dialog { background: var(--solid); border-color: #ffffff25; }
 .editor-content [data-pos-device] h3, .editor-content [data-pos-branch] h3 { margin: 0; }
 .editor-content code { overflow-wrap: anywhere; }
 .pos-registers .inline { flex-wrap: wrap; }
+
+/* Guided register setup: hardware and POS software selection. */
+.pos-picker { display: grid; gap: 14px; min-width: 0; }
+.pos-picker .field { min-width: 0; }
+.pos-picker select, .pos-picker input { max-width: 100%; }
+.pos-picker [data-vendor-group] { display: grid; gap: 14px; }
+.pos-picker [data-vendor-group][hidden], .pos-guide-result[hidden] { display: none !important; }
+.pos-guide-result {
+  display: grid; gap: 12px; padding: 16px;
+  background: var(--glass); border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.pos-guide-result h3 { font-size: 1.04rem; }
+.pos-guide-selection { color: var(--soft); overflow-wrap: anywhere; }
+.pos-guide-caution { padding: 10px; border: 1px solid var(--line); border-radius: 9px; }
+.pos-guide-result ol { margin: 0; padding-inline-start: 22px; display: grid; gap: 12px; }
+.pos-guide-result li { line-height: 1.6; }
+.pos-guide-links { display: grid; gap: 9px; overflow-wrap: anywhere; }
+.pos-guide-links:empty { display: none; }
+.pos-guide-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.pos-guide-actions > * { flex: 1 1 170px; min-height: 44px; }
+@media (max-width: 480px) {
+  .pos-guide-result { padding: 12px; }
+  .pos-guide-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+}
