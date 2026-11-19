@@ -107,3 +107,13 @@ button:disabled { opacity: .55; cursor: default; }
 .legal-nav, .preference-actions { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .legal-nav [aria-current="page"] { color: var(--text); }
 .contact-card { min-block-size: 18rem; }
+.preference-actions { margin-top: 12px; }
+.preference-actions button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--solid);
+  color: var(--text);
+}
+.preference-actions button:hover { border-color: var(--purple); }
