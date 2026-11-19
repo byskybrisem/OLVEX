@@ -36,7 +36,7 @@ export function bindBrowserPreferences(root, onAllow = () => {}) {
   const sync = () => {
     const current = decision();
     root.hidden = banner && current !== null;
-    if (status) status.textContent = current === "allow" ? "Panel tercihleri açık."
+    if (status) status.textContent = banner ? "" : current === "allow" ? "Panel tercihleri açık."
       : current === "deny" ? "Panel tercihleri kapalı." : "Panel tercihleri varsayılan olarak kapalı.";
   };
   for (const button of root.querySelectorAll("[data-preference-choice]")) {
