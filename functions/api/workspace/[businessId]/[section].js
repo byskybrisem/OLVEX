@@ -103,6 +103,7 @@ export const onRequestPost = handle(async (context) => {
   sameOrigin(context.request);
   const section = context.params.section;
   const data = await readJson(context.request);
+  if (typeof data.action !== "string") throw new HttpError(400, "Geçerli bir işlem adı gerekli.");
   if (!Object.hasOwn(WRITE, section) || !Object.hasOwn(WRITE[section], data.action)) {
     throw new HttpError(404, "İşlem bulunamadı.");
   }
