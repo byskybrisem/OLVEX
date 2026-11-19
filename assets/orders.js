@@ -2,7 +2,7 @@ import { parseSalesCsv } from "./csv.js";
 import { amount, check, editor, field, fields, intField, note } from "./editor.js";
 import { button, count, day, empty, fromMinor, h, money, table, today, toMinor, whole } from "./ui.js";
 
-export function lookup(ctx, root, { section, field: name, label, labelFor, query = {} }) {
+export function lookup(ctx, root, { section, field: name, label, labelFor, query = {}, selectOnlyOption = false }) {
   const wrapper = root.querySelector(`[data-lookup="${name}"]`);
   const input = wrapper.querySelector("input");
   const select = wrapper.querySelector("select");
@@ -14,19 +14,24 @@ export function lookup(ctx, root, { section, field: name, label, labelFor, query
     const token = ++revision;
     try {
       const data = await ctx.get(section, { ...query, q: input.value.trim() });
-      if (token !== revision || !root.isConnected) return;
+      if (token !== revision || !wrapper.isConnected) return;
       const previous = select.value;
       const remembered = select.selectedOptions[0]?.textContent;
       select.replaceChildren(new Option(first, ""));
       for (const row of data.rows) select.add(new Option(labelFor(row), row.id));
       if (previous && ![...select.options].some((item) => item.value === previous)) select.add(new Option(remembered, previous));
       select.value = previous;
+      if (selectOnlyOption && !previous && !input.value && !data.hasMore && data.rows.length === 1) {
+        select.value = data.rows[0].id;
+        select.dispatchEvent(new Event("change"));
+      }
       status.textContent = data.hasMore ? `Daha fazla ${label} için aramayı daraltın.` : "";
     } catch (error) {
       if (token === revision) status.textContent = error.message;
     }
   };
   input.addEventListener("input", () => {
+    revision++;
     clearTimeout(timeout);
     timeout = setTimeout(load, 210);
   });
@@ -57,12 +62,14 @@ function orderLine(index) {
 }
 
 function productLines(ctx, root, purchase = false) {
+  const branch = root.querySelector('[name="branchId"]');
   const lines = root.querySelector(".lines");
   const dataList = root.querySelector("#sku-list");
   const add = root.querySelector("[data-add-line]");
   const status = root.querySelector("[data-sku-status]");
   const total = root.querySelector("[data-order-total]");
   const knownProducts = new Map();
+  const refreshPickers = new WeakMap();
   let revision = 0;
   let timeout;
 
@@ -72,7 +79,7 @@ function productLines(ctx, root, purchase = false) {
       item.querySelector("legend").textContent = "Ürün " + (index + 1);
       item.querySelector("[data-remove-line]").disabled = fieldsets.length === 1;
     }
-    add.disabled = fieldsets.length >= 25;
+    add.disabled = !branch.value || fieldsets.length >= 25;
   };
 
   const updateTotal = () => {
@@ -106,9 +113,10 @@ function productLines(ctx, root, purchase = false) {
 
   const load = async (query = "") => {
     const token = ++revision;
+    if (!branch.value) return;
     try {
-      const data = await ctx.get("catalog", { q: query });
-      if (token !== revision || !root.isConnected) return;
+      const data = await ctx.get("catalog", { q: query, branchId: branch.value });
+      if (token !== revision || !lines.isConnected) return;
       for (const row of data.rows) knownProducts.set(row.sku, row);
       dataList.replaceChildren(...data.rows.map((row) =>
         new Option(row.name + " · " + row.stock + " adet", row.sku)));
@@ -147,9 +155,10 @@ function productLines(ctx, root, purchase = false) {
 
     const fetchProducts = async () => {
       const token = ++requestNumber;
+      if (!branch.value) return;
       info.textContent = "Ürünler aranıyor...";
       try {
-        const result = await ctx.get("catalog", { q: search.value.trim() });
+        const result = await ctx.get("catalog", { q: search.value.trim(), branchId: branch.value });
         if (token !== requestNumber || !picker.isConnected) return;
         for (const row of result.rows) knownProducts.set(row.sku, row);
         choice.replaceChildren(
@@ -157,7 +166,7 @@ function productLines(ctx, root, purchase = false) {
           ...result.rows.map((row) => new Option(
             row.name + " · " + row.sku +
               (purchase ? "" : " · " + money(row.price_minor)) +
-              " · stok: " + row.stock,
+              " · şube stoku: " + row.stock,
             row.sku
           ))
         );
@@ -197,7 +206,13 @@ function productLines(ctx, root, purchase = false) {
       if (choice.value !== skuInput.value) choice.value = "";
       updateTotal();
     });
-    fetchProducts();
+    refreshPickers.set(line, () => {
+      line.disabled = !branch.value;
+      choice.replaceChildren(new Option("Ürün seçin...", ""));
+      info.textContent = "";
+      return fetchProducts();
+    });
+    refreshPickers.get(line)();
   }
 
   lines.addEventListener("input", (event) => {
@@ -223,6 +238,17 @@ function productLines(ctx, root, purchase = false) {
     updateTotal();
   });
   for (const line of lines.children) enhanceLine(line);
+  branch.addEventListener("change", () => {
+    clearTimeout(timeout);
+    knownProducts.clear();
+    dataList.replaceChildren();
+    status.textContent = branch.value ? "" : "Ürünleri görmek için şube seçin.";
+    for (const line of lines.children) refreshPickers.get(line)();
+    refreshLines();
+    updateTotal();
+    load();
+  });
+  status.textContent = "Ürünleri görmek için şube seçin.";
   refreshLines();
   updateTotal();
   load();
@@ -232,7 +258,8 @@ export function newOrder(ctx, purchase) {
   const section = purchase ? "purchases" : "sales";
   editor(ctx, {
     title: purchase ? "Satın alma kaydı" : "Yeni satış",
-    html: fields(field("Tarih", "date", today(), { type: "date", extra: `max="${today()}"` }),
+    html: lookupField(purchase ? "Teslim alan şube" : "Satış şubesi", "branchId", "Şube seçin", true) +
+      fields(field("Tarih", "date", today(), { type: "date", extra: `max="${today()}"` }),
       field("Referans", "reference", "", { required: false, max: 100 })) +
       (purchase ? field("Tedarikçi", "supplier") : lookupField("Müşteri", "customerId", "Perakende satışı")) +
       `<div class="lines">${orderLine(0)}</div><datalist id="sku-list"></datalist>
@@ -243,13 +270,17 @@ export function newOrder(ctx, purchase) {
       check(purchase ? "Ödendi" : "Tahsil edildi", "paid", true) + note("Not", "note"),
     init: (root) => {
       productLines(ctx, root, purchase);
+      lookup(ctx, root, {
+        section: "locations", field: "branchId", label: "şube", labelFor: row => row.name,
+        selectOnlyOption: true
+      });
       if (!purchase) lookup(ctx, root, {
         section: "catalog", field: "customerId", label: "müşteri", query: { type: "customers" },
         labelFor: (row) => row.email ? `${row.name} · ${row.email}` : row.name
       });
     },
     submit: (form, send, root) => send(section, "create", {
-      date: form.get("date"), reference: form.get("reference"), supplier: form.get("supplier"),
+      branchId: form.get("branchId"), date: form.get("date"), reference: form.get("reference"), supplier: form.get("supplier"),
       customerId: form.get("customerId"), paid: form.get("paid") === "on", note: form.get("note"),
       lines: [...root.querySelectorAll(".order-line")].map((item) => ({
         sku: item.querySelector('[name="sku"]').value,
