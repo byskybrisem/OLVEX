@@ -368,7 +368,9 @@ function ai(data, state) {
     `<form class="ai-form" id="ai-form"><div data-ai-branch></div><label>Mesaj
       <textarea name="prompt" required maxlength="2000" rows="3" placeholder="Son 7 günlük satışlarımı değerlendir"></textarea></label>
       <p class="hint">${mode === "mock" ? "Test modu. Örnek gider taslağı için “gider 125,50 elektrik” yazın." :
-      "Mesajınız, sınırlı sohbet geçmişi ve soruyla ilgili işletme özeti OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
+      mode === "cloudflare"
+        ? "Mesajınız, sınırlı sohbet geçmişi ve soruyla ilgili işletme özeti Cloudflare Workers AI tarafından işlenir. Günlük ücretsiz kota sınırlıdır. Kişisel bilgi veya parola girmeyin."
+        : "Mesajınız, sınırlı sohbet geçmişi ve soruyla ilgili işletme özeti OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
       <div class="ai-prompts" role="group" aria-label="Örnek sorular">
         <button class="button small" type="button" data-prompt="Son 7 günlük satışlarımı önceki dönemle karşılaştır.">Satışları karşılaştır</button>
         <button class="button small" type="button" data-prompt="Hangi ürünler kritik stok eşiğinde?">Kritik stokları özetle</button>
