@@ -16,6 +16,7 @@ const address = "owner@example.test";
 const origin = "https://panel.example.test";
 const cloudflare = { OLVEX_MAIL_PROVIDER: "cloudflare", OLVEX_EMAIL_ACCOUNT_ID: "1".repeat(32),
   OLVEX_EMAIL_API_TOKEN: "test-only", OLVEX_FROM_EMAIL: "notify@example.test" };
+const resend = { RESEND_API_KEY: "re_test-only", OLVEX_FROM_EMAIL: "notify@example.test" };
 const details = { fullName: "Örnek Kullanıcı", password: "örnek kayıt şifresi", acceptedTerms: true, termsVersion: TERMS_VERSION };
 
 test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık posta bağlantılarıyla çalışır", async (t) => {
@@ -32,27 +33,30 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
     const source = await readFile(new URL("../migrations/" + file, import.meta.url), "utf8");
     await DB.batch(unstable_splitSqlQuery(source).map(sql => DB.prepare(sql)));
   }
-  const env = { DB, ...cloudflare, OLVEX_SIGNUPS: "open", OLVEX_PUBLIC_ORIGIN: origin, OLVEX_OPERATOR_NAME: "Test",
+  const env = { DB, ...resend, OLVEX_SIGNUPS: "open", OLVEX_PUBLIC_ORIGIN: origin, OLVEX_OPERATOR_NAME: "Test",
     OLVEX_SERVICE_ADDRESS: "Test adresi", OLVEX_CONTACT_EMAIL: "owner@example.test" };
   const mail = [];
   let deliveryAvailable = true;
+  let providerCalls = 0;
+  const infoLog = t.mock.method(console, "info", () => {});
   const realFetch = globalThis.fetch;
   t.mock.method(globalThis, "fetch", async (input, options) => {
-    if (String(input) !== `https://api.cloudflare.com/client/v4/accounts/${cloudflare.OLVEX_EMAIL_ACCOUNT_ID}/email/sending/send`) {
+    if (String(input) !== "https://api.resend.com/emails") {
       // D1's transport may call localhost. No external test traffic is allowed.
       const url = new URL(input?.url ?? input);
       assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
       return realFetch(input, options);
     }
     assert.equal(options.method, "POST");
-    assert.equal(options.headers.Authorization, "Bearer test-only");
+    providerCalls++;
+    assert.equal(options.headers.Authorization, "Bearer re_test-only");
     if (!deliveryAvailable) return new Response("", { status: 503 });
     const body = JSON.parse(options.body);
     const link = new URL(body.text.match(/https:\/\/\S+/)[0]);
     assert.equal(link.origin, origin);
     assert.match(link.hash, /^#[A-Za-z0-9_-]{43}$/);
     mail.push({ link, body });
-    return Response.json({ success: true, result: { message_id: "local", queued: [body.to] } });
+    return Response.json({ id: "local" });
   });
   const invoke = async (handler, path, data, expectedStatus) => {
     const pending = [];
@@ -83,7 +87,7 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   deliveryAvailable = true;
   const requested = await signup({ email: address, joining: true, password: "request-only password" }, 202);
   assert.deepEqual(await requested.json(), { verificationRequested: true });
-  assert.equal(mail[0].body.to, address);
+  assert.deepEqual(mail[0].body.to, [address]);
   assert.equal(mail[0].link.search, "?next=join");
   assert.equal(mail[0].link.pathname, "/register.html");
   assert.equal(await count("users"), 0);
@@ -132,6 +136,19 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   await reset({ action: "request", email: address }, 200);
   assert.equal(mail.at(-1).link.pathname, "/forgot-password.html");
   const recoveryToken = token();
+  deliveryAvailable = false;
+  const previousCalls = providerCalls;
+  await reset({ action: "request", email: address }, 200);
+  assert.equal(await count("olvex_password_resets"), 1);
+  deliveryAvailable = true;
+  await reset({ action: "request", email: address }, 200);
+  const limited = await reset({ action: "request", email: address }, 200);
+  const missing = await reset({ action: "request", email: "unregistered@example.test" }, 200);
+  assert.deepEqual(await limited.json(), await missing.json());
+  assert.equal(providerCalls, previousCalls + 2);
+  for (const outcome of ["address_rate_limit", "no_matching_account"]) {
+    assert.ok(infoLog.mock.calls.some(call => call.arguments[1]?.outcome === outcome));
+  }
   const newPassword = "yenilenmiş örnek şifre";
   await reset({ action: "reset", token: recoveryToken, password: newPassword }, 200);
   assert.equal(await count("user_sessions"), 0);
@@ -142,7 +159,6 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
 test("e-posta sağlayıcısı seçimi ve başarısız teslim durumları", async (t) => {
   assert.equal(accountMailReady({ ...cloudflare, OLVEX_EMAIL_ACCOUNT_ID: "invalid" }), false);
   assert.equal(accountMailReady({ ...cloudflare, OLVEX_MAIL_PROVIDER: "unknown" }), false);
-  const resend = { RESEND_API_KEY: "test-only", OLVEX_FROM_EMAIL: "notify@example.test" };
   let accepted = false;
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const data = JSON.parse(options.body);
@@ -160,5 +176,47 @@ test("e-posta sağlayıcısı seçimi ve başarısız teslim durumları", async 
     await assert.rejects(sendAccountMail(settings, address, "Test", "Test"));
     accepted = true;
     await sendAccountMail(settings, address, "Test", "Test");
+  }
+});
+
+test("Resend tanıları hataları ayırır ve sağlayıcı verilerini loglamaz", async (t) => {
+  const errorLog = t.mock.method(console, "error", () => {});
+  let reply;
+  const fetchMock = t.mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, "https://api.resend.com/emails");
+    assert.equal(options.headers.Authorization, "Bearer re_test-only");
+    assert.equal(options.signal.aborted, false);
+    assert.equal(JSON.parse(options.body).from, resend.OLVEX_FROM_EMAIL);
+    return reply();
+  });
+  assert.equal(accountMailReady({ ...resend, OLVEX_FROM_EMAIL: "bad address" }), false);
+  assert.equal(accountMailReady({ ...resend, RESEND_API_KEY: "  " }), false);
+  await assert.rejects(sendAccountMail({ ...resend, RESEND_API_KEY: "bad key" }, address, "Test", "Test", "signup"));
+  assert.equal(fetchMock.mock.callCount(), 0);
+  assert.equal(errorLog.mock.calls[0].arguments[1].outcome, "invalid_credentials_config");
+
+  const sensitive = `${address} re_test-only https://example.test/#secret-token`;
+  for (const [outcome, respond] of [
+    ["credentials_rejected", () => Response.json({ name: "validation_error", message: sensitive }, { status: 401 })],
+    ["permission_denied", () => Response.json({ name: "invalid_permission", message: sensitive }, { status: 403 })],
+    ["sender_rejected", () => Response.json({ name: "validation_error", message: `The domain is not verified. ${sensitive}` }, { status: 403 })],
+    ["provider_rate_limit", () => new Response(sensitive, { status: 429 })],
+    ["provider_rejected", () => Response.json({ name: "secret-token", message: sensitive }, { status: 503 })],
+    ["invalid_response", () => new Response(sensitive)],
+    ["network_error", () => { throw new TypeError(sensitive); }],
+    ["timeout", () => { throw new DOMException(sensitive, "TimeoutError"); }],
+    ["timeout", () => new Response(new ReadableStream({
+      start(controller) { controller.error(new DOMException(sensitive, "TimeoutError")); }
+    }))]
+  ]) {
+    reply = respond;
+    await assert.rejects(sendAccountMail({ ...resend, RESEND_API_KEY: "  re_test-only\n",
+      OLVEX_FROM_EMAIL: "  notify@example.test  " }, address, "Test", sensitive, "password_reset"));
+    const [, event] = errorLog.mock.calls.at(-1).arguments;
+    assert.equal(event.outcome, outcome);
+    assert.equal(event.flow, "password_reset");
+    for (const secret of [address, "re_test-only", "secret-token", resend.OLVEX_FROM_EMAIL]) {
+      assert.ok(!JSON.stringify(event).includes(secret));
+    }
   }
 });

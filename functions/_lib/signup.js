@@ -20,7 +20,7 @@ export async function sendSignupLink(env, address, joining) {
   ]);
   try {
     await sendAccountMail(env, address, "OLVEX hesap kaydını doğrulayın",
-      `Yeni hesabınızı oluşturmak için 30 dakika içinde bağlantıyı açıp kayıt formunu tamamlayın.\n${link.href}\n\nBu isteği siz yapmadıysanız e-postayı yok sayabilirsiniz. Mevcut bir hesabın parolası bu bağlantıyla değişmez.`);
+      `Yeni hesabınızı oluşturmak için 30 dakika içinde bağlantıyı açıp kayıt formunu tamamlayın.\n${link.href}\n\nBu isteği siz yapmadıysanız e-postayı yok sayabilirsiniz. Mevcut bir hesabın parolası bu bağlantıyla değişmez.`, "signup");
   } catch {
     await env.DB.prepare("DELETE FROM olvex_signup_links WHERE token_hash = ?").bind(key).run();
     throw new HttpError(503, "Doğrulama e-postası gönderilemedi. Daha sonra yeniden deneyin.");
