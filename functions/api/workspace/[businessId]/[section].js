@@ -1,3 +1,4 @@
+import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { importRegisterSale } from "../../../_lib/register.js";
 import { createBranch, createTransfer, locations, transferHistory } from "../../../_lib/branches.js";
@@ -14,6 +15,7 @@ import { aiDashboard, ask, resolveProposal } from "../../../_lib/ai.js";
 import { editSale, saleEditHistory } from "../../../_lib/sale-edits.js";
 
 const READ = {
+  billing: [OWNER, billingStatus],
   "sale-edits": [MANAGERS, saleEditHistory],
   "stock-alerts": [EVERY_ROLE, stockAlerts],
   transfers: [EVERY_ROLE, transferHistory],
@@ -40,6 +42,11 @@ const READ = {
 };
 
 const WRITE = {
+  billing: {
+    checkout: [OWNER, beginCheckout],
+    refresh: [OWNER, manageSubscription],
+    cancel: [OWNER, (ctx, data) => manageSubscription(ctx, data, true)]
+  },
   products: {
     save: [MANAGERS, saveProduct],
     archive: [MANAGERS, archiveProduct]
