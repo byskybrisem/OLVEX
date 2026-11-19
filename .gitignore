@@ -7,3 +7,6 @@ dist/
 .env.*
 test-results/
 playwright-report/
+
+# Codebase Index cache
+.claude/cache/codebase-index/
