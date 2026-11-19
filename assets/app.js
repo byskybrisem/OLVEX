@@ -4,7 +4,7 @@ import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
 import { importProducts } from "./product-import.js";
 import { customerHistory, importSales, lookup, lookupField, newOrder, orderCommand } from "./orders.js";
-import { actions, renderers, roles, views } from "./views.js";
+import { actions, aiChat, renderers, roles, views } from "./views.js";
 import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -18,6 +18,9 @@ bindModuleSearch(route => Boolean(business) && (!views[route][3] || viewManager(
 const sectionsWithPeriod = new Set(["overview", "finance", "shifts", "branches", "reports"]);
 const filters = new Map();
 const conversations = new Map();
+const aiBranches = new Map();
+const pendingAI = new Set();
+const conversationKey = (businessId, branchId) => `${businessId}:${branchId || ""}`;
 let user;
 let businesses = [];
 let business;
@@ -66,7 +69,7 @@ function viewFilter(section = view) {
 function state() {
   return {
     ...viewFilter(), view, business, manager: viewManager(), product, productName, calendar, taskDay,
-    chat: conversations.get(business.id) || []
+    chat: conversations.get(conversationKey(business.id, aiBranches.get(business.id)?.id)) || []
   };
 }
 
@@ -215,8 +218,18 @@ async function load() {
     content.innerHTML = renderers[tab](data, state());
     const aiBranch = content.querySelector("[data-ai-branch]");
     if (aiBranch) {
-      aiBranch.innerHTML = lookupField("Stok işleminin şubesi", "branchId", "Stok düzeltmesi için şube seçin");
+      aiBranch.innerHTML = lookupField("Analiz ve stok şubesi", "branchId", "Tüm işletme");
+      const location = aiBranch.querySelector("select");
+      const selectedBranch = aiBranches.get(businessId);
+      if (selectedBranch) location.add(new Option(selectedBranch.name, selectedBranch.id, true, true));
       lookup(commandContext(), aiBranch, { section: "locations", field: "branchId", label: "şube", labelFor: row => row.name });
+      location.addEventListener("change", () => {
+        aiBranches.set(businessId, location.value ? { id: location.value, name: location.selectedOptions[0].textContent } : null);
+        const chat = content.querySelector(".chat");
+        chat.innerHTML = aiChat(state().chat);
+        chat.scrollTop = chat.scrollHeight;
+      });
+      setAIPending(aiBranch.closest("form"), pendingAI.has(businessId));
     }
     
     content.scrollTop = 0;
@@ -275,34 +288,43 @@ $("#logout").addEventListener("click", async (event) => {
   }
 });
 
+function setAIPending(form, busy) {
+  if (!form) return;
+  form.querySelector('button[type="submit"]').disabled = busy;
+  form.elements.branchId.disabled = busy;
+  form.querySelector("[data-ai-progress]").textContent = busy ? "Yanıt bekleniyor…" : "";
+}
+
 async function askAI(form) {
   const fields = new FormData(form);
   const prompt = fields.get("prompt")?.trim();
   if (!prompt) return;
   const context = commandContext();
   const businessId = context.business.id;
-  const chat = conversations.get(businessId) || [];
-  const messages = [...chat, { role: "user", content: prompt }];
-  const submit = form.querySelector("button[type=submit]");
-  submit.disabled = true;
-  submit.textContent = "Yanıt bekleniyor…";
+  if (pendingAI.has(businessId)) return;
+  const branchId = fields.get("branchId") || undefined;
+  const key = conversationKey(businessId, branchId);
+  const messages = [...(conversations.get(key) || []), { role: "user", content: prompt }];
+  pendingAI.add(businessId);
+  setAIPending(form, true);
   appNotice();
   try {
-    const result = await context.post("ai", "ask", { messages: messages.slice(-8), branchId: fields.get("branchId") || undefined });
-    conversations.set(businessId, [...messages, { role: "assistant", content: result.answer }].slice(-20));
+    const result = await context.post("ai", "ask", { messages: messages.slice(-5), branchId });
+    conversations.set(key, [...messages, { role: "assistant", content: result.answer, evidence: result.evidence }].slice(-20));
     if (view === "ai" && business.id === businessId) {
       await load();
       const nextForm = content.querySelector("#ai-form");
       if (nextForm && business.id === businessId) {
         if (result.needsBranch) nextForm.elements.prompt.value = prompt;
+        setAIPending(nextForm, false);
         nextForm.elements[result.needsBranch ? "branchId" : "prompt"].focus();
       }
     }
   } catch (error) {
     if (view === "ai" && business.id === businessId) appNotice(error.message, true);
   } finally {
-    submit.disabled = false;
-    submit.textContent = "Gönder";
+    pendingAI.delete(businessId);
+    if (view === "ai" && business.id === businessId) setAIPending(content.querySelector("#ai-form"), false);
   }
 }
 

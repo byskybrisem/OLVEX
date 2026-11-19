@@ -657,6 +657,16 @@ test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski tasla
   assert.ok((await owner.read(business, "ai")).proposals.some(row => row.id === waiting.id));
   await owner.mutate(business, "ai", "discard", { id: waiting.id });
 
+  const { proposal: stale } = await ask({
+    branchId: coast, messages: [{ role: "user", content: "stok KOLA 2 sayım" }]
+  });
+  await owner.mutate(business, "stock", "adjust", { productId: item.id, branchId: coast, delta: 1, note: "Yeni stok" });
+  await owner.mutate(business, "ai", "apply", { id: stale.id, branchId: coast }, 409);
+  assert.equal(await stock(coast), 1);
+  await pages.query(`UPDATE olvex_ai_proposals SET expires_at = '2000-01-01T00:00:00Z' WHERE id = '${stale.id}'`);
+  await owner.mutate(business, "ai", "apply", { id: stale.id, branchId: coast }, 409);
+  assert.equal(await stock(coast), 1);
+
   const legacy = id();
   await pages.query(`INSERT INTO olvex_ai_proposals (business_id, id, user_id, kind, payload, expires_at)
     SELECT business_id, '${legacy}', user_id, 'stock', json_object('kind','stock','productId','${item.id}',
@@ -664,7 +674,7 @@ test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski tasla
     FROM business_members WHERE business_id = '${business}' AND role = 'owner'`);
   await owner.mutate(business, "ai", "apply", { id: legacy, branchId: main }, 409);
   await owner.mutate(business, "ai", "discard", { id: legacy });
-  assert.deepEqual([await stock(main), await stock(coast)], [100, 0]);
+  assert.deepEqual([await stock(main), await stock(coast)], [100, 1]);
 });
 
 test("AI stok taslağı onay anında ürünün halen etkin ve aynı SKU olduğunu doğrular", async () => {
