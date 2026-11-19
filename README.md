@@ -46,8 +46,10 @@ Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_d
 | `OLVEX_EMAIL_ACCOUNT_ID` | Cloudflare Email Sending kullanıldığında hesap kimliği |
 | `OLVEX_EMAIL_API_TOKEN` | Cloudflare Email Sending yetkili API anahtarı. Secret olarak saklanır |
 | `OPENAI_API_KEY` | Canlı AI sohbeti için Cloudflare secret |
-| `OPENAI_MODEL` | Yapılandırılmış yanıta uygun model. Varsayılan `gpt-4.1-mini` |
-| `OLVEX_OPENAI_DAILY_LIMIT` | Tüm kurulum için günlük canlı AI isteği sınırı. Varsayılan 100. İşletme başına 20 |
+| `OPENAI_MODEL` | Varsayılan `gpt-6-luna`. Alternatif `gpt-6.2-sol` |
+| `OLVEX_AI_REASONING_EFFORT` | Desteklenen GPT-6 modelleri için varsayılan `medium` |
+| `OLVEX_OPENAI_DAILY_LIMIT` | İstanbul gününe göre tüm kurulum için varsayılan 100. Ayrıca işletme başına 20, kullanıcı başına 12 |
+| `OLVEX_AI_MODE` | `off` canlı sohbeti kapatır. `mock` yalnızca yerel/önizleme ortamında çalışır |
 
 OpenAI ve e-posta sağlayıcısı anahtarları yalnızca sunucudan kullanılır. Kayıt doğrulama ve şifre sıfırlama bağlantı özetleri 30 dakika geçerlidir ve şifre değiştirilince ilgili oturumlar kapatılır. [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) · [Resend e-posta API’si](https://resend.com/docs/api-reference/emails/send-email)
 
@@ -59,7 +61,7 @@ OpenAI ve e-posta sağlayıcısı anahtarları yalnızca sunucudan kullanılır.
 | Yönetici | Satış, stok, satın alma, müşteri, finans, fatura, vardiya, görev, rapor, AI ve kasa bağlantıları |
 | Ekip üyesi | Satış kaydı, ürün ve stok okuma, müşteri işlemleri, görevler ve bağlı işletmeler. Ürün maliyetleri yönetici rollerine ayrılır |
 
-AI gider veya stok taslağı oluşturabilir. Kayda yalnızca taslağı oluşturan yetkili kullanıcı “Onayla ve uygula” dediğinde geçilir.
+AI gider veya stok taslağı oluşturabilir. Kayda yalnızca taslağı oluşturan yetkili kullanıcı “Onayla ve uygula” dediğinde geçilir. `0012_olvex_ai_usage.sql` geçişini sürümden önce doğru D1 bağına uygulayın. [AI yapılandırması, fiyat ve veri işleme](docs/OLVEX-AI.md)
 
 ## Mevcut kasadan aktarım
 

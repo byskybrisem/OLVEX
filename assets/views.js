@@ -280,7 +280,8 @@ export function proposalLabel(proposal) {
   const product = `${proposal.name} (${proposal.sku})`;
   if (!proposal.branchId) return `${product} · Bu eski taslakta şube seçilmemiş. Şube seçerek yeni bir taslak hazırlayın.`;
   const action = proposal.delta > 0 ? "Stok girişi" : "Stok çıkışı";
-  return `İşletme: ${proposal.businessName} · Şube: ${proposal.branchName} · ${product} · ${action}, ${count(Math.abs(proposal.delta))} adet · ${proposal.description}`;
+  const balance = Number.isSafeInteger(proposal.branchStock) ? ` · Şube stoku ${count(proposal.branchStock)} → ${count(proposal.branchStock + proposal.delta)}` : "";
+  return `İşletme: ${proposal.businessName} · Şube: ${proposal.branchName} · ${product} · ${action}, ${count(Math.abs(proposal.delta))} adet · ${proposal.description}${balance}`;
 }
 
 function stockAlertTable(rows) {
@@ -330,22 +331,50 @@ function freeBusinessInsights(facts, demo) {
     '</div>';
 }
 
+export function aiChat(messages) {
+  return messages.map(msg => `<article class="${msg.role === "user" ? "user" : "assistant"}">
+    <strong>${msg.role === "user" ? "Siz" : "OLVEX AI"}</strong><p>${h(msg.content)}</p>
+    ${msg.evidence ? `<div class="ai-evidence"><strong>OLVEX kayıtları</strong><p>${h(msg.evidence)}</p></div>` : ""}</article>`).join("");
+}
+
+const dollars = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "USD", maximumFractionDigits: 6 });
+
+function usageReport(usage) {
+  if (!usage) return "";
+  const used = usage.models.reduce((sum, row) => sum + row.today, 0);
+  const totals = usage.models.reduce((sum, row) => ({
+    requests: sum.requests + row.requests, priced: sum.priced + row.priced, value: sum.value + row.estimatedNanoUsd
+  }), { requests: 0, priced: 0, value: 0 });
+  const rows = usage.models.map(row => [
+    h(row.model), h(count(row.requests)), h(count(row.input)), h(count(row.output)),
+    h(row.priced ? dollars.format(row.estimatedNanoUsd / 1e9) : "—"),
+    h(count(row.requests - row.priced))
+  ]);
+  return panel("AI kullanımı", `<p>Bugün ${count(used)} / ${count(usage.businessLimit)} işletme isteği kullanıldı.
+    Kişi başı günlük sınır ${count(usage.userLimit)}.</p>
+    <details><summary>Son 30 gün · ${count(totals.requests)} istek · ${totals.priced ? h(dollars.format(totals.value / 1e9)) : "Maliyet verisi yok"}</summary>
+    ${table(["Model", "İstek", "Girdi tokenı", "Çıktı tokenı", "Tahmini maliyet", "Tahminsiz istek"], rows,
+      "Ücretli istek kaydı yok.")}
+    <p class="hint">Tahmin, sağlayıcının döndürdüğü ölçümlere ve standart USD fiyatına dayanır.
+    Ölçümü veya fiyatı bulunmayan istekler tutara dahil edilmez.</p></details>`);
+}
+
 function ai(data, state) {
-  const { facts, mode, proposals } = data;
+  const { facts, mode, proposals, usage } = data;
   const change = facts.previousSales > 0 ?
     `Önceki 7 güne göre %${count(Math.round((facts.totals.sales - facts.previousSales) * 100 / facts.previousSales))}.` :
     "Önceki 7 günde karşılaştırılabilir satış kaydı yok.";
-  const chat = state.chat.map((msg) => `<article class="${msg.role === "user" ? "user" : "assistant"}">
-    <strong>${msg.role === "user" ? "Siz" : "OLVEX AI"}</strong><p>${h(msg.content)}</p></article>`).join("");
   const chatForm = mode === "off" ? empty("Canlı AI sohbeti bu ortamda etkinleştirilmemiş. Yukarıdaki ücretsiz veri analizleri çalışmaya devam eder.") :
     `<form class="ai-form" id="ai-form"><div data-ai-branch></div><label>Mesaj
       <textarea name="prompt" required maxlength="2000" rows="3" placeholder="Son 7 günlük satışlarımı değerlendir"></textarea></label>
       <p class="hint">${mode === "mock" ? "Test modu. Örnek gider taslağı için “gider 125,50 elektrik” yazın." :
-      "Mesajınız ve işletme özetiniz OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
+      "Mesajınız, sınırlı sohbet geçmişi ve soruyla ilgili işletme özeti OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
       <div class="ai-prompts" role="group" aria-label="Örnek sorular">
         <button class="button small" type="button" data-prompt="Son 7 günlük satışlarımı önceki dönemle karşılaştır.">Satışları karşılaştır</button>
         <button class="button small" type="button" data-prompt="Hangi ürünler kritik stok eşiğinde?">Kritik stokları özetle</button>
-      </div><button class="button primary" type="submit">Gönder</button></form>`;
+        <button class="button small" type="button" data-prompt="Bu ay nakit akışım nasıl?">Nakit akışımı incele</button>
+      </div><div class="actions"><button class="button primary" type="submit">Gönder</button>
+        <span class="hint" role="status" data-ai-progress></span></div></form>`;
   return stats(stat("Son 7 gün satış", money(facts.totals.sales)) + stat("Kritik stok", count(facts.lowStockCount), "warm") +
     stat("Bekleyen tahsilat", money(facts.unpaid.sale), "teal")) +
     grid(panel("İşletme analizi", `<p class="hint">${h(day(facts.from))} – ${h(day(facts.to))} · ${h(change)}</p>` +
@@ -356,8 +385,8 @@ function ai(data, state) {
         button("Reddet", "discard-proposal", { id: proposal.id, kind: "small" }))}</article>`
     ).join("")}</div>` : empty("Onay bekleyen işlem yok."))) +
     panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts, state.demo)) +
-    panel("OLVEX AI sohbeti", `<div class="chat" aria-live="polite">${chat}</div>${chatForm}`,
-      mode === "mock" ? badge("Test modu", "warn") : "");
+    panel("OLVEX AI sohbeti", `<div class="chat" role="log" aria-label="Sohbet mesajları">${aiChat(state.chat)}</div>${chatForm}`,
+      mode === "mock" ? badge("Test modu", "warn") : "") + usageReport(usage);
 }
 
 export const renderers = {

@@ -721,3 +721,7 @@ dialog { background: var(--solid); border-color: #ffffff25; }
   .pos-guide-result { padding: 12px; }
   .pos-guide-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
 }
+
+.chat article { min-width: 0; }
+.ai-evidence { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--muted); }
+.ai-form [data-ai-progress]:empty { display: none; }

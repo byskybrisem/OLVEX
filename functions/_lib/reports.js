@@ -4,7 +4,7 @@ import { list, MANAGERS, searchTerm } from "./workspace.js";
 const blank = () => ({ sales: 0, saleCount: 0, cost: 0, purchases: 0, revenue: 0, spending: 0 });
 
 export async function financials(ctx, start, end) {
-  const { db, businessId } = ctx;
+  const { db, businessId, branchId = null } = ctx;
   const groups = await db.batch([
     db.prepare(`SELECT occurred_on AS day, kind,
          COUNT(DISTINCT CASE WHEN event = 'order' THEN order_id END)
@@ -13,16 +13,17 @@ export async function financials(ctx, start, end) {
          SUM(CASE WHEN event = 'order' THEN quantity * unit_minor ELSE 0 END) AS gross,
          SUM(quantity * unit_minor) AS amount, SUM(quantity * cost_minor) AS cost
        FROM olvex_order_events WHERE business_id = ? AND occurred_on BETWEEN ? AND ?
-       GROUP BY occurred_on, kind`).bind(businessId, start, end),
+         AND (? IS NULL OR branch_id = ?)
+       GROUP BY occurred_on, kind`).bind(businessId, start, end, branchId, branchId),
     db.prepare(`SELECT p.occurred_on AS day,
          CASE WHEN (o.kind = 'sale') = (p.kind = 'payment') THEN 'income' ELSE 'expense' END AS direction,
          SUM(p.amount_minor) AS amount
        FROM olvex_order_payments p JOIN olvex_orders o ON o.business_id = p.business_id AND o.id = p.order_id
-       WHERE p.business_id = ? AND p.occurred_on BETWEEN ? AND ?
-       GROUP BY p.occurred_on, direction`).bind(businessId, start, end),
+       WHERE p.business_id = ? AND p.occurred_on BETWEEN ? AND ? AND (? IS NULL OR o.branch_id = ?)
+       GROUP BY p.occurred_on, direction`).bind(businessId, start, end, branchId, branchId),
     db.prepare(`SELECT occurred_on AS day, kind AS direction, SUM(amount_minor) AS amount FROM olvex_cash_entries
-       WHERE business_id = ? AND voided_at IS NULL AND occurred_on BETWEEN ? AND ?
-       GROUP BY occurred_on, kind`).bind(businessId, start, end)
+       WHERE business_id = ? AND voided_at IS NULL AND occurred_on BETWEEN ? AND ? AND ? IS NULL
+       GROUP BY occurred_on, kind`).bind(businessId, start, end, branchId)
   ]);
   const days = new Map();
   for (let day = start; day <= end; day = addDays(day, 1)) {
@@ -49,7 +50,8 @@ export async function financials(ctx, start, end) {
     for (const key of Object.keys(totals)) totals[key] += day[key];
   }
 
-  return { totals, days: [...days.values()] };
+  const standaloneExpense = groups[2].results.reduce((sum, row) => sum + (row.direction === "expense" ? row.amount : 0), 0);
+  return { totals, days: [...days.values()], standaloneExpense };
 }
 
 // A product with no movement in a branch has zero on hand there.

@@ -582,6 +582,17 @@ try {
       await dialog(phone).getByLabel("Bağlantı adı").fill("Yerel kasa taslağı");
       await dialog(phone).getByRole("button", { name: "Vazgeç" }).tap();
       await dialog(phone).waitFor({state:"hidden"});
+      await navigate(phone, "ai", "OLVEX AI");
+      await phone.setViewportSize({width:390,height:660});
+      await phone.getByLabel("Mesaj", {exact:true}).fill("gider 10,25 kağıt");
+      await phone.getByRole("button", { name: "Gönder", exact: true }).tap();
+      await phone.getByRole("button", { name: "Onayı incele", exact: true }).tap();
+      await dialog(phone).getByText(/10,25/).waitFor();
+      assert.equal(await fitsViewport(phone), true);
+      await prepareScreenshot(phone, "ai-webkit-onay.png");
+      await dialog(phone).getByRole("button", { name: "Vazgeç" }).tap();
+      await dialog(phone).waitFor({ state: "hidden" });
+      await phone.getByText("AI kullanımı", { exact: true }).waitFor();
     } finally { await safari.close(); }
   }
   await handset.setViewportSize({ width: 390, height: 844 });
