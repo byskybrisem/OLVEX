@@ -219,7 +219,7 @@ try {
   await dialog(page).getByRole("button", { name: "Vazgeç" }).click();
   await unpaidRow.getByRole("button", { name: "Tahsilat kaydet" }).waitFor();
   await navigate(page, "products", "Ürünler ve Stok");
-  const coffeeStock = page.getByRole("row").filter({ hasText: "KAHVE-01" }).locator('[data-label="Stok"]');
+  const coffeeStock = page.getByRole("row").filter({ hasText: "KAHVE-01" }).locator('[data-label="İşletme stoku"]');
   assert.equal((await coffeeStock.innerText()).trim(), "3", "6 opening - 2 manual - 1 CSV sale");
   // Correct an unpaid manual sale and follow the stock delta and immutable history in the UI.
   await record("sales", "create", {date, paid: false, reference: "REV-1", lines: [{sku: "KAHVE-01", quantity: 1}]});
