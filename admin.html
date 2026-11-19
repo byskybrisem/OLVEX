@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090c15">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>OLVEX Control | Platform Yönetimi</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/admin.css">
+<script type="module" src="/assets/admin.js"></script>
+</head>
+<body class="admin-page">
+<a class="skip" href="#admin-main">İçeriğe geç</a>
+<div class="admin-shell">
+  <aside class="admin-sidebar glass" id="admin-sidebar" aria-label="Platform yönetim menüsü">
+    <a href="/admin.html#overview" class="admin-logo" aria-label="OLVEX Control ana sayfa">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#baabff" d="M10 2h13l7 10-7 17H10l-7-10z"/><path fill="#202039" d="M13 8h8l3 5-5 10h-7l-3-5z"/><path fill="#8270df" d="m3 19 6-1 3 5-2 6z"/></svg>
+      <span><strong>OLVEX</strong><small>CONTROL CENTER</small></span>
+    </a>
+    <div class="admin-identity"><span class="admin-identity-icon">✦</span><div><strong>Super Admin</strong><small>Platform yönetimi</small></div></div>
+    <nav class="admin-nav" aria-label="Yönetim bölümleri">
+      <span class="admin-nav-head">YÖNETİM</span>
+      <a href="#overview" data-admin-view="overview" aria-current="page"><span aria-hidden="true">▦</span> Genel Bakış</a>
+      <a href="#businesses" data-admin-view="businesses"><span aria-hidden="true">▥</span> İşletmeler</a>
+      <a href="#users" data-admin-view="users"><span aria-hidden="true">♙</span> Kullanıcılar</a>
+      <span class="admin-nav-head">FİNANS & ANALİZ</span>
+      <a href="#finance" data-admin-view="finance"><span aria-hidden="true">↗</span> Gelir / Gider</a>
+      <a href="#subscriptions" data-admin-view="subscriptions"><span aria-hidden="true">◈</span> Abonelikler</a>
+      <a href="#ai" data-admin-view="ai"><span aria-hidden="true">✧</span> AI Kullanımı</a>
+      <span class="admin-nav-head">SİSTEM</span>
+      <a href="#system" data-admin-view="system"><span aria-hidden="true">⚙</span> Sistem & İşlem Geçmişi</a>
+    </nav>
+    <div class="admin-sidebar-bottom">
+      <div class="admin-auth-status"><span class="admin-status-dot"></span> Yetkili oturum</div>
+      <a href="/app.html" class="admin-back">← İşletme paneline dön</a>
+      <button type="button" class="admin-logout" id="admin-logout">Oturumu kapat</button>
+    </div>
+  </aside>
+  <button type="button" id="admin-backdrop" class="admin-backdrop" aria-label="Menüyü kapat" hidden></button>
+  <main id="admin-main" class="admin-main">
+    <header class="admin-topbar glass">
+      <button type="button" class="admin-menu-toggle" id="admin-menu-toggle" aria-label="Menüyü aç" aria-controls="admin-sidebar" aria-expanded="false">☰</button>
+      <div class="admin-breadcrumb"><span>OLVEX</span><span aria-hidden="true">/</span><strong id="admin-breadcrumb">Genel Bakış</strong></div>
+      <div class="admin-top-right"><span class="admin-live"><i></i> Platform</span><span id="admin-user" class="admin-user">Yükleniyor…</span></div>
+    </header>
+    <div class="admin-page-heading">
+      <div><p class="admin-eyebrow">PLATFORM YÖNETİM MERKEZİ</p><h1 id="admin-title">Genel Bakış</h1>
+        <p id="admin-subtitle">OLVEX'in tüm işletme ve platform hareketlerini tek ekrandan izle.</p></div>
+      <button class="admin-refresh" type="button" id="admin-refresh">↻ Yenile</button>
+    </div>
+    <div class="admin-toolbar glass">
+      <label for="admin-from">Başlangıç <input type="date" id="admin-from"></label>
+      <label for="admin-to">Bitiş <input type="date" id="admin-to"></label>
+      <button id="admin-apply" type="button" class="button small">Uygula</button>
+      <span class="admin-period-note">İstatistik ve gelir–gider aralığı</span>
+    </div>
+    <div id="admin-notice" class="admin-notice" role="status" hidden></div>
+    <section class="admin-content" id="admin-content" aria-busy="true" aria-live="polite">
+      <section class="admin-panel glass"><p>Yönetici verileri yükleniyor…</p></section>
+    </section>
+    <footer class="admin-footer">OLVEX CONTROL · Platform gelir–gider kayıtları müşterilerin işletme finansından ayrıdır.</footer>
+  </main>
+</div>
+<dialog class="admin-modal" id="admin-ledger-dialog" aria-labelledby="admin-ledger-title">
+  <form id="admin-ledger-form">
+    <div class="admin-modal-head"><div><p class="admin-eyebrow">OLVEX PLATFORMA AİT</p><h2 id="admin-ledger-title">Gelir / Gider Kaydı</h2></div>
+      <button type="button" id="admin-ledger-close" class="admin-close" aria-label="Kapat">×</button></div>
+    <div class="admin-form-grid">
+      <label>İşlem türü<select name="kind" required><option value="income">Gelir</option><option value="expense">Gider</option></select></label>
+      <label>Tarih<input name="occurredOn" type="date" required></label>
+      <label> Tutar (TL)<input name="amount" type="text" inputmode="decimal" placeholder="Örnek: 1.250,50" required maxlength="18"></label>
+      <label>Kategori<input name="category" maxlength="64" placeholder="Örn. Sunucu, reklam"></label>
+      <label class="admin-form-wide">Açıklama<input name="description" maxlength="180" minlength="2" placeholder="Hareket açıklaması" required></label>
+    </div>
+    <p class="admin-note">Bu kayıt sadece OLVEX'in kendi defterine eklenir; müşterinin kasasını etkilemez.</p>
+    <div class="admin-modal-actions"><button type="button" class="admin-ghost" id="admin-ledger-cancel">Vazgeç</button><button type="submit" class="admin-primary" id="admin-ledger-save">Kaydet</button></div>
+  </form>
+</dialog>
+<noscript>Yönetici paneli için JavaScript etkin olmalıdır.</noscript>
+</body>
+</html>
