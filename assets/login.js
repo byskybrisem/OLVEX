@@ -37,7 +37,7 @@ form.addEventListener("submit", async (event) => {
       password: password.value,
       remember: document.querySelector('input[name="remember"]').checked
     });
-    location.replace(joining ? "/join.html" : adminLogin ? "/admin.html" : "/app.html");
+    location.replace(joining ? "/join.html" : (adminLogin || session.isPlatformAdmin === true) ? "/admin.html" : "/app.html");
   } catch (error) {
     status(error.message || "Giriş yapılamadı.");
     submit.disabled = false;
