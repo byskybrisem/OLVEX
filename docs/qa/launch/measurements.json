@@ -1,0 +1,158 @@
+{
+  "browserChecks": [
+    {
+      "name": "Google Chrome",
+      "version": "158.0.8127.36",
+      "widths": [
+        320,
+        360,
+        375,
+        390,
+        430,
+        768,
+        1024,
+        1440,
+        1920
+      ],
+      "errors": [],
+      "scene": "live",
+      "label": "2B görünüme dön"
+    },
+    {
+      "name": "Microsoft Edge",
+      "version": "157.0.4341.60",
+      "widths": [
+        320,
+        360,
+        375,
+        390,
+        430,
+        768,
+        1024,
+        1440,
+        1920
+      ],
+      "errors": [],
+      "scene": "live",
+      "label": "2B görünüme dön"
+    },
+    {
+      "name": "Firefox (Playwright)",
+      "version": "153.0",
+      "widths": [
+        320,
+        360,
+        375,
+        390,
+        430,
+        768,
+        1024,
+        1440,
+        1920
+      ],
+      "errors": [],
+      "scene": "unavailable",
+      "label": "2B · 3B kullanılamıyor"
+    },
+    {
+      "name": "WebKit (Playwright)",
+      "version": "26.5",
+      "widths": [
+        320,
+        360,
+        375,
+        390,
+        430,
+        768,
+        1024,
+        1440,
+        1920
+      ],
+      "errors": [],
+      "scene": "live",
+      "label": "2B görünüme dön"
+    }
+  ],
+  "accessibility": {
+    "tool": "axe-core 4.14.1",
+    "views": [
+      "/",
+      "/demo#overview",
+      "/login",
+      "/register",
+      "/forgot-password",
+      "/privacy",
+      "pricing-annual",
+      "app#overview",
+      "app#sales",
+      "app#stock",
+      "app#products",
+      "app#customers",
+      "app#finance",
+      "app#ai",
+      "mobile"
+    ],
+    "violations": 0,
+    "manualReviewRules": [
+      "color-contrast",
+      "label-content-name-mismatch"
+    ]
+  },
+  "lighthouse": {
+    "version": "13.6.0",
+    "formFactor": "mobile",
+    "throttling": "simulate",
+    "before": [
+      {
+        "lcpMs": 1602,
+        "cls": 0.0013,
+        "tbtMs": 0,
+        "bytes": 90840,
+        "performance": 100,
+        "accessibility": 100
+      },
+      {
+        "lcpMs": 1645,
+        "cls": 0.0013,
+        "tbtMs": 171,
+        "bytes": 90851,
+        "performance": 97,
+        "accessibility": 100
+      },
+      {
+        "lcpMs": 1792,
+        "cls": 0,
+        "tbtMs": 745,
+        "bytes": 90840,
+        "performance": 82,
+        "accessibility": 100
+      }
+    ],
+    "candidate": [
+      {
+        "lcpMs": 1692,
+        "cls": 0,
+        "tbtMs": 159,
+        "bytes": 92249,
+        "performance": 98,
+        "accessibility": 100
+      },
+      {
+        "lcpMs": 1567,
+        "cls": 0.0007,
+        "tbtMs": 0,
+        "bytes": 92246,
+        "performance": 100,
+        "accessibility": 100
+      },
+      {
+        "lcpMs": 1545,
+        "cls": 0.0007,
+        "tbtMs": 0,
+        "bytes": 92249,
+        "performance": 100,
+        "accessibility": 100
+      }
+    ]
+  }
+}
