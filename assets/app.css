@@ -669,14 +669,26 @@ dialog { background: var(--solid); border-color: #ffffff25; }
 .delta[data-direction="-1"] { color: var(--danger); }
 
 .browser-preferences {
-  margin-block: 12px;
-  padding: 14px;
+  position: fixed;
+  inset: auto max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) auto;
+  z-index: calc(var(--layer-menu) - 1);
+  width: min(332px, calc(100% - max(10px, env(safe-area-inset-left)) - max(10px, env(safe-area-inset-right))));
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--solid);
+  box-shadow: 0 8px 28px #0006;
 }
-.browser-preferences h2, .browser-preferences p { margin: 0 0 8px; }
+.browser-preferences h2 { margin: 0; font-size: .875rem; }
+.browser-preferences p { margin: 3px 0 7px; color: var(--muted); font-size: .79rem; line-height: 1.35; }
+.browser-preferences .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.browser-preferences .button { min-height: 34px; padding: 3px 4px; font-size: .74rem; white-space: normal; text-align: center; }
 .browser-preferences [role="status"]:empty { display: none; }
+#main:has(.browser-preferences:not([hidden])) { padding-block-end: calc(8.75rem + env(safe-area-inset-bottom)); }
+
+@media (max-width: 760px) {
+  .browser-preferences .button { min-height: 44px; }
+}
 
 .pos-methods { display: grid; gap: 14px; padding-inline-start: 1.4rem; }
 .pos-methods li p { margin-block: 4px 8px; }
