@@ -1,5 +1,6 @@
 import { amount, confirm, editor, field, fields, intField, note, readAmount, readInt, select } from "./editor.js";
 import { findRegister, lookup, lookupField } from "./orders.js";
+import { showPosSetupGuide } from "./pos-onboarding.js";
 import { copyText, fromMinor, h, randomSecret, today } from "./ui.js";
 import { proposalLabel, repeats } from "./views.js";
 
@@ -204,7 +205,7 @@ function identityField(current = "") {
   ], current, true);
 }
 
-function createPos(ctx) {
+function createPos(ctx, defaults = {}) {
   const secret = randomSecret();
   editor(ctx, {
     title: "Kasa bağlantısı oluştur",
@@ -218,10 +219,12 @@ function createPos(ctx) {
       <div data-pos-device hidden>
         <h3 tabindex="-1">3. Kasayı tanımlayın</h3>
         <p class="hint" data-pos-summary></p>
-        ${field("Bağlantı adı", "name", "", { max: 80 })}
-        ${fields(field("Kasa markası (isteğe bağlı)", "brand", "", { max: 80, required: false }),
-          field("Satış yazılımı ve sürümü (isteğe bağlı)", "software", "", { max: 100, required: false }))}
-        <p class="hint">Marka ve yazılım bilgisi ekip içi tanımlama içindir. Üretici bağlantısı kurmaz.</p>
+        ${field("Bağlantı adı", "name", defaults.name || "", { max: 80 })}
+        ${defaults.guided
+          ? '<p class="hint">Kasa ve yazılım seçiminiz, bağlantı adında özetlendi. Ayrı marka/yazılım alanları için veritabanı geçişi gerekir; mevcut sürümde rehber seçimi otomatik fiziksel bağlantı oluşturmaz.</p>'
+          : fields(field("Kasa markası (isteğe bağlı)", "brand", "", { max: 80, required: false }),
+            field("Satış yazılımı ve sürümü (isteğe bağlı)", "software", "", { max: 100, required: false })) +
+            '<p class="hint">Marka ve yazılım bilgisi ekip içi tanımlama içindir. Üretici bağlantısı kurmaz.</p>'}
         ${identityField()}
         <p class="hint">Her fiziksel kasa için ayrı kayıt açın. Üreticinin bağlayıcısı varsa anahtarı yalnızca sunucu ayarlarında saklayın.</p>
         <button class="button secondary" type="button" data-pos-back>Şubeyi değiştir</button>
@@ -253,7 +256,7 @@ function createPos(ctx) {
       if (root.querySelector("[data-pos-device]").hidden) throw new Error("Önce kasanızın şubesini seçin.");
       return send("pos", "create", {
         name: form.get("name"), branchId: form.get("branchId"), identityMode: form.get("identityMode"),
-        brand: form.get("brand"), software: form.get("software"), secret
+        ...(defaults.guided ? {} : { brand: form.get("brand"), software: form.get("software") }), secret
       });
     },
     done: async () => {
@@ -372,6 +375,9 @@ export function formCommand(ctx, cmd, row, id) {
     case "invite": return invite(ctx);
     case "edit-member": return editMember(ctx, row);
     case "create-pos": return createPos(ctx);
+    case "pos-guide": return showPosSetupGuide(ctx, { onCreate: (guide) => createPos(ctx, {
+      guided: true, name: guide.name.slice(0, 64) + " - Kasa 1"
+    }) });
     case "rotate-pos": return rotatePos(ctx, row);
     case "pos-identity": return posIdentity(ctx, row);
     case "pos-reconcile": return reconcile(ctx, row);
