@@ -1,6 +1,6 @@
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { importRegisterSale } from "../../../_lib/register.js";
-import { createBranch, locations } from "../../../_lib/branches.js";
+import { createBranch, createTransfer, locations, transferHistory } from "../../../_lib/branches.js";
 import { reconcilePos } from "../../../_lib/pos-identity.js";
 import { handle, HttpError, json, readJson, sameOrigin } from "../../../_lib/http.js";
 import { EVERY_ROLE, MANAGERS, OWNER, workspace } from "../../../_lib/workspace.js";
@@ -8,13 +8,15 @@ import { archiveProduct, catalog, createOrder, orders, products, saveProduct, se
 import { archiveCustomer, archiveEmployee, cashEntries, completeTask, createCashEntry, createShift, customerHistory,
   customers, employees, invoices, removeShift, removeTask, saveCustomer, saveEmployee, saveInvoice, saveTask, shifts,
   taskDays, tasks, voidCash } from "../../../_lib/records.js";
-import { branches, reports, overview } from "../../../_lib/reports.js";
+import { branches, reports, overview, stockAlerts } from "../../../_lib/reports.js";
 import { changeMember, createPos, invite, posConnections, rename, revokeInvite, revokePos, rotatePos, setPosIdentity, settings } from "../../../_lib/team.js";
 import { aiDashboard, ask, resolveProposal } from "../../../_lib/ai.js";
 import { editSale, saleEditHistory } from "../../../_lib/sale-edits.js";
 
 const READ = {
   "sale-edits": [MANAGERS, saleEditHistory],
+  "stock-alerts": [EVERY_ROLE, stockAlerts],
+  transfers: [EVERY_ROLE, transferHistory],
   overview: [EVERY_ROLE, overview],
   products: [EVERY_ROLE, products],
   stock: [EVERY_ROLE, stockHistory],
@@ -43,6 +45,7 @@ const WRITE = {
     archive: [MANAGERS, archiveProduct]
   },
   stock: { adjust: [MANAGERS, stockAdjustment] },
+  transfers: { create: [MANAGERS, createTransfer] },
   sales: {
     edit: [MANAGERS, editSale],
     create: [EVERY_ROLE, (ctx, data) => createOrder(ctx, data, "sale")],
@@ -100,10 +103,14 @@ export const onRequestPost = handle(async (context) => {
   sameOrigin(context.request);
   const section = context.params.section;
   const data = await readJson(context.request);
+  if (typeof data.action !== "string") throw new HttpError(400, "Geçerli bir işlem adı gerekli.");
   if (!Object.hasOwn(WRITE, section) || !Object.hasOwn(WRITE[section], data.action)) {
     throw new HttpError(404, "İşlem bulunamadı.");
   }
   const [roles, action] = WRITE[section][data.action];
   const ctx = await workspace(context, roles);
+  if (Object.hasOwn(data, "businessId") && data.businessId !== ctx.businessId) {
+    throw new HttpError(403, "İstek işletmesi çalışma alanıyla uyuşmuyor.");
+  }
   return json(await action(ctx, data));
 });

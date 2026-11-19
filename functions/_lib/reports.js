@@ -1,5 +1,5 @@
 import { addDays, period, today } from "./validate.js";
-import { MANAGERS } from "./workspace.js";
+import { list, MANAGERS, searchTerm } from "./workspace.js";
 
 const blank = () => ({ sales: 0, saleCount: 0, cost: 0, purchases: 0, revenue: 0, spending: 0 });
 
@@ -52,6 +52,21 @@ export async function financials(ctx, start, end) {
   return { totals, days: [...days.values()] };
 }
 
+// A product with no movement in a branch has zero on hand there.
+const criticalStock = `SELECT b.id AS branch_id, b.name AS branch_name, p.id, p.name, p.sku,
+    COALESCE(s.stock, 0) AS stock, p.stock AS total_stock, p.reorder_at
+  FROM olvex_branches b JOIN olvex_products p ON p.business_id = b.business_id AND p.active = 1
+  LEFT JOIN olvex_branch_stock s ON s.business_id = b.business_id AND s.branch_id = b.id AND s.product_id = p.id
+  WHERE b.business_id = ? AND COALESCE(s.stock, 0) <= p.reorder_at`;
+const stockAlertOrder = "ORDER BY b.name COLLATE NOCASE, b.id, p.sku, p.id";
+
+export function stockAlerts(ctx) {
+  const query = searchTerm(ctx.paramsUrl.get("q"));
+  return list(ctx, `${criticalStock}
+    AND (p.sku LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\' OR b.name LIKE ? ESCAPE '\\')
+    ${stockAlertOrder} LIMIT ? OFFSET ?`, [query, query, query]);
+}
+
 export async function summary(ctx) {
   const { start, end } = period(ctx.paramsUrl);
   const manager = MANAGERS.includes(ctx.role);
@@ -59,9 +74,14 @@ export async function summary(ctx) {
   const [{ totals, days }, results] = await Promise.all([
     financials(ctx, start, end),
     ctx.db.batch([
-      ctx.db.prepare(`SELECT id, sku, name, stock, reorder_at, COUNT(*) OVER () as total
-        FROM olvex_products WHERE business_id = ? AND active = 1 AND stock <= reorder_at
-        ORDER BY stock, name, id LIMIT 8`).bind(ctx.businessId),
+      ctx.db.prepare(`${criticalStock} ${stockAlertOrder} LIMIT 8`).bind(ctx.businessId),
+      // Count all potential alerts minus healthy, materialized balances without building the full branch × product list.
+      ctx.db.prepare(`SELECT
+        (SELECT COUNT(*) FROM olvex_branches WHERE business_id = ?1) *
+        (SELECT COUNT(*) FROM olvex_products WHERE business_id = ?1 AND active = 1) -
+        (SELECT COUNT(*) FROM olvex_branch_stock s JOIN olvex_products p
+           ON p.business_id = s.business_id AND p.id = s.product_id
+         WHERE s.business_id = ?1 AND p.active = 1 AND s.stock > p.reorder_at) AS total`).bind(ctx.businessId),
       ctx.db.prepare(`SELECT o.id, o.occurred_on, o.reference, SUM(i.quantity * i.unit_minor) AS total_minor
         FROM olvex_orders o JOIN olvex_net_order_items i ON o.business_id = i.business_id AND o.id = i.order_id
         WHERE o.business_id = ? AND o.status = 'posted' AND o.kind = 'sale' AND o.occurred_on BETWEEN ? AND ?
@@ -76,10 +96,10 @@ export async function summary(ctx) {
         GROUP BY o.id ORDER BY o.occurred_on, o.id LIMIT 5`).bind(ctx.businessId)] : [])
     ])
   ]);
-  const [lowStock, latest, unpaid, receivables] = results.map((result) => result.results);
+  const [alerts, [count], latest, unpaid, receivables] = results.map((result) => result.results);
   const sums = manager ? totals : { sales: totals.sales, saleCount: totals.saleCount };
   return {
-    from: start, to: end, totals: sums, lowStock, latest, receivables,
+    from: start, to: end, totals: sums, lowStock: alerts.map(row => ({ ...row, total: count.total })), latest, receivables,
     days: manager ? days : days.map(({ day, sales, saleCount, receipts, grossSales, saleActivity }) =>
       ({ day, sales, saleCount, receipts, grossSales, saleActivity })),
     unpaid: manager ? Object.fromEntries(unpaid.map((row) => [row.kind, row.total_minor])) : null
@@ -143,7 +163,8 @@ export async function insights(ctx) {
   ]);
   return {
     from: start, to: end, totals: current.totals, previousSales: previous.totals.sales,
-    lowStock: current.lowStock.map(({ sku, name, stock, reorder_at }) => ({ sku, name, stock, reorder_at })),
+    lowStock: current.lowStock.map(({ branch_name, sku, name, stock, total_stock, reorder_at }) =>
+      ({ branch_name, sku, name, stock, total_stock, reorder_at })),
     lowStockCount: current.lowStock[0]?.total ?? 0, unpaid: current.unpaid
   };
 }

@@ -69,17 +69,32 @@ test("AI explains a decline and pending collections using only supplied data", (
   };
   const html = ai(facts);
   assert.match(html, /%50 azaldı/);
-  assert.match(html, /2 ürün kritik stok/);
+  assert.match(html, /2 şube stok uyarısı/);
   assert.match(html, /75,00/);
 });
 
 test("AI safely escapes product names in low-stock reporting", () => {
   const html = ai({
     ...emptyFacts, lowStockCount: 1,
-    lowStock: [{ name: "<script>alert(1)</script>", sku: "X", stock: 0 }]
+    lowStock: [{ name: "<script>alert(1)</script>", sku: "X", branch_name: "Sahil<&>", stock: 0, reorder_at: 10, total_stock: 500 }]
   });
   assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
   assert.match(html, /&lt;script&gt;/);
+  assert.match(html, /Sahil&lt;&amp;&gt;/);
+  assert.match(html, /data-label="Şube stoku".*?>0</);
+  assert.match(html, /data-label="İşletme toplamı">500</);
+});
+
+test("AI stok onayı işletme, şube, ürün, yön ve adedi gösterir; şubesiz taslak yalnızca reddedilebilir", () => {
+  const draft = { id: "draft", kind: "stock", businessName: "Atölye", name: "Kola", sku: "KOLA", delta: -3,
+    branchId: "branch", branchName: "Sahil<&>", description: "Sayım" };
+  const preview = proposal => renderers.ai({ facts: emptyFacts, mode: "mock", proposals: [proposal] }, initialState);
+  const scoped = preview(draft);
+  assert.match(scoped, /Atölye.*Sahil&lt;&amp;&gt;.*Kola \(KOLA\).*Stok çıkışı, 3 adet/);
+  assert.match(scoped, /apply-proposal/);
+  const legacy = preview({ ...draft, branchId: undefined });
+  assert.doesNotMatch(legacy, /apply-proposal/);
+  assert.match(legacy, /discard-proposal/);
 });
 
 test("long periods retain the full total and bounded point count", () => {
@@ -106,4 +121,12 @@ test("comparisons use posted totals from the previous period and handle a missin
   assert.equal(html.match(/class="delta"/g).length, 2);
   const noHistory = renderers.overview({...snapshot, previous:undefined}, initialState);
   assert.doesNotMatch(noHistory, /class="delta"/);
+});
+
+test("tamamı iade edilen ödenmemiş satış için tahsilat önerilmez", () => {
+  const rows = [{ id: "sale", status: "posted", fully_returned: 1, reference: "İade", occurred_on: "2026-11-18", total_minor: 0 }];
+  const html = renderers.sales({ rows }, initialState);
+  assert.match(html, /Tam iade|Tamamı iade edildi/);
+  assert.doesNotMatch(html, /settle-order/);
+  assert.doesNotMatch(html, /void-order/);
 });

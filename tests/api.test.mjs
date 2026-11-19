@@ -388,7 +388,9 @@ test("ücretsiz AI, onay öncesi işlem yok, tek sefer uygulama ve reddetme", as
   const actual = await owner.read(thisBusiness, "finance");
   assert.equal(actual.rows.filter((row) => row.description === "elektrik").length, 1);
   const remaining = await stockFor(owner, thisBusiness, "ELMA");
-  const stockIdea = await owner.mutate(thisBusiness, "ai", "ask", { messages: [{ role: "user", content: "stok ELMA -1 sayım" }] });
+  const defaultBranchId = (await owner.read(thisBusiness, "locations")).rows.find(row => row.is_default)?.id;
+  assert.ok(defaultBranchId);
+  const stockIdea = await owner.mutate(thisBusiness, "ai", "ask", { branchId: defaultBranchId, messages: [{ role: "user", content: "stok ELMA -1 sayım" }] });
   await owner.mutate(thisBusiness, "ai", "discard", { id: stockIdea.proposal.id });
   assert.equal(await stockFor(owner, thisBusiness, "ELMA"), remaining);
   assert.deepEqual((await owner.read(thisBusiness, "ai")).proposals, []);
@@ -521,4 +523,86 @@ test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi
     WHERE business_id='${business}' AND order_id='${original}' ORDER BY kind`);
   assert.deepEqual(payments, [{ kind: "payment", amount_minor: 300 },
     { kind: "refund", amount_minor: 150 }, { kind: "refund", amount_minor: 150 }]);
+});
+
+test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski taslaklar uygulanamaz", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "AI Test İşletmesi" }, 201);
+  const business = data.business.id;
+  const main = (await owner.read(business, "locations")).rows[0].id;
+  const coast = (await owner.mutate(business, "locations", "create", { name: "Sahil" })).id;
+  const item = await saveProduct(owner, business, { sku: "KOLA", name: "Kola", branchId: main, opening: 100 });
+  await owner.mutate(business, "stock", "adjust", { productId: item.id, branchId: coast, delta: 4, note: "Sayım" });
+  const ask = (payload, status) => owner.mutate(business, "ai", "ask", {
+    messages: [{ role: "user", content: "stok KOLA -3 koli sayımı" }], ...payload
+  }, status);
+  const stock = async (branchId) => (await owner.read(business, "products", "?branchId=" + branchId)).rows[0].stock;
+  const missing = await ask({});
+  assert.equal(missing.proposal, null);
+  assert.equal(missing.needsBranch, true);
+  const outside = (await owner.read(thisBusiness, "locations")).rows[0].id;
+  await ask({ branchId: outside }, 404);
+  const insufficient = await ask({ branchId: coast, messages: [{ role: "user", content: "stok KOLA -5 sayım" }] });
+  assert.equal(insufficient.proposal, null);
+  assert.deepEqual((await owner.read(business, "ai")).proposals, []);
+  const { proposal } = await ask({ branchId: coast });
+  assert.equal(proposal.businessName, "AI Test İşletmesi");
+  assert.equal(proposal.branchName, "Sahil");
+  assert.equal(proposal.productId, item.id);
+  assert.equal(proposal.sku, "KOLA");
+  assert.equal(proposal.delta, -3);
+  assert.equal(await stock(coast), 4);
+  const confirm = (payload, status) => owner.mutate(business, "ai", "apply", { id: proposal.id, ...payload }, status);
+  await confirm({}, 409);
+  await confirm({ branchId: main }, 409);
+  await confirm({ branchId: outside }, 409);
+  await other.mutate(business, "ai", "apply", { id: proposal.id, branchId: coast }, 404);
+  await owner.mutate(thisBusiness, "ai", "apply", { id: proposal.id, branchId: coast }, 404);
+  const confirmation = { branchId: coast, requestId: id() };
+  const applied = await Promise.all([confirm(confirmation), confirm(confirmation)]);
+  assert.deepEqual(applied.map(row => row.repeated).sort(), [false, true]);
+  await confirm({ branchId: coast }, 409);
+  assert.deepEqual([await stock(main), await stock(coast)], [100, 1]);
+  const history = await owner.read(business, "stock", "?branchId=" + coast);
+  assert.equal(history.rows.filter(row => row.delta === -3 && row.id === confirmation.requestId).length, 1);
+
+  const { proposal: waiting } = await ask({
+    branchId: coast, messages: [{ role: "user", content: "stok KOLA -1 sayım" }]
+  });
+  await owner.mutate(business, "stock", "adjust", { productId: item.id, branchId: coast, delta: -1, note: "Son adet" });
+  await owner.mutate(business, "ai", "apply", { id: waiting.id, branchId: coast }, 409);
+  assert.equal(await stock(coast), 0);
+  assert.ok((await owner.read(business, "ai")).proposals.some(row => row.id === waiting.id));
+  await owner.mutate(business, "ai", "discard", { id: waiting.id });
+
+  const legacy = id();
+  await pages.query(`INSERT INTO olvex_ai_proposals (business_id, id, user_id, kind, payload, expires_at)
+    SELECT business_id, '${legacy}', user_id, 'stock', json_object('kind','stock','productId','${item.id}',
+      'sku','KOLA','name','Kola','delta',-1,'description','Geçiş öncesi sayım'), '2099-01-01T00:00:00.000Z'
+    FROM business_members WHERE business_id = '${business}' AND role = 'owner'`);
+  await owner.mutate(business, "ai", "apply", { id: legacy, branchId: main }, 409);
+  await owner.mutate(business, "ai", "discard", { id: legacy });
+  assert.deepEqual([await stock(main), await stock(coast)], [100, 0]);
+});
+
+test("şube stoku yoksa kritik stok uyarısı panelde ve AI özetinde işletme toplamından ayrılır", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "Şube stok uyarıları" }, 201);
+  const business = data.business.id;
+  const branch = await owner.mutate(business, "locations", "create", { name: "Sahil" });
+  const cola = await saveProduct(owner, business, { sku: "KOLA", name: "Kola", opening: 500, reorder: 10 });
+  const archive = await saveProduct(owner, business, { sku: "ARŞİV", opening: 0 });
+  await owner.mutate(business, "products", "archive", { id: archive.id });
+  const snapshot = async () => (await owner.read(business, "overview", "?detail=dashboard")).lowStock;
+  const expected = { id: cola.id, sku: "KOLA", name: "Kola", branch_id: branch.id, branch_name: "Sahil",
+    stock: 0, reorder_at: 10, total_stock: 500 };
+  assert.deepEqual(await snapshot(), [{ ...expected, total: 1 }]);
+  assert.deepEqual((await owner.read(business, "stock-alerts", "?q=Sahil")).rows, [expected]);
+  assert.deepEqual((await owner.read(business, "stock-alerts", "?q=Merkez")).rows, []);
+  const { facts } = await owner.read(business, "ai");
+  assert.equal(facts.lowStockCount, 1);
+  assert.deepEqual(facts.lowStock, [{ branch_name: "Sahil", sku: "KOLA", name: "Kola", stock: 0, total_stock: 500, reorder_at: 10 }]);
+  await other.read(business, "stock-alerts", "", 404);
+  await owner.mutate(business, "stock", "adjust", { branchId: branch.id, productId: cola.id, delta: 10, note: "Sahil girişi" });
+  assert.deepEqual(await snapshot(), [{ ...expected, total: 1, stock: 10, total_stock: 510 }]);
+  await owner.mutate(business, "stock", "adjust", { branchId: branch.id, productId: cola.id, delta: 1, note: "Eşiğin üzeri" });
+  assert.deepEqual(await snapshot(), []);
 });

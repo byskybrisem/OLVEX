@@ -45,7 +45,7 @@ const outputSchema = {
   }
 };
 
-async function askOpenAI(ctx, facts, messages) {
+async function askOpenAI(ctx, facts, messages, branch) {
   const apiResponse = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${ctx.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
@@ -59,10 +59,11 @@ async function askOpenAI(ctx, facts, messages) {
         "Ölçülmemiş değerleri gerçek gibi verme. Çıktının hiçbir işlemi gerçekleştirmediğini doğru ifade et.",
         "Son kullanıcı açıkça isterse gider veya stok düzeltmesi için taslak önerebilirsin; diğer durumlarda kind 'none'.",
         "Gider taslağında açıklama ve pozitif kuruş tutarı gerekir. Stok taslağında SKU, imzalı adet farkı ve gerekçe gerekir.",
+        "Stok düzeltmesinin hedefi kullanıcının formda seçtiği şubedir. Mesaj başka bir şube istiyorsa taslak hazırlamadan şube seçimini düzeltmesini iste.",
         "SKU, tutar veya adet bilgisi eksikse soru sor. Kullanılmayan taslak alanlarını null yap."
       ].join(" "),
       input: [
-        { role: "user", content: `İşletme özeti (JSON): ${JSON.stringify(facts)}` },
+        { role: "user", content: `İşletme özeti (JSON): ${JSON.stringify({ ...facts, selectedBranch: branch?.name ?? null })}` },
         ...messages
       ],
       text: { format: { type: "json_schema", name: "olvex_answer", strict: true, schema: outputSchema } }
@@ -103,7 +104,7 @@ function mockAnswer(facts, prompt) {
   };
 }
 
-async function proposedAction(ctx, proposal) {
+async function proposedAction(ctx, proposal, branch) {
   if (proposal?.kind === "expense") {
     return {
       kind: "expense",
@@ -117,12 +118,17 @@ async function proposedAction(ctx, proposal) {
     const code = sku(proposal.sku);
     const delta = integer(proposal.delta, "Stok farkı", -MAX_STOCK, MAX_STOCK);
     if (!delta) throw new HttpError(400, "Stok farkı sıfır olamaz.");
-    const product = await ctx.db.prepare(`SELECT id, name, stock FROM olvex_products
-      WHERE business_id = ? AND sku = ? AND active = 1`).bind(ctx.businessId, code).first();
+    const product = await ctx.db.prepare(`SELECT p.id, p.name, p.stock AS total_stock, COALESCE(s.stock, 0) AS branch_stock
+      FROM olvex_products p LEFT JOIN olvex_branch_stock s ON s.business_id = p.business_id
+        AND s.product_id = p.id AND s.branch_id = ?
+      WHERE p.business_id = ? AND p.sku = ? AND p.active = 1`).bind(branch.id, ctx.businessId, code).first();
     if (!product) throw new HttpError(400, "SKU bulunamadı.");
-    if (product.stock + delta < 0 || product.stock + delta > MAX_STOCK) throw new HttpError(400, "Stok farkı uygulanamaz.");
+    if (product.branch_stock + delta < 0 || product.total_stock + delta > MAX_STOCK) {
+      throw new HttpError(400, "Bu stok farkı seçilen şubeye uygulanamaz.");
+    }
     return {
-      kind: "stock", productId: product.id, name: product.name, sku: code, delta,
+      kind: "stock", businessName: ctx.businessName, branchId: branch.id, branchName: branch.name,
+      productId: product.id, name: product.name, sku: code, delta,
       description: text(proposal.description, "Neden", { max: 180 })
     };
   }
@@ -149,15 +155,22 @@ export async function ask(ctx, body) {
     }
   }
 
+  const branch = body.branchId == null ? null : await ctx.db.prepare(
+    "SELECT id, name FROM olvex_branches WHERE business_id = ? AND id = ?"
+  ).bind(ctx.businessId, identifier(body.branchId, "Şube")).first();
+  if (body.branchId != null && !branch) throw new HttpError(404, "Şube bulunamadı.");
   const facts = await insights(ctx);
   const response = activeMode === "mock"
     ? mockAnswer(facts, messages.at(-1).content)
-    : await askOpenAI(ctx, facts, messages);
+    : await askOpenAI(ctx, facts, messages, branch);
+  if (response.proposal?.kind === "stock" && !branch) {
+    return { answer: "Stok düzeltmesi için işlem yapılacak şubeyi seçip mesajı tekrar gönderin.", needsBranch: true, proposal: null };
+  }
   const answer = text(response.answer, "AI yanıtı", { max: 2000 });
   let proposal = null;
 
   try {
-    proposal = await proposedAction(ctx, response.proposal);
+    proposal = await proposedAction(ctx, response.proposal, branch);
   } catch (error) {
     if (error instanceof HttpError) {
       return { answer: `${answer}\n\nTaslak oluşturulamadı. ${error.message}`.slice(0, 2000), proposal: null };
@@ -192,10 +205,11 @@ export async function resolveProposal(ctx, body, apply) {
     statements.push(cashInsert(ctx, requestId, { ...draft, kind: "expense", category: "" }));
   }
   if (apply && row.kind === "stock") {
+    if (!draft.branchId) throw new HttpError(409, "Bu eski taslakta şube seçilmemiş. Şube seçerek yeni bir taslak hazırlayın.");
+    if (body.branchId !== draft.branchId) throw new HttpError(409, "Onaylanan şube taslaktaki şube ile uyuşmuyor.");
     statements.push(ctx.db.prepare(`INSERT INTO olvex_stock_movements
-      (business_id, id, product_id, kind, delta, note, created_by, branch_id) VALUES (?, ?, ?, 'adjustment', ?, ?, ?,
-      (SELECT id FROM olvex_branches WHERE business_id = ? AND is_default = 1))`)
-      .bind(ctx.businessId, requestId, draft.productId, draft.delta, draft.description, ctx.actorId, ctx.businessId));
+      (business_id, id, product_id, kind, delta, note, created_by, branch_id) VALUES (?, ?, ?, 'adjustment', ?, ?, ?, ?)`)
+      .bind(ctx.businessId, requestId, draft.productId, draft.delta, draft.description, ctx.actorId, draft.branchId));
   }
   const guard = rowExists("olvex_ai_proposals", id,
     "AND user_id = ? AND state = 'pending' AND expires_at > ?", ctx.actorId, new Date().toISOString());
