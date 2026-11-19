@@ -90,7 +90,7 @@ function orderList(data, state, purchase) {
       badge(purchase ? "Ödendi" : "Tahsil edildi", "ok") : badge(purchase ? "Ödeme bekliyor" : "Tahsilat bekliyor", "warn");
     return [
       h(day(row.occurred_on)),
-      rowName(party, [row.reference, row.branch_name, sources[row.source]].filter(Boolean).join(" · ")),
+      rowName(party, [row.reference, row.branch_name, row.register_name, sources[row.source]].filter(Boolean).join(" · ")),
       h(money(row.total_minor)), status + (active && hasReturn && !fullyReturned ? badge("Kısmi iade") : ""),
       group(button("Ayrıntı", "order-detail", { id: row.id, kind: "small" }) +
         (row.can_link_csv && state.manager && !state.demo ? button("Eski fişi karşılaştır", "link-csv", { id: row.id, kind: "small" }) : "") +
@@ -206,7 +206,7 @@ function tasks(data, state) {
 }
 
 function branches(data, state) {
-  return businessTabs("branches") + filters(state, { range: true }) + panel("İşletme karşılaştırması", table(["İşletme", "Rol", "Satış sayısı", "Satış tutarı", "İşlemler"],
+  return businessTabs("branches") + filters(state, { range: true }) + panel("İşletme karşılaştırması", table(["İşletme", "Rol", "Satış fişi", "Net satış tutarı", "İşlemler"],
     data.rows.map((row) => [h(row.name), badge(roles[row.role]), h(count(row.sale_count)), h(money(row.sales)),
       row.id === state.business.id ? badge("Açık", "ok") : button("İşletmeye geç", "switch-business", { id: row.id, kind: "small" })])));
 }
@@ -335,7 +335,7 @@ function ai(data, state) {
       stockAlertTable(facts.lowStock)),
     panel("Bekleyen işlem taslakları", proposals.length ? `<div class="proposals">${proposals.map((proposal) =>
       `<article class="proposal"><strong>${h(proposalLabel(proposal))}</strong>${group(
-        (proposal.kind === "stock" && !proposal.branchId ? "" : button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" })) +
+        (mode === "off" || (proposal.kind === "stock" && !proposal.branchId) ? "" : button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" })) +
         button("Reddet", "discard-proposal", { id: proposal.id, kind: "small" }))}</article>`
     ).join("")}</div>` : empty("Onay bekleyen işlem yok."))) +
     panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts, state.demo)) +

@@ -11,7 +11,7 @@ const money = (amount) => format.format(amount / 100);
 function mode(ctx) {
   if (ctx.env.OLVEX_AI_MODE === "mock" &&
       isPreviewRequest(ctx.env, ctx.request)) return "mock";
-  return ctx.env.OPENAI_API_KEY ? "openai" : "off";
+  return ctx.env.OPENAI_API_KEY?.trim() ? "openai" : "off";
 }
 
 export async function aiDashboard(ctx) {
@@ -68,7 +68,7 @@ async function askOpenAI(ctx, facts, messages, branch) {
       ],
       text: { format: { type: "json_schema", name: "olvex_answer", strict: true, schema: outputSchema } }
     }),
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(15000), redirect: "error"
   }).catch(() => null);
 
   if (!apiResponse?.ok) throw new HttpError(502, "OLVEX AI isteği tamamlanamadı. Tekrar deneyin.");
@@ -77,7 +77,10 @@ async function askOpenAI(ctx, facts, messages, branch) {
     const output = response.output?.filter((item) => item.type === "message")
       .flatMap((item) => item.content).filter((item) => item.type === "output_text");
     if (response.status !== "completed" || !output?.length) throw new Error();
-    return JSON.parse(output.map((item) => item.text).join(""));
+    const result = JSON.parse(output.map((item) => item.text).join(""));
+    if (typeof result?.answer !== "string" || !result.answer.trim() || result.answer.trim().length > 2000 ||
+        !["none", "expense", "stock"].includes(result.proposal?.kind)) throw new Error();
+    return result;
   } catch {
     throw new HttpError(502, "OLVEX AI bu istek için geçerli bir yanıt döndürmedi.");
   }
@@ -99,7 +102,7 @@ function mockAnswer(facts, prompt) {
     };
   }
   return {
-    answer: `${facts.from} – ${facts.to} arasında ${facts.totals.saleCount} satış, ${money(facts.totals.sales)} satış tutarı ve ${facts.lowStockCount} kritik stok kaydı var.`,
+    answer: `${facts.from} – ${facts.to} arasında ${facts.receipts} satış fişi, ${money(facts.totals.sales)} net satış tutarı ve ${facts.lowStockCount} kritik stok kaydı var.`,
     proposal: { kind: "none" }
   };
 }
@@ -191,6 +194,7 @@ export async function ask(ctx, body) {
 }
 
 export async function resolveProposal(ctx, body, apply) {
+  if (apply && mode(ctx) === "off") throw new HttpError(503, "OLVEX AI şu anda kullanılamıyor.");
   const id = identifier(body.id, "Taslak");
   const requestId = identifier(body.requestId);
   const row = await ctx.db.prepare(`SELECT kind, payload FROM olvex_ai_proposals
@@ -214,5 +218,12 @@ export async function resolveProposal(ctx, body, apply) {
   const guard = rowExists("olvex_ai_proposals", id,
     "AND user_id = ? AND state = 'pending' AND expires_at > ?", ctx.actorId, new Date().toISOString());
   guard.message = "Taslak kullanılmış veya süresi dolmuş.";
+  if (apply && row.kind === "stock") {
+    const product = rowExists("olvex_products", draft.productId, "AND active = 1 AND sku = ?", draft.sku);
+    guard.sql += ` AND ${product.sql}`;
+    const proposalValues = guard.values;
+    guard.values = businessId => [...proposalValues(businessId), ...product.values(businessId)];
+    guard.message = "Taslak kullanılmış, süresi dolmuş veya ürün kaydı değişmiş.";
+  }
   return transact(ctx, apply ? "ai-apply" : "ai-discard", { requestId, id }, statements, guard);
 }

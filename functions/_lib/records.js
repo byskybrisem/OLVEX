@@ -176,12 +176,22 @@ export function tasks(ctx) {
 
 export function saveTask(ctx, body) {
   const dueOn = date(body.date);
-  return record(ctx, "olvex_tasks", "task", body, {
+  const task = {
     title: text(body.title, "Görev adı", { max: 180 }),
     notes: text(body.notes, "Not", { min: 0, max: 500 }),
     due_on: dueOn, repeat_rule: choice(body.repeat, ["none", "daily", "weekly", "monthly"], "Tekrar"),
     repeat_day: Number(dueOn.slice(8))
-  });
+  };
+  if (!body.id) return record(ctx, "olvex_tasks", "task", body, task);
+  const id = identifier(body.id);
+  const guard = rowExists("olvex_tasks", id, "AND completed_at IS NULL");
+  return transact(ctx, "task-update", { requestId: body.requestId, id, ...task }, [
+    ctx.db.prepare(`UPDATE olvex_tasks SET title = ?, notes = ?, due_on = ?3, repeat_rule = ?4,
+      repeat_day = CASE WHEN due_on = ?3 AND repeat_rule = 'monthly' AND ?4 = 'monthly'
+        THEN repeat_day ELSE ? END
+      WHERE business_id = ? AND id = ?`)
+      .bind(...Object.values(task), ctx.businessId, id)
+  ], guard);
 }
 
 function nextOccurrence(row) {
@@ -212,8 +222,8 @@ export async function completeTask(ctx, body) {
       .bind(ctx.businessId, requestId, row.title, row.notes, next, row.repeat_rule, row.repeat_day));
   }
   return transact(ctx, "task-complete", { requestId, id }, statements,
-    rowExists("olvex_tasks", id, "AND completed_at IS NULL AND title = ? AND notes = ? AND due_on = ? AND repeat_rule = ?",
-      row.title, row.notes, row.due_on, row.repeat_rule));
+    rowExists("olvex_tasks", id, "AND completed_at IS NULL AND title = ? AND notes = ? AND due_on = ? AND repeat_rule = ? AND repeat_day = ?",
+      row.title, row.notes, row.due_on, row.repeat_rule, row.repeat_day));
 }
 
 export function removeTask(ctx, body) {

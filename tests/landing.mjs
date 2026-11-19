@@ -90,6 +90,24 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     const pricing = page.getByRole("region", { name: "Paketler ve fiyatlar" });
     assert.deepEqual(await pricing.getByRole("heading", {level: 3}).allTextContents(),
       ["Esnaf", "Profesyonel"]);
+    for (const width of [375, 390, 430, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const layout = await pricing.evaluate(section => {
+        const cards = [...section.querySelectorAll(".plan-card")];
+        return {
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          cards: cards.map(card => {
+            const rect = card.getBoundingClientRect();
+            return { left: rect.left, right: rect.right, background: getComputedStyle(card).backgroundImage };
+          })
+        };
+      });
+      assert.equal(layout.overflow, false, `Horizontal overflow at ${width}px`);
+      for (const card of layout.cards) {
+        assert.ok(card.left >= 0 && card.right <= width, `Card clipped at ${width}px`);
+        assert.notEqual(card.background, "none");
+      }
+    }
     const prices = pricing.locator("[data-price]");
     const totals = pricing.locator("[data-period-note]");
     const monthly = ["₺499", "₺999"];
@@ -160,7 +178,8 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await page.locator('#site-menu a[href="#moduller"]').click();
     assert.equal(new URL(page.url()).hash, "#moduller");
     await page.getByRole("link", {name: "Ücretsiz Hesap Oluştur", exact: true}).first().click();
-    await page.locator("#name").waitFor();
+    await page.getByText("Hesap kaydı için tarayıcınızda JavaScript’i etkinleştirin.").waitFor();
+    assert.equal(await page.locator("#registerForm").isVisible(), false);
   } finally { await noJS.close(); }
 
   const fallback = await safeContext();

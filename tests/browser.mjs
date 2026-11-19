@@ -266,9 +266,15 @@ try {
 
   for (const [section, text] of [
     ["purchases", "Satın Alma"], ["customers", "Müşteriler"], ["invoices", "Faturalar"],
-    ["employees", "Personel"], ["tasks", "Görev ve Takvim"], ["branches", "İşletmeler"],
+    ["tasks", "Görev ve Takvim"], ["branches", "İşletmeler"],
     ["settings", "Ayarlar"]
   ]) await navigate(page, section, text);
+  await navigate(page, "employees", "Personel");
+  await page.getByRole("link", { name: "Vardiyalar", exact: true }).click();
+  await heading(page, "Vardiyalar");
+  await loaded(page);
+  await page.getByRole("button", { name: "+ Vardiya ekle", exact: true }).waitFor();
+  await navigate(page, "settings", "Ayarlar");
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await heading(page, "Kasa Bağlantıları");
   await loaded(page);
@@ -336,8 +342,10 @@ try {
   await navigate(page, "sales", "Satışlar");
   const tillRow = page.getByRole("row").filter({ hasText: "ISKELE-33" });
   await tillRow.getByText("Kısmi iade", { exact: true }).waitFor();
+  assert.match(await tillRow.innerText(), /Örnek kasa/);
   assert.equal(await tillRow.getByRole("button", { name: "Düzenle", exact: true }).count(), 0);
   await tillRow.getByRole("button", { name: "Ayrıntı" }).click();
+  await dialog(page).getByText("Kasa · Örnek kasa", { exact: true }).waitFor();
   const returnedLine = dialog(page).getByRole("row").filter({ hasText: "KAHVE-01" });
   assert.equal(await returnedLine.locator('[data-label="Satılan"]').innerText(), "2");
   assert.equal(await returnedLine.locator('[data-label="İade"]').innerText(), "1");

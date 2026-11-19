@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { passwordHash } from "../functions/_lib/password.js";
-import { sha256 } from "../functions/_lib/session.js";
+import { randomToken, sha256 } from "../functions/_lib/session.js";
 import { addDays, today } from "../functions/_lib/validate.js";
 import { stableId } from "../functions/_lib/workspace.js";
 import { localPages } from "./local.mjs";
@@ -367,9 +367,20 @@ test("fatura vadeleri, vardiya çakışması ve ay sonu tekrar kuralı", async (
   const { rows } = await owner.read(thisBusiness, "tasks", "?from=2026-02-28&to=2026-02-28&exact=1");
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, next.id);
+  await owner.mutate(thisBusiness, "tasks", "save", {
+    id: next.id, title: "Ay sonu işlemleri", date: "2026-02-28", repeat: "monthly"
+  });
   await owner.mutate(thisBusiness, "tasks", "complete", { id: next.id });
   const march = await owner.read(thisBusiness, "task-days", "?from=2026-03-01&to=2026-03-31");
   assert.deepEqual(march.rows, [{ day: "2026-03-31", count: 1 }]);
+  const marchTask = (await owner.read(thisBusiness, "tasks", "?from=2026-03-31&to=2026-03-31&exact=1")).rows[0];
+  assert.equal(marchTask.title, "Ay sonu işlemleri");
+  await owner.mutate(thisBusiness, "tasks", "save", {
+    id: marchTask.id, title: marchTask.title, date: "2026-03-15", repeat: "monthly"
+  });
+  await owner.mutate(thisBusiness, "tasks", "complete", { id: marchTask.id });
+  assert.deepEqual((await owner.read(thisBusiness, "task-days", "?from=2026-04-01&to=2026-04-30")).rows,
+    [{ day: "2026-04-15", count: 1 }]);
 });
 
 test("ücretsiz AI, onay öncesi işlem yok, tek sefer uygulama ve reddetme", async () => {
@@ -506,6 +517,9 @@ test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi
   await post("N", receipt, 201);
   await post("M", receipt, 409);
   await owner.mutate(business, "pos", "link-csv", { registerId: first.id, reference, decision: "same", evidence });
+  const legacySale = (await owner.read(business, "sales")).rows.find(row => row.id === original);
+  assert.equal(legacySale.register_name, "İlk kasa");
+  assert.equal(legacySale.can_link_csv, 0);
   const replay = await post("M", receipt, 200);
   assert.equal(replay.data.id, original);
   assert.equal(replay.data.repeated, true);
@@ -523,6 +537,75 @@ test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi
     WHERE business_id='${business}' AND order_id='${original}' ORDER BY kind`);
   assert.deepEqual(payments, [{ kind: "payment", amount_minor: 300 },
     { kind: "refund", amount_minor: 150 }, { kind: "refund", amount_minor: 150 }]);
+});
+
+test("farklı şubelerin kasalarında aynı fiş, CSV/POS tekrarı ve transfer ayrı işlenir", async () => {
+  const { data: created } = await owner.post("/api/businesses", { name: "Kasa ve transfer testi" }, 201);
+  const business = created.business.id;
+  const { rows: [center] } = await owner.read(business, "locations");
+  const coast = await owner.mutate(business, "locations", "create", { name: "Sahil" });
+  const item = await saveProduct(owner, business, { sku: "KASA-ÜRÜN", branchId: center.id, opening: 10 });
+  const branchStock = async branch => (await owner.read(business, "products", `?branchId=${branch.id}`))
+    .rows.find(row => row.id === item.id).stock;
+
+  const transfer = {
+    requestId: id(), sourceBranchId: center.id, destinationBranchId: coast.id,
+    productId: item.id, quantity: 4, date: yesterday, note: "Şube açılışı"
+  };
+  const firstTransfer = await owner.mutate(business, "transfers", "create", transfer);
+  const replay = await owner.mutate(business, "transfers", "create", transfer);
+  assert.equal(replay.id, firstTransfer.id);
+  assert.equal(replay.repeated, true);
+  await owner.mutate(business, "transfers", "create", { ...transfer, quantity: 5 }, 409);
+  await owner.mutate(business, "transfers", "create", { ...transfer, requestId: id(), quantity: 7 }, 409);
+  assert.equal((await owner.read(business, "transfers")).rows.length, 1);
+  assert.deepEqual(await Promise.all([branchStock(center), branchStock(coast)]), [6, 4]);
+
+  const centerSecret = randomToken();
+  const coastSecret = randomToken();
+  const createRegister = (branchId, name, secret) => owner.mutate(business, "pos", "create", {
+    identityMode: "native", branchId, name, secret
+  });
+  const centerRegister = await createRegister(center.id, "Merkez kasa", centerSecret);
+  const coastRegister = await createRegister(coast.id, "Sahil kasa", coastSecret);
+  const receipt = { reference: "ORTAK-42", date: yesterday, paid: true, lines: [{ sku: "KASA-ÜRÜN", quantity: 2, unit: 12550 }] };
+  const importAt = registerId => owner.mutate(business, "sales", "import", { ...receipt, registerId });
+  const send = (secret, body, status) => owner.post("/api/pos", body, status, {
+    cookie: false, headers: { Authorization: `Bearer olvex_pos_${secret}` }
+  });
+
+  const fromCsv = await importAt(centerRegister.id);
+  const fromPos = (await send(coastSecret, { ...receipt, action: "sale" }, 201)).data;
+  assert.notEqual(fromCsv.id, fromPos.id);
+  assert.deepEqual((await send(centerSecret, { ...receipt, action: "sale" }, 200)).data,
+    { success: true, id: fromCsv.id, repeated: true });
+  assert.deepEqual(await importAt(coastRegister.id), { success: true, id: fromPos.id, repeated: true });
+  assert.deepEqual(await Promise.all([branchStock(center), branchStock(coast)]), [4, 2]);
+  const { rows: sales } = await owner.read(business, "sales");
+  assert.deepEqual(new Map(sales.map(row => [row.id, row.register_name])),
+    new Map([[fromCsv.id, "Merkez kasa"], [fromPos.id, "Sahil kasa"]]));
+
+  const refund = { action: "return", reference: "I-42", saleReference: receipt.reference, date: todayDate,
+    lines: [{ sku: "KASA-ÜRÜN", quantity: 1 }] };
+  await send(coastSecret, refund, 201);
+  assert.equal((await send(coastSecret, refund, 200)).data.repeated, true);
+  assert.deepEqual(await Promise.all([branchStock(center), branchStock(coast)]), [4, 3]);
+  assert.equal(await stockFor(owner, business, "KASA-ÜRÜN"), 7);
+});
+
+test("arşivli ürüne stok düzeltmesi yazılmaz ve ürün yeniden açılabilir", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "Ürün arşiv testi" }, 201);
+  const business = data.business.id;
+  const item = await saveProduct(owner, business, { sku: "ARŞİV-TEST", opening: 0 });
+  const change = { requestId: id(), productId: item.id, delta: 2, note: "Sayım" };
+  await owner.mutate(business, "products", "archive", { id: item.id });
+  await owner.mutate(business, "stock", "adjust", change, 409);
+  assert.equal(await stockFor(owner, business, "ARŞİV-TEST"), 0);
+  assert.equal((await owner.read(business, "stock")).rows.length, 0);
+  await owner.mutate(business, "products", "archive", { id: item.id, active: true });
+  await owner.mutate(business, "stock", "adjust", change);
+  assert.equal((await owner.mutate(business, "stock", "adjust", change)).repeated, true);
+  assert.equal(await stockFor(owner, business, "ARŞİV-TEST"), 2);
 });
 
 test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski taslaklar uygulanamaz", async () => {
@@ -582,6 +665,36 @@ test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski tasla
   await owner.mutate(business, "ai", "apply", { id: legacy, branchId: main }, 409);
   await owner.mutate(business, "ai", "discard", { id: legacy });
   assert.deepEqual([await stock(main), await stock(coast)], [100, 0]);
+});
+
+test("AI stok taslağı onay anında ürünün halen etkin ve aynı SKU olduğunu doğrular", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "AI ürün durumu" }, 201);
+  const business = data.business.id;
+  const branchId = (await owner.read(business, "locations")).rows[0].id;
+  const item = await saveProduct(owner, business, { sku: "KALEM", opening: 0 });
+  const { proposal } = await owner.mutate(business, "ai", "ask", {
+    branchId, messages: [{ role: "user", content: "stok KALEM 2 sayım" }]
+  });
+  const apply = () => owner.mutate(business, "ai", "apply", { id: proposal.id, branchId }, 409);
+  await owner.mutate(business, "products", "archive", { id: item.id });
+  await apply();
+  await owner.mutate(business, "products", "archive", { id: item.id, active: true });
+  await saveProduct(owner, business, { id: item.id, sku: "YENİ-KALEM", opening: 0 });
+  await apply();
+  assert.equal(await stockFor(owner, business, "YENİ-KALEM"), 0);
+  assert.equal((await owner.read(business, "ai")).proposals[0].id, proposal.id);
+});
+
+test("işletme karşılaştırmasında önceki günden iptal negatif fiş adedi üretmez", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "Rapor iptal testi" }, 201);
+  const business = data.business.id;
+  await saveProduct(owner, business, { sku: "RAPOR" });
+  const posted = await owner.mutate(business, "sales", "create", sale("RAPOR-1", "RAPOR", 1));
+  await owner.mutate(business, "sales", "void", { id: posted.id, date: todayDate });
+  const { rows } = await owner.read(business, "branches", `?from=${todayDate}&to=${todayDate}`);
+  const summary = rows.find(row => row.id === business);
+  assert.equal(summary.sale_count, 0);
+  assert.equal(summary.sales, -12550);
 });
 
 test("şube stoku yoksa kritik stok uyarısı panelde ve AI özetinde işletme toplamından ayrılır", async () => {
