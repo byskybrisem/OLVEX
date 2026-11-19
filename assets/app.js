@@ -1,3 +1,4 @@
+import { bindBrowserPreferences, browserPreference } from "./browser-preferences.js";
 import { bindDrawer, bindModuleSearch } from "./navigation.js";
 import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
@@ -37,13 +38,7 @@ function appNotice(message = "", error = false) {
 }
 
 function localSelection(value) {
-  try {
-    const key = `olvex:business:${user.id}`;
-    if (value) localStorage.setItem(key, value);
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  return browserPreference(`olvex:business:${user.id}`, value);
 }
 
 function loginIfNeeded(error) {
@@ -141,11 +136,16 @@ function setRail(collapsed) {
   railToggle.setAttribute("aria-expanded", String(!collapsed));
   railToggle.setAttribute("aria-label", collapsed ? "Menüyü genişlet" : "Menüyü daralt");
 }
-try { setRail(localStorage.getItem("olvex:collapsed") === "1"); } catch {}
+setRail(browserPreference("olvex:collapsed") === "1");
 railToggle.addEventListener("click", () => {
   const collapsed = railToggle.getAttribute("aria-expanded") === "true";
   setRail(collapsed);
-  try { localStorage.setItem("olvex:collapsed", collapsed ? "1" : "0"); } catch {}
+  browserPreference("olvex:collapsed", collapsed ? "1" : "0");
+});
+
+bindBrowserPreferences($("#browser-preferences"), () => {
+  if (user && business) localSelection(business.id);
+  browserPreference("olvex:collapsed", $(".shell").classList.contains("rail") ? "1" : "0");
 });
 
 for (const dropdown of document.querySelectorAll(".account-tools details")) {

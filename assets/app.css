@@ -667,3 +667,20 @@ dialog { background: var(--solid); border-color: #ffffff25; }
 }
 .delta[data-direction="1"] { color: var(--teal); }
 .delta[data-direction="-1"] { color: var(--danger); }
+
+.browser-preferences {
+  margin-block: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--solid);
+}
+.browser-preferences h2, .browser-preferences p { margin: 0 0 8px; }
+.browser-preferences [role="status"]:empty { display: none; }
+
+.pos-methods { display: grid; gap: 14px; padding-inline-start: 1.4rem; }
+.pos-methods li p { margin-block: 4px 8px; }
+.editor-content [data-pos-device], .editor-content [data-pos-branch] { display: grid; gap: 10px; }
+.editor-content [data-pos-device] h3, .editor-content [data-pos-branch] h3 { margin: 0; }
+.editor-content code { overflow-wrap: anywhere; }
+.pos-registers .inline { flex-wrap: wrap; }

@@ -58,6 +58,78 @@ async function prepareScreenshot(page, filename) {
   await page.screenshot({ path: join(snapshots, filename), fullPage: true, animations: "disabled" });
 }
 
+const legalPaths = ["/terms.html", "/privacy.html", "/contact.html", "/pre-information.html",
+  "/distance-service-agreement.html", "/subscription-terms.html", "/cookies.html"];
+const fitsViewport = page => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+
+async function legalChecks(context) {
+  const legal = await context.newPage();
+  watch(legal);
+  for (const width of [320, 768, 1440]) {
+    await legal.setViewportSize({ width, height: 850 });
+    const landing = await legal.goto(local.url);
+    assert.ok(landing.ok());
+    const links = await legal.locator("footer .legal-nav a").evaluateAll(nodes => nodes.map(node => node.getAttribute("href")));
+    assert.deepEqual([...links].sort(), [...legalPaths].sort());
+    for (const path of legalPaths) {
+      const response = await legal.goto(local.url + path);
+      assert.ok(response.ok(), path);
+      assert.equal(await legal.locator("main h1").count(), 1, path);
+      assert.equal(await fitsViewport(legal), true, `${path} · ${width}px`);
+      assert.equal(await legal.locator('footer a[aria-current="page"]').getAttribute("href"), path);
+    }
+    for (const path of ["/login", "/register", "/forgot-password", "/setup?new=1"]) {
+      // Auth pages can redirect based on session and setup state.
+      const auth = await context.newPage();
+      watch(auth);
+      await auth.setViewportSize({ width, height: 850 });
+      const response = await auth.goto(local.url + path, { waitUntil: "commit" });
+      assert.ok(response.ok(), path);
+      await auth.locator("main").first().waitFor();
+      assert.equal(await fitsViewport(auth), true, `${path} · ${width}px`);
+      await auth.close();
+    }
+  }
+  await legal.close();
+}
+
+async function preferencesChecks(page) {
+  const banner = page.locator("[data-preference-banner]");
+  const optional = () => page.evaluate(() => Object.keys(localStorage)
+    .filter(key => key === "olvex:collapsed" || key.startsWith("olvex:business:")));
+  await banner.waitFor();
+  assert.deepEqual(await optional(), []);
+  assert.equal(await fitsViewport(page), true);
+  const reject = banner.getByRole("button", { name: "Tümünü reddet" });
+  await reject.focus();
+  await page.keyboard.press("Enter");
+  await banner.waitFor({ state: "hidden" });
+  await page.reload();
+  await loaded(page);
+  assert.deepEqual(await optional(), []);
+  assert.equal(await banner.isHidden(), true);
+  await page.goto(local.url + "/cookies.html#browser-preferences");
+  await page.getByText("Panel tercihleri kapalı.").waitFor();
+  await page.getByRole("button", { name: "Tümünü kabul et" }).click();
+  await page.getByText("Panel tercihleri açık.").waitFor();
+  await page.getByRole("link", { name: "Panele dön" }).click();
+  await loaded(page);
+  assert.ok((await optional()).some(key => key.startsWith("olvex:business:")));
+  const rail = page.locator("#rail-toggle");
+  await rail.click();
+  await page.reload();
+  await loaded(page);
+  assert.equal(await rail.getAttribute("aria-expanded"), "false");
+  await rail.click();
+  await page.goto(local.url + "/cookies.html#browser-preferences");
+  await page.getByRole("button", { name: "Tümünü reddet" }).click();
+  assert.deepEqual(await optional(), []);
+  await page.getByRole("link", { name: "Panele dön" }).click();
+  await loaded(page);
+  assert.equal(await banner.isHidden(), true);
+  assert.deepEqual(await optional(), []);
+}
+
 let desktopEngine = browser;
 try {
   if (desktopEngineName === "firefox") desktopEngine = await firefox.launch();
@@ -84,6 +156,8 @@ try {
   await heading(page, "Genel Bakış");
   await loaded(page);
   await page.getByText("Son satışlar", { exact: true }).waitFor();
+  await preferencesChecks(page);
+  await legalChecks(desktop);
 
   await page.keyboard.press("Control+k");
   const palette = page.locator("#module-search");
@@ -297,8 +371,14 @@ try {
   await navigate(page, "settings", "Ayarlar");
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await page.getByRole("button", { name: "+ Bağlantı oluştur" }).click();
-  await dialog(page).getByLabel("Bağlantı adı").fill("Örnek kasa");
   await dialog(page).locator('[name="branchId"]').selectOption({ label: "İskele" });
+  await dialog(page).getByRole("button", { name: "Kasaya geç" }).click();
+  await dialog(page).getByLabel("Bağlantı adı").fill("Örnek kasa");
+  await dialog(page).getByLabel(/Kasa markası/).fill("Örnek donanım");
+  await dialog(page).getByLabel(/Satış yazılımı/).fill("Örnek yazılım 2");
+  await dialog(page).getByRole("button", { name: "Şubeyi değiştir" }).click();
+  assert.equal(await dialog(page).locator('[name="branchId"] option:checked').innerText(), "İskele");
+  await dialog(page).getByRole("button", { name: "Kasaya geç" }).click();
   await dialog(page).getByLabel("İşlem kimliği").selectOption("reconcile");
   await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
   await dialog(page).getByRole("heading", { name: "Kasa bağlantı anahtarı" }).waitFor();
@@ -307,6 +387,14 @@ try {
   await dialog(page).getByRole("button", { name: "Kapat", exact: true }).last().click();
   const register = page.getByRole("row").filter({ hasText: "Örnek kasa" });
   await register.getByRole("cell", { name: "İskele", exact: true }).waitFor();
+  await register.getByText("API aktarımı bekleniyor", { exact: true }).waitFor();
+  await register.getByText("Örnek donanım · Örnek yazılım 2", { exact: true }).waitFor();
+  const template = await page.request.get(local.url + "/assets/olvex-kasa-ornek.csv");
+  assert.equal(template.ok(), true);
+  assert.match(await template.text(), /^referans;tarih;sku;adet;birim_fiyat/);
+  const unauthorized = await page.request.post(local.url + "/api/pos", { data: { action: "sale" } });
+  assert.equal(unauthorized.status(), 401);
+  await prepareScreenshot(page, "pos-guide.png");
   await register.getByRole("button", { name: "Kaynak kaydını eşleştir" }).click();
   await dialog(page).getByLabel("Kaynak belgedeki kalıcı konum").fill("journal-84/row-33");
   await dialog(page).getByLabel("Doğrulanan işlem referansı").fill("ISKELE-33");
@@ -339,6 +427,10 @@ try {
   const partialReturn = await registerEvent({ action: "return", evidence: "journal-84/row-34",
     saleEvidence: tillSale.evidence, date, lines: [{ sku: "KAHVE-01", quantity: 1 }] });
   assert.equal(partialReturn.status(), 201, await partialReturn.text());
+  await page.getByRole("button", { name: "Durumu yenile" }).click();
+  await loaded(page);
+  await register.getByText("API aktarımı alındı", { exact: true }).waitFor();
+  await register.getByText(/Son başarılı API aktarımı:/).waitFor();
   await navigate(page, "sales", "Satışlar");
   const tillRow = page.getByRole("row").filter({ hasText: "ISKELE-33" });
   await tillRow.getByText("Kısmi iade", { exact: true }).waitFor();
@@ -431,6 +523,11 @@ try {
         hasTouch: true, deviceScaleFactor: 3, storageState: await desktop.storageState() }, safari);
       const phone = await context.newPage();
       watch(phone);
+      await phone.goto(local.url + "/cookies.html");
+      assert.equal(await fitsViewport(phone), true);
+      await phone.getByRole("button", { name: "Tümünü reddet" }).tap();
+      await phone.getByText("Panel tercihleri kapalı.").waitFor();
+      await prepareScreenshot(phone, "cookies-webkit-mobile.png");
       await phone.goto(local.url + "/app.html#overview");
       await loaded(phone);
       await phone.locator("[data-period]").selectOption({label:"Bugün"});
@@ -450,6 +547,18 @@ try {
       await phone.locator('[data-cmd="edit-product"]').first().tap();
       await dialog(phone).getByLabel("Ürün adı").fill("Yerel taslak");
       await phone.setViewportSize({width:440,height:500});
+      await dialog(phone).getByRole("button", { name: "Vazgeç" }).tap();
+      await dialog(phone).waitFor({state:"hidden"});
+      await navigate(phone, "settings", "Ayarlar");
+      await phone.getByRole("link", { name: "Kasa bağlantıları", exact: true }).tap();
+      await heading(phone, "Kasa Bağlantıları");
+      await loaded(phone);
+      await phone.setViewportSize({width:320,height:550});
+      assert.equal(await fitsViewport(phone), true);
+      await phone.getByRole("button", { name: "+ Bağlantı oluştur" }).tap();
+      await dialog(phone).getByLabel("Şube", {exact:true}).selectOption({label:"İskele"});
+      await dialog(phone).getByRole("button", { name: "Kasaya geç" }).tap();
+      await dialog(phone).getByLabel("Bağlantı adı").fill("Yerel kasa taslağı");
       await dialog(phone).getByRole("button", { name: "Vazgeç" }).tap();
       await dialog(phone).waitFor({state:"hidden"});
     } finally { await safari.close(); }

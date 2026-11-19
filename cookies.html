@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090b12">
+<title>Çerez ve tarayıcı depolama politikası | OLVEX</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/public.css">
+<script type="module" src="/assets/cookie-policy.js"></script>
+</head>
+<body>
+<div class="shell">
+<header><a class="brand" href="/">OLVEX</a></header>
+<main class="card">
+  <h1>Çerez ve tarayıcı depolama politikası</h1>
+  <p>OLVEX’in kendi tarayıcı betikleri birinci taraf kaynaklardan yüklenir. Uygulama kodunda reklam veya analitik çerezi ve bu amaçlarla çalışan üçüncü taraf tarayıcı betiği bulunmaz.</p>
+  <h2>Zorunlu depolama</h2>
+  <ul>
+    <li><strong><code>olvex_session</code></strong> · OLVEX oturum çerezi. Kimlik doğrulama için kullanılır. “Beni hatırla” seçilirse en fazla 30 gün kalır. Diğer durumda tarayıcı oturumu süresince kalır ve sunucudaki oturum en fazla 1 gün geçerlidir. Çıkışta temizlenir.</li>
+    <li><strong><code>olvex-pending-invite</code></strong> · OLVEX sekme depolaması. Davet bağlantısından girişe yönlendirildiğinizde katılımı sürdürür. Başarılı katılımda temizlenir veya sekme oturumu sonunda sona erer.</li>
+    <li><strong><code>olvex:browser-preferences</code></strong> · OLVEX yerel depolaması. Tarayıcı tercihinizi yeniden sormamak ve uygulamak için kararı 180 güne kadar geçerli tutar.</li>
+  </ul>
+  <h2>İsteğe bağlı panel tercihleri</h2>
+  <ul>
+    <li><strong><code>olvex:business:&lt;kullanıcı kimliği&gt;</code></strong> · OLVEX yerel depolaması. Hesaba ait son işletme seçimini hatırlar.</li>
+    <li><strong><code>olvex:collapsed</code></strong> · OLVEX yerel depolaması. Panel menüsünün dar veya geniş görünümünü hatırlar.</li>
+  </ul>
+  <p>Bu iki ayar varsayılan olarak kapalıdır. Onay verdiğinizde etkinleşir. Tercihi reddettiğinizde değerler tarayıcıdan temizlenir. Karar süresi dolduğunda sonraki ziyarette temizlenir. Giriş ve işletme seçimi her durumda kullanılabilir.</p>
+  <section id="browser-preferences" aria-labelledby="preferences-heading">
+    <h2 id="preferences-heading">Bu tarayıcının tercihleri</h2>
+    <noscript>Tercihinizi değiştirmek için JavaScript’i etkinleştirin. Tarayıcı ayarlarından site verilerini de temizleyebilirsiniz.</noscript>
+    <div class="preference-actions">
+      <button class="button secondary" type="button" data-preference-choice="allow" hidden>Tümünü kabul et</button>
+      <button class="button secondary" type="button" data-preference-choice="deny" hidden>Tümünü reddet</button>
+    </div>
+    <p data-preference-status role="status"></p>
+    <a href="/app.html">Panele dön</a>
+  </section>
+</main>
+<footer><nav class="legal-nav" aria-label="Hukuki bilgiler"><a href="/contact.html">İletişim</a><a href="/privacy.html">KVKK aydınlatma metni</a><a href="/terms.html">Kullanım şartları</a><a href="/pre-information.html">Ön bilgilendirme</a><a href="/distance-service-agreement.html">Mesafeli hizmet sözleşmesi</a><a href="/subscription-terms.html">Abonelik ve iade</a><a href="/cookies.html" aria-current="page">Çerez ve tarayıcı tercihleri</a></nav></footer>
+</div>
+</body>
+</html>

@@ -67,7 +67,8 @@ export function changeMember(ctx, body) {
 export function posConnections(ctx) {
   const query = searchTerm(ctx.paramsUrl.get("q"));
   const active = ctx.paramsUrl.get("active") === "1";
-  return list(ctx, `SELECT p.id, p.name, p.created_at, p.revoked_at, p.branch_id, p.identity_mode, b.name AS branch_name
+  return list(ctx, `SELECT p.id, p.name, p.created_at, p.revoked_at, p.branch_id, p.identity_mode,
+    p.device_brand, p.device_software, p.last_api_success_at, b.name AS branch_name
     FROM olvex_pos_connections p JOIN olvex_branches b ON b.id = p.branch_id AND b.business_id = p.business_id
     WHERE p.business_id = ? AND (? = 0 OR p.revoked_at IS NULL)
       AND (p.name LIKE ? ESCAPE '\\' OR p.id LIKE ? ESCAPE '\\' OR b.name LIKE ? ESCAPE '\\')
@@ -89,12 +90,14 @@ export async function createPos(ctx, body) {
     requestId: identifier(body.requestId), name: text(body.name, "Bağlantı adı", { max: 80 }),
     hash,
     ...(body.branchId != null && { branchId }),
-    ...(body.identityMode != null && { identityMode })
+    ...(body.identityMode != null && { identityMode }),
+    ...(body.brand != null && { brand: text(body.brand, "Kasa markası", { min: 0, max: 80 }) }),
+    ...(body.software != null && { software: text(body.software, "Satış yazılımı", { min: 0, max: 100 }) })
   };
   return transact(ctx, "pos-create", data, [
-    ctx.db.prepare(`INSERT INTO olvex_pos_connections (business_id, id, name, token_hash, created_by, branch_id, identity_mode)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .bind(ctx.businessId, data.requestId, data.name, data.hash, ctx.actorId, branchId, identityMode)
+    ctx.db.prepare(`INSERT INTO olvex_pos_connections (business_id, id, name, token_hash, created_by, branch_id, identity_mode, device_brand, device_software)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(ctx.businessId, data.requestId, data.name, data.hash, ctx.actorId, branchId, identityMode, data.brand || null, data.software || null)
   ]);
 }
 
@@ -102,7 +105,7 @@ export async function rotatePos(ctx, body) {
   const id = identifier(body.id, "Kasa");
   const hash = await posTokenHash(body.secret);
   return transact(ctx, "pos-rotate", { requestId: body.requestId, id, hash }, [
-    ctx.db.prepare("UPDATE olvex_pos_connections SET token_hash = ?, revoked_at = NULL WHERE business_id = ? AND id = ?")
+    ctx.db.prepare("UPDATE olvex_pos_connections SET token_hash = ?, revoked_at = NULL, last_api_success_at = NULL WHERE business_id = ? AND id = ?")
       .bind(hash, ctx.businessId, id)
   ], rowExists("olvex_pos_connections", id));
 }

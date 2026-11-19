@@ -103,3 +103,7 @@ button:disabled { opacity: .55; cursor: default; }
   button { transition: none; }
   button:active:enabled { transform: none; }
 }
+
+.legal-nav, .preference-actions { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.legal-nav [aria-current="page"] { color: var(--text); }
+.contact-card { min-block-size: 18rem; }

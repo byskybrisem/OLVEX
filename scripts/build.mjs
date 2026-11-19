@@ -9,7 +9,8 @@ await mkdir(dist, { recursive: true });
 
 const deployable = [ 
   "_headers", "_routes.json", "sitemap.xml", "favicon.ico", "assets", "index.html", "app.html", "demo.html", "login.html", "register.html", "setup.html",
-  "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html"
+  "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html",
+  "pre-information.html", "distance-service-agreement.html", "subscription-terms.html", "cookies.html"
 ];
 for (const name of deployable) {
   await cp(new URL(`../${name}`, import.meta.url), new URL(name, dist), { recursive: true });
