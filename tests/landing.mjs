@@ -60,6 +60,19 @@ export async function landingChecks({ safeContext, url, snapshots }) {
       }
     });
     await checkStaticPage(page, url);
+    // A first-time visitor must see preferences before opening an account.
+    const cookieBanner = page.locator("#site-cookie-banner");
+    await cookieBanner.waitFor({ state: "visible" });
+    await cookieBanner.getByRole("button", { name: "Tümünü reddet" }).click();
+    await cookieBanner.waitFor({ state: "hidden" });
+    await page.goto(`${url}/login.html`);
+    assert.equal(await page.locator("#site-cookie-banner").isVisible(), false,
+      "The preference decision must carry across public pages");
+    await page.goto(`${url}/cookies.html#browser-preferences`);
+    await page.locator("#browser-preferences").getByRole("button", { name: "Tümünü kabul et" }).click();
+    await checkStaticPage(page, url);
+    assert.equal(await page.locator("#site-cookie-banner").isVisible(), false,
+      "The policy page must update the same preference used by the landing page");
     await page.evaluate(() => document.fonts.ready);
     await snapshot(page, snapshots, "landing-desktop.png");
     for (const width of widths) {
