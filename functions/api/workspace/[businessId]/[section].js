@@ -108,5 +108,8 @@ export const onRequestPost = handle(async (context) => {
   }
   const [roles, action] = WRITE[section][data.action];
   const ctx = await workspace(context, roles);
+  if (Object.hasOwn(data, "businessId") && data.businessId !== ctx.businessId) {
+    throw new HttpError(403, "İstek işletmesi çalışma alanıyla uyuşmuyor.");
+  }
   return json(await action(ctx, data));
 });
