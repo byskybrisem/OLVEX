@@ -266,9 +266,15 @@ try {
 
   for (const [section, text] of [
     ["purchases", "Satın Alma"], ["customers", "Müşteriler"], ["invoices", "Faturalar"],
-    ["employees", "Personel"], ["tasks", "Görev ve Takvim"], ["branches", "İşletmeler"],
+    ["tasks", "Görev ve Takvim"], ["branches", "İşletmeler"],
     ["settings", "Ayarlar"]
   ]) await navigate(page, section, text);
+  await navigate(page, "employees", "Personel");
+  await page.getByRole("link", { name: "Vardiyalar", exact: true }).click();
+  await heading(page, "Vardiyalar");
+  await loaded(page);
+  await page.getByRole("button", { name: "+ Vardiya ekle", exact: true }).waitFor();
+  await navigate(page, "settings", "Ayarlar");
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await heading(page, "Kasa Bağlantıları");
   await loaded(page);

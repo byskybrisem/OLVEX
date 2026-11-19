@@ -367,9 +367,20 @@ test("fatura vadeleri, vardiya çakışması ve ay sonu tekrar kuralı", async (
   const { rows } = await owner.read(thisBusiness, "tasks", "?from=2026-02-28&to=2026-02-28&exact=1");
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, next.id);
+  await owner.mutate(thisBusiness, "tasks", "save", {
+    id: next.id, title: "Ay sonu işlemleri", date: "2026-02-28", repeat: "monthly"
+  });
   await owner.mutate(thisBusiness, "tasks", "complete", { id: next.id });
   const march = await owner.read(thisBusiness, "task-days", "?from=2026-03-01&to=2026-03-31");
   assert.deepEqual(march.rows, [{ day: "2026-03-31", count: 1 }]);
+  const marchTask = (await owner.read(thisBusiness, "tasks", "?from=2026-03-31&to=2026-03-31&exact=1")).rows[0];
+  assert.equal(marchTask.title, "Ay sonu işlemleri");
+  await owner.mutate(thisBusiness, "tasks", "save", {
+    id: marchTask.id, title: marchTask.title, date: "2026-03-15", repeat: "monthly"
+  });
+  await owner.mutate(thisBusiness, "tasks", "complete", { id: marchTask.id });
+  assert.deepEqual((await owner.read(thisBusiness, "task-days", "?from=2026-04-01&to=2026-04-30")).rows,
+    [{ day: "2026-04-15", count: 1 }]);
 });
 
 test("ücretsiz AI, onay öncesi işlem yok, tek sefer uygulama ve reddetme", async () => {
@@ -654,6 +665,36 @@ test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski tasla
   await owner.mutate(business, "ai", "apply", { id: legacy, branchId: main }, 409);
   await owner.mutate(business, "ai", "discard", { id: legacy });
   assert.deepEqual([await stock(main), await stock(coast)], [100, 0]);
+});
+
+test("AI stok taslağı onay anında ürünün halen etkin ve aynı SKU olduğunu doğrular", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "AI ürün durumu" }, 201);
+  const business = data.business.id;
+  const branchId = (await owner.read(business, "locations")).rows[0].id;
+  const item = await saveProduct(owner, business, { sku: "KALEM", opening: 0 });
+  const { proposal } = await owner.mutate(business, "ai", "ask", {
+    branchId, messages: [{ role: "user", content: "stok KALEM 2 sayım" }]
+  });
+  const apply = () => owner.mutate(business, "ai", "apply", { id: proposal.id, branchId }, 409);
+  await owner.mutate(business, "products", "archive", { id: item.id });
+  await apply();
+  await owner.mutate(business, "products", "archive", { id: item.id, active: true });
+  await saveProduct(owner, business, { id: item.id, sku: "YENİ-KALEM", opening: 0 });
+  await apply();
+  assert.equal(await stockFor(owner, business, "YENİ-KALEM"), 0);
+  assert.equal((await owner.read(business, "ai")).proposals[0].id, proposal.id);
+});
+
+test("işletme karşılaştırmasında önceki günden iptal negatif fiş adedi üretmez", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "Rapor iptal testi" }, 201);
+  const business = data.business.id;
+  await saveProduct(owner, business, { sku: "RAPOR" });
+  const posted = await owner.mutate(business, "sales", "create", sale("RAPOR-1", "RAPOR", 1));
+  await owner.mutate(business, "sales", "void", { id: posted.id, date: todayDate });
+  const { rows } = await owner.read(business, "branches", `?from=${todayDate}&to=${todayDate}`);
+  const summary = rows.find(row => row.id === business);
+  assert.equal(summary.sale_count, 0);
+  assert.equal(summary.sales, -12550);
 });
 
 test("şube stoku yoksa kritik stok uyarısı panelde ve AI özetinde işletme toplamından ayrılır", async () => {

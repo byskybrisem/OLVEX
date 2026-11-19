@@ -143,8 +143,7 @@ export async function branches(ctx) {
   const { start, end } = period(ctx.paramsUrl);
   const { results } = await ctx.db.prepare(`
     SELECT b.id, b.name, m.role,
-      COUNT(DISTINCT CASE WHEN e.event = 'order' THEN e.order_id END)
-        - COUNT(DISTINCT CASE WHEN e.event = 'void' THEN e.order_id END) AS sale_count,
+      COUNT(DISTINCT CASE WHEN e.event = 'order' THEN e.order_id END) AS sale_count,
       COALESCE(SUM(e.quantity * e.unit_minor), 0) AS sales
     FROM business_members m JOIN businesses b ON b.id = m.business_id
     LEFT JOIN olvex_order_events e ON e.business_id = b.id AND e.kind = 'sale' AND e.occurred_on BETWEEN ? AND ?
@@ -162,7 +161,7 @@ export async function insights(ctx) {
     financials(ctx, addDays(start, -7), addDays(start, -1))
   ]);
   return {
-    from: start, to: end, totals: current.totals, previousSales: previous.totals.sales,
+    from: start, to: end, totals: current.totals, receipts: current.days.reduce((total, day) => total + day.receipts, 0), previousSales: previous.totals.sales,
     lowStock: current.lowStock.map(({ branch_name, sku, name, stock, total_stock, reorder_at }) =>
       ({ branch_name, sku, name, stock, total_stock, reorder_at })),
     lowStockCount: current.lowStock[0]?.total ?? 0, unpaid: current.unpaid

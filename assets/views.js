@@ -206,7 +206,7 @@ function tasks(data, state) {
 }
 
 function branches(data, state) {
-  return businessTabs("branches") + filters(state, { range: true }) + panel("İşletme karşılaştırması", table(["İşletme", "Rol", "Satış sayısı", "Satış tutarı", "İşlemler"],
+  return businessTabs("branches") + filters(state, { range: true }) + panel("İşletme karşılaştırması", table(["İşletme", "Rol", "Satış fişi", "Net satış tutarı", "İşlemler"],
     data.rows.map((row) => [h(row.name), badge(roles[row.role]), h(count(row.sale_count)), h(money(row.sales)),
       row.id === state.business.id ? badge("Açık", "ok") : button("İşletmeye geç", "switch-business", { id: row.id, kind: "small" })])));
 }
@@ -335,7 +335,7 @@ function ai(data, state) {
       stockAlertTable(facts.lowStock)),
     panel("Bekleyen işlem taslakları", proposals.length ? `<div class="proposals">${proposals.map((proposal) =>
       `<article class="proposal"><strong>${h(proposalLabel(proposal))}</strong>${group(
-        (proposal.kind === "stock" && !proposal.branchId ? "" : button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" })) +
+        (mode === "off" || (proposal.kind === "stock" && !proposal.branchId) ? "" : button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" })) +
         button("Reddet", "discard-proposal", { id: proposal.id, kind: "small" }))}</article>`
     ).join("")}</div>` : empty("Onay bekleyen işlem yok."))) +
     panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts, state.demo)) +
