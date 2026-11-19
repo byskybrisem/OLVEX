@@ -8,5 +8,5 @@ dist/
 test-results/
 playwright-report/
 
-# Codebase Index cache
+# codebase-index cache (machine-local; do not commit)
 .claude/cache/codebase-index/

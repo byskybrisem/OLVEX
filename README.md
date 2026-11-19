@@ -31,13 +31,14 @@ Tarayıcı testi için Chromium gerekir. Sistem Chromium’u yoksa `npx playwrig
 3. Ön izleme ortamında `OLVEX_ENVIRONMENT=preview`, `OLVEX_SIGNUPS=preview` ve `OLVEX_AI_MODE=mock` ile kayıt ve AI akışlarını deneyin. Ön izlemeyi erişim kontrolüyle kısıtlamak için Pages projesinin Access ayarını kullanın.
 4. Üretim açılışı için aşağıdaki servis değerlerini ekleyin. Tebligat ve iletişim bilgilerini doğrulayın, KVKK metnini gerçek barındırma ve veri aktarımı koşullarıyla karşılaştırın. Sonrasında `OLVEX_SIGNUPS=open` ile genel kaydı açın.
 
-Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_dir = "migrations"` yolunu içeren bir Wrangler yapılandırması kullanın. Ön izleme ve üretim komutlarında doğru yapılandırma dosyasını belirtin. [D1 migrasyon yönergesi](https://developers.cloudflare.com/d1/reference/migrations/)
+Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_dir = "migrations"` yolunu içeren bir Wrangler yapılandırması kullanın. Ön izleme ve üretim komutlarında doğru yapılandırma dosyasını belirtin. [OLVEX yedekleme ve geri dönüş prosedürü](docs/D1-GECIS-VE-GERI-DONUS.md) · [D1 migrasyon yönergesi](https://developers.cloudflare.com/d1/reference/migrations/)
 
 | Pages ortam değişkeni | Kullanımı |
 | --- | --- |
 | `OLVEX_OPERATOR_NAME` | Kullanım şartları ve aydınlatma metninde gösterilecek hizmet sağlayıcı ve veri sorumlusu adı |
 | `OLVEX_SERVICE_ADDRESS` | Yayınlanacak tebligat ve başvuru adresi |
 | `OLVEX_CONTACT_EMAIL` | Çalıştığı doğrulanmış destek ve başvuru adresi |
+| `OLVEX_POS_REQUESTS_PER_MINUTE` | Etkin kasa başına dakikalık API istek sınırı. Varsayılan 6.000 |
 | `OLVEX_SIGNUPS` | Üretimde `open`. Kayıt açılmadan önce yukarıdaki üç bilginin de sağlanması gerekir |
 | `OLVEX_PUBLIC_ORIGIN` | Şifre sıfırlama bağlantısının alan adı. Varsayılan `https://olvex.com.tr` |
 | `RESEND_API_KEY` | Şifre sıfırlama e-postası için Cloudflare secret |
@@ -58,25 +59,50 @@ OpenAI ve Resend anahtarları yalnızca sunucudan kullanılır. Şifre sıfırla
 
 AI gider veya stok taslağı oluşturabilir. Kayda yalnızca taslağı oluşturan yetkili kullanıcı “Onayla ve uygula” dediğinde geçilir.
 
+## Şube stoku ve transfer
+
+Manuel satışta stok çıkış şubesini, satın almada malın giriş şubesini seçin. Ürün seçicisindeki bakiye seçilen şubeye aittir. İptal veya iade özgün işlemin şubesine işlenir. Eski istemciler tek şubede şube kimliğini atlayabilir. İkinci şube açılınca yeni manuel işlemler için `branchId` gerekir. Önceden alınmış bir isteğin doğrulanmış tekrarı eski sonucunu döndürür.
+
+Ürünler ve Stok → Şubeler arası transferler ekranında işletme sahibi veya yönetici kaynak şubeyi, hedef şubeyi, ürünü, adedi, tarihi ve açıklamayı girer. Geçmişte iki şube, işlemi yapan kullanıcı ve işlem tarihi görünür. Ekip üyeleri geçmişi okuyabilir. Ürünler ve Stok → Kritik stok ekranı her şubedeki bakiyeyi ürünün eşiğiyle karşılaştırır. Bir şubeye henüz stok girişi yapılmamışsa oradaki bakiye sıfırdır.
+
+AI stok taslağı için şubeyi seçin. Onay ekranında gösterilen işletme, şube, ürün ve adet farkını kontrol edin. Önceki sürümde şube seçilmeden açılmış bir taslağı kapatıp hedef şubeyi seçerek yeni taslak hazırlayabilirsiniz.
+
 ## Mevcut kasadan aktarım
 
-Ayarlar → Kasa bağlantıları üzerinden sunucu anahtarı oluşturun. Kasa sağlayıcısının entegrasyonu `POST /api/pos` isteğini `Authorization: Bearer olvex_pos_…` ve `Content-Type: application/json` başlıklarıyla gönderir.
+İşletmeler → Şubeler bölümünden şubeyi oluşturun. Ayarlar → Kasa bağlantıları bölümünde her fiziksel kasaya ayrı kayıt açın ve şubesini seçin. Anahtarı yenilerken aynı kasa kaydını kullanın. Şubenin stok bakiyesi ve işletmenin birleşik bakiyesi ürün ekranında görülebilir. Şubeler arası transfer modeli aynı işletmedeki iki şubeyi ve bir ürünü bağlar. Transfer kaydı iki stok hareketini birlikte oluşturur.
+
+Kasa kaynağı kalıcı ve benzersiz işlem kimliği sağlıyorsa yönetici bunu kasa ayarında doğrulayabilir. Aynı kasa kimliği hem API hem CSV içe aktarımlarında kullanılır. Kasalar aynı fiş numarasını birbirinden bağımsız kullanabilir. Bir kasada günlük sıfırlanan fiş numarası tek başına yeterli olmaz. Üreticinin mali günlük kimliği ve kalıcı fiş sıra numarası birlikte özgünse adaptör bunları tek bir referans olarak gönderebilir.
+
+`POST /api/pos` için `Authorization: Bearer olvex_pos_…` ve `Content-Type: application/json` başlıklarını gönderin. İşletme, şube ve kasa sunucudaki yetki kaydından alınır.
 
 ```json
 {
   "action": "sale",
-  "reference": "KASA-001",
+  "reference": "JOURNAL-724/FIS-001",
   "date": "2026-11-17",
   "paid": true,
   "lines": [{ "sku": "URUN-01", "quantity": 2, "unit": 12550 }]
 }
 ```
 
-`unit` kuruş, `quantity` tam adettir. Bir satışta en fazla 25 ürün satırı olabilir. Kayıt ve stok düşümü aynı D1 işlemi içinde uygulanır. Aynı bağlantı aynı referansı aynı içerikle yeniden gönderirse önceki kayıt döner. Referansa bağlı içerik değişirse istek çakışma hatası döndürür.
+`unit` kuruş, `quantity` tam adettir. Bir fişte en fazla 25 SKU olabilir. Satış, kalemler, stok ve varsa tahsilat aynı D1 işleminde kaydedilir. Yeni satış ve kısmi iade 201, aynı içeriğin tekrarı aynı kayıt kimliğiyle 200 döndürür. Aynı kimliğin farklı içerikle gönderilmesi 409 döndürür.
 
-Tam iade için aynı bağlantı ve referansla `{"action":"void","reference":"KASA-001","date":"2026-11-17"}` isteğini gönderin. Ödeme alınmışsa iade tutarı, iade tarihinde nakit çıkışı olarak görünür.
+| İşlem | Örnek gövde |
+| --- | --- |
+| Bir adet iade | `{"action":"return","reference":"IADE-16","saleReference":"JOURNAL-724/FIS-001","date":"2026-11-18","lines":[{"sku":"URUN-01","quantity":1}]}` |
+| Kalan satışı tümüyle iptal | `{"action":"void","reference":"JOURNAL-724/FIS-001","date":"2026-11-18"}` |
 
-CSV aktarımı için başlık `referans;tarih;sku;adet;birim_fiyat` biçimindedir. Birim fiyat TL olarak verilir. Aynı fişin ürünlerini aynı referansla yazın. Dosya tekrar yüklenirse önceden kaydedilen fişler atlanır. Bir fişi CSV veya kasa bağlantısı üzerinden bir kez aktarın.
+İade özgün satış kalemindeki fiyat ve maliyeti kullanır. Ödenmiş satışta iade tarihinde nakit çıkışı oluşur. Henüz tahsil edilmemiş satışta kalan alacak azalır. Kısmi iadeden sonraki iptal yalnızca kalan adet ve tutarı tersine çevirir.
+
+**Çevrimdışı aktarım.** Kasa veya adaptör özgün işlemi, tarihini, kalemlerini ve kalıcı kimliğini yerel gönderim kuyruğunda saklamalıdır. Onay alınana kadar aynı kaydı gönderebilir. Ağ kesintisi veya geçici sunucu hatasında aynı kimlikle ve artan aralıklarla tekrar deneyin. Dakikalık kasa sınırı aşıldığında API `429` ve `Retry-After` döndürür. Aynı IP’den bir dakikada 20 başarısız kasa anahtarı denemesi de geçici kısıtlama başlatır. İade satıştan önce gelirse 409 döner. Satışı aktardıktan sonra aynı iadeyi yeniden gönderin. Yetersiz şube stoğu, çelişen tarih veya farklı içerik de 409 döndürebilir. Bu durumlarda kaynak günlüğü ve bakiye kontrol edilmelidir.
+
+**Uzlaştırma.** Kasa kalıcı kimlik sağlayamıyorsa yönetici, değişmez bir kaynak belgesindeki kayıt konumunu inceleyip bir kez eşleştirir. Örneğin değişmez bir kapanış dosyasının kimliği ve bu dosyadaki kalıcı fiş sırası kullanılabilir. Yönetici `POST /api/workspace/{businessId}/pos` üzerinden `action: "reconcile"`, UUID `requestId`, `registerId`, `eventKind` (`sale` veya `return`), `evidence` ve `reference` gönderir. Kasa bu modda `reference` yerine `evidence`, kısmi iadede ayrıca `saleReference` yerine `saleEvidence` gönderir. Eşleştirilmemiş kayıt stok ve ödeme oluşturmadan bekler. Ayırt edici bir kaynak kaydı bulunamayan fiş otomatik işlenemez.
+
+**CSV.** Aktarımda fiziksel kasayı ve tahsilat durumunu seçin. Başlık `referans;tarih;sku;adet;birim_fiyat` biçimindedir. Fiyat TL cinsindendir. Bir fişin tüm satırlarında aynı referansı kullanın. Uzlaştırma modunda bu sütuna onaylı kaynak konumu yazılır. Aynı satış daha sonra aynı kasadan API üzerinden gelirse içerik eşleştiğinde mevcut satış kimliği döner.
+
+**Geçiş.** Üretim geçişinde kasa ve stok yazımlarını duraklatıp D1 migrasyonlarını sırayla uygulayın, ardından yeni Pages sürümünü etkinleştirin. Eski işletme stoğu ve hareketleri o işletmenin yeni Merkez şubesine atanır. Eski kasa kimlikleri ve anahtarları korunur. Yöneticinin kaynağı doğrulamasına kadar bu kasalar uzlaştırma modundadır. Eski CSV kayıtlarında kasa bilgisi bulunmadığından yeni bir kasa kaydıyla çakışan referanslar incelemeye alınır. Yönetici kaynak günlüğünü doğruladığında `action: "link-csv"`, UUID `requestId`, `registerId`, `reference`, `evidence` ve `decision` gönderir. `same` aynı fişi, `distinct` bu kasanın ayrı satışını belirtir.
+
+Şube bakiyeleri, finans hesabı, inceleme sonuçları ve üretim geçiş adımları aşağıdaki belgelerde yer alır. [Kasa yük testi](docs/KASA-TEST-RAPORU.md) · [PR #6 doğrulama raporu](docs/PR-6-DOGRULAMA.md) · [D1 yedekleme ve geri dönüş](docs/D1-GECIS-VE-GERI-DONUS.md)
 
 ## Finans ve belge sınırları
 
