@@ -89,20 +89,20 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     assert.equal(await page.locator("#tour-products-tab").getAttribute("aria-selected"), "true");
     const pricing = page.getByRole("region", { name: "Paketler ve fiyatlar" });
     assert.deepEqual(await pricing.getByRole("heading", {level: 3}).allTextContents(),
-      ["Başlangıç", "Esnaf", "Profesyonel", "Business"]);
+      ["Esnaf", "Profesyonel"]);
     const prices = pricing.locator("[data-price]");
     const totals = pricing.locator("[data-period-note]");
-    const monthly = ["₺499", "₺999", "₺2.499"];
+    const monthly = ["₺499", "₺999"];
     assert.deepEqual(await prices.allTextContents(), monthly);
     await pricing.locator("#annual").focus();
     await page.keyboard.press("Enter");
     assert.equal(await pricing.locator("#annual").getAttribute("aria-pressed"), "true");
-    assert.deepEqual(await prices.allTextContents(), ["₺399,20", "₺799,20", "₺1.999,20"]);
-    assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺4.790,40", "Yıllık toplam ₺9.590,40", "Yıllık toplam ₺23.990,40"]);
-    assert.equal(await pricing.locator(".plan-price strong").first().textContent(), "Ücretsiz");
+    assert.deepEqual(await prices.allTextContents(), ["₺399,20", "₺799,20"]);
+    assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺4.790,40", "Yıllık toplam ₺9.590,40"]);
+    assert.equal(await pricing.locator(".plan-card").count(), 2);
     await pricing.locator("#monthly").click();
     assert.deepEqual(await prices.allTextContents(), monthly);
-    assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺5.988", "12 ayda ₺11.988", "12 ayda ₺29.988"]);
+    assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺5.988", "12 ayda ₺11.988"]);
     assert.equal(requests.some(path => path.endsWith("/core-scene.js")), false,
       "The WebGL bundle must be deferred until activation");
 
