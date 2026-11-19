@@ -270,7 +270,7 @@ async function start() {
     $("#admin-user").textContent=me.user.name||me.user.email||"Yönetici";
     pageFromHash();
   }catch(error){
-    if(error.status===401){location.replace("/login.html");return;}
+    if(error.status===401){location.replace("/login.html?next=admin");return;}
     $("#admin-content").innerHTML=panel("Yönetici erişimi",empty(error.message)+
       info("Bu panel yalnızca özel olarak yetkilendirilmiş Super Admin hesabıyla kullanılabilir."));
     $("#admin-content").setAttribute("aria-busy","false");

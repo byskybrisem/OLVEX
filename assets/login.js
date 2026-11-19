@@ -7,6 +7,7 @@ const message = document.querySelector("#message");
 const submit = document.querySelector("#submitButton");
 const url = new URL(location.href);
 const joining = url.searchParams.get("next") === "join";
+const adminLogin = url.searchParams.get("next") === "admin";
 
 function status(text, success = false) {
   message.hidden = false;
@@ -36,7 +37,7 @@ form.addEventListener("submit", async (event) => {
       password: password.value,
       remember: document.querySelector('input[name="remember"]').checked
     });
-    location.replace(joining ? "/join.html" : "/app.html");
+    location.replace(joining ? "/join.html" : adminLogin ? "/admin.html" : "/app.html");
   } catch (error) {
     status(error.message || "Giriş yapılamadı.");
     submit.disabled = false;

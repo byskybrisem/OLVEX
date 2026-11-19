@@ -75,6 +75,29 @@ try {
   await other.getByText("Bu bölüme erişim yetkiniz yok.").first().waitFor();
   assert.equal(await other.locator(".admin-kpi").count(),0);
   await unauthorized.close();
+
+  // Unauthenticated admins must return to admin after the shared sign-in,
+  // never to the standard tenant dashboard. Ordinary tenants still get 403.
+  const anonymous=await browser.newContext({locale:"tr-TR",ignoreHTTPSErrors:true});
+  const loggedOut=await anonymous.newPage();
+  await loggedOut.goto(local.url+"/admin.html");
+  await loggedOut.waitForURL(url=>["/login", "/login.html"].includes(url.pathname) && url.searchParams.get("next")==="admin");
+  await anonymous.close();
+
+  // Stub only the authentication response to verify the front-end return URL.
+  // The server authorization is separately exercised with real sessions above.
+  const redirectContext=await browser.newContext({locale:"tr-TR",ignoreHTTPSErrors:true});
+  await redirectContext.route("**/api/auth/login",route=>route.fulfill({status:200,contentType:"application/json",body:'{"success":true}'}));
+  await redirectContext.route("**/admin.html",route=>route.fulfill({status:200,contentType:"text/html",body:'<p id="admin-redirect-ok">admin</p>'}));
+  const returnPage=await redirectContext.newPage();
+  await returnPage.goto(local.url+"/login.html?next=admin");
+  await returnPage.locator("#email").fill("admin-ui@example.test");
+  await returnPage.locator("#password").fill("test-password");
+  await returnPage.locator("#submitButton").click();
+  await returnPage.waitForURL(url=>url.pathname==="/admin.html");
+  await returnPage.locator("#admin-redirect-ok").waitFor();
+  await redirectContext.close();
+
   await context.close();
   console.log("OLVEX Control desktop/mobile/auth/finance browser tests passed");
 } finally {
