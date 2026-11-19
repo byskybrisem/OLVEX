@@ -46,5 +46,9 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
     )`).bind(Math.floor(+now / 1000) - 7 * 86400).run()
   ]).catch(() => console.warn("OLVEX oturum temizliği ertelendi.")));
 
-  return json({ success: true }, 200, { "Set-Cookie": sessionCookie(token, remember ? duration : undefined) });
+  // Return only a boolean about the authenticated user; never expose the
+  // configured administrator ID or trust roles supplied by the browser.
+  const adminId = env.OLVEX_SUPER_ADMIN_USER_ID?.trim().toLowerCase();
+  const isPlatformAdmin = Boolean(adminId && user.id.toLowerCase() === adminId);
+  return json({ success: true, isPlatformAdmin }, 200, { "Set-Cookie": sessionCookie(token, remember ? duration : undefined) });
 });
