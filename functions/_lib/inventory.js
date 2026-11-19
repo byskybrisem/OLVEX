@@ -218,7 +218,9 @@ export function settleOrder(ctx, body, kind) {
   if (paidOn > today()) throw new HttpError(400, "Ödeme tarihi bugünden ileri olamaz.");
   const revision = integer(body.revision ?? 0, "Sürüm", 0, Number.MAX_SAFE_INTEGER);
   const guard = rowExists("olvex_orders", id,
-    `AND kind = ? AND ${currentRevision} AND status = 'posted' AND paid_on IS NULL AND occurred_on <= ? AND ${afterReturns}`,
+    `AND kind = ? AND ${currentRevision} AND status = 'posted' AND paid_on IS NULL AND occurred_on <= ? AND ${afterReturns}
+      AND EXISTS (SELECT 1 FROM olvex_net_order_items i WHERE i.business_id = olvex_orders.business_id
+        AND i.order_id = olvex_orders.id AND i.quantity > 0)`,
     kind, revision, Number(body.revision === undefined), paidOn, paidOn);
   guard.message = "Ödeme uygulanamadı. Kaydın güncel durumunu ve ödeme tarihini kontrol edin.";
   return transact(ctx, `${kind}-settle`, { requestId: body.requestId, id, paidOn, revision: body.revision }, [
