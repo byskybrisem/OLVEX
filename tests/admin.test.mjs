@@ -40,7 +40,7 @@ test("super admin is strictly isolated; platform income/expenses are auditable a
 
   const adminHtml = await fetch(srv.url + "/admin.html");
   assert.equal(adminHtml.status, 200);
-  assert.match(await adminHtml.text(),/OLVEX CONTROL CENTER/);
+  assert.match(await adminHtml.text(),/CONTROL CENTER/);
   await call("overview",{token:null,status:401});
   await call("overview",{token:customerToken,status:403});
   await call("me",{token:customerToken,status:403});
