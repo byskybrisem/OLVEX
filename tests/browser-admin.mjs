@@ -17,6 +17,12 @@ const seed=`
  INSERT INTO user_sessions(id,user_id,token_hash,expires_at) VALUES
  ('${crypto.randomUUID()}','${adminId}','${await sha256(token)}','2099-01-01T00:00:00.000Z'),
  ('${crypto.randomUUID()}','${tenantId}','${await sha256(otherToken)}','2099-01-01T00:00:00.000Z');
+ INSERT INTO businesses(id,name,created_by) VALUES
+ ('33333333-3333-4333-8333-333333333333','Yönetici İşletmesi','${adminId}'),
+ ('44444444-4444-4444-8444-444444444444','Müşteri İşletmesi','${tenantId}');
+ INSERT INTO business_members(id,business_id,user_id,role) VALUES
+ ('${crypto.randomUUID()}','33333333-3333-4333-8333-333333333333','${adminId}','owner'),
+ ('${crypto.randomUUID()}','44444444-4444-4444-8444-444444444444','${tenantId}','owner');
 `;
 const local=await localPages({seed,https:true,bindings:{OLVEX_SUPER_ADMIN_USER_ID:adminId}});
 const executablePath=process.env.CHROMIUM_PATH || (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined);
@@ -74,7 +80,22 @@ try {
   await other.goto(local.url+"/admin.html");
   await other.getByText("Bu bölüme erişim yetkiniz yok.").first().waitFor();
   assert.equal(await other.locator(".admin-kpi").count(),0);
+  const otherStatus=other.waitForResponse(response=>response.url().includes("/api/admin/me"));
+  await other.goto(local.url+"/app.html");
+  assert.equal((await otherStatus).status(),403);
+  assert.equal(await other.locator("#platform-admin-shortcut").isVisible(),false);
   await unauthorized.close();
+
+  // The independent admin shortcut must work even if the normal workspace
+  // dashboard is not yet ready (it depends on a separate admin-only API).
+  const accountPage=await context.newPage();
+  await accountPage.goto(local.url+"/app.html");
+  await accountPage.locator("#platform-admin-shortcut").waitFor({state:"visible"});
+  await accountPage.locator("#account summary").click();
+  await accountPage.locator("#platform-admin-shortcut").click();
+  await accountPage.waitForURL(url=>["/admin","/admin.html"].includes(url.pathname));
+  await accountPage.getByRole("heading",{name:"Genel Bakış",level:1}).waitFor();
+  await accountPage.close();
 
   // Unauthenticated admins must return to admin after the shared sign-in,
   // never to the standard tenant dashboard. Ordinary tenants still get 403.
@@ -87,8 +108,13 @@ try {
   // Stub only the authentication response to verify the front-end return URL.
   // The server authorization is separately exercised with real sessions above.
   const redirectContext=await browser.newContext({locale:"tr-TR",ignoreHTTPSErrors:true});
-  await redirectContext.route("**/api/auth/login",route=>route.fulfill({status:200,contentType:"application/json",body:'{"success":true}'}));
+  await redirectContext.route("**/api/auth/login",route=>{
+    const email=route.request().postDataJSON()?.email;
+    route.fulfill({status:200,contentType:"application/json",
+      body:JSON.stringify({success:true,isPlatformAdmin:email==="admin-ui@example.test"})});
+  });
   await redirectContext.route("**/admin.html",route=>route.fulfill({status:200,contentType:"text/html",body:'<p id="admin-redirect-ok">admin</p>'}));
+  await redirectContext.route("**/app.html",route=>route.fulfill({status:200,contentType:"text/html",body:'<p id="tenant-redirect-ok">tenant</p>'}));
   const returnPage=await redirectContext.newPage();
   await returnPage.goto(local.url+"/login.html?next=admin");
   await returnPage.locator("#email").fill("admin-ui@example.test");
@@ -96,6 +122,19 @@ try {
   await returnPage.locator("#submitButton").click();
   await returnPage.waitForURL(url=>url.pathname==="/admin.html");
   await returnPage.locator("#admin-redirect-ok").waitFor();
+  await returnPage.goto(local.url+"/login.html");
+  await returnPage.locator("#email").fill("admin-ui@example.test");
+  await returnPage.locator("#password").fill("test-password");
+  await returnPage.locator("#submitButton").click();
+  await returnPage.waitForURL(url=>url.pathname==="/admin.html");
+  await returnPage.locator("#admin-redirect-ok").waitFor();
+
+  await returnPage.goto(local.url+"/login.html");
+  await returnPage.locator("#email").fill("tenant-ui@example.test");
+  await returnPage.locator("#password").fill("test-password");
+  await returnPage.locator("#submitButton").click();
+  await returnPage.waitForURL(url=>url.pathname==="/app.html");
+  await returnPage.locator("#tenant-redirect-ok").waitFor();
   await redirectContext.close();
 
   await context.close();
