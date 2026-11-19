@@ -171,8 +171,8 @@ export async function adminFinanceAction(db, body, user) {
     return { success: true, id };
   }
   const id = identifier(body.id);
-  const { meta } = await db.prepare(`UPDATE olvex_platform_ledger SET voided_at = CURRENT_TIMESTAMP, voided_by = ?
-    WHERE id = ? AND voided_at IS NULL`).bind(user.id, id).run();
-  if (meta.changes !== 1) throw new HttpError(409, "Hareket zaten iptal edilmiş veya bulunamadı.");
+  const updated = await db.prepare(`UPDATE olvex_platform_ledger SET voided_at = CURRENT_TIMESTAMP, voided_by = ?
+    WHERE id = ? AND voided_at IS NULL RETURNING id`).bind(user.id, id).first();
+  if (updated?.id !== id) throw new HttpError(409, "Hareket zaten iptal edilmiş veya bulunamadı.");
   return { success: true, id };
 }
