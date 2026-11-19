@@ -32,7 +32,7 @@ form.addEventListener("submit", async (event) => {
   submit.textContent = "Giriş yapılıyor…";
   message.hidden = true;
   try {
-    await request("/api/auth/login", "POST", {
+    const session = await request("/api/auth/login", "POST", {
       email: document.querySelector("#email").value.trim(),
       password: password.value,
       remember: document.querySelector('input[name="remember"]').checked
