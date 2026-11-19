@@ -80,7 +80,7 @@ jq -S 'map(.results)' "$out/sonrasi.json" > "$out/sonrasi.sonuclar"
 diff -u "$out/oncesi.sonuclar" "$out/sonrasi.sonuclar"
 ```
 
-Şube stoğunun işletme toplamına eşitliğini ve kasa bağlantılarını ayrıca denetle. İlk iki sorgunun boş dönmesi gerekir. Yeni POS modlarını inceleyerek eski kasaların `reconcile` ile başladığını doğrula.
+Şube stoğunun işletme toplamına eşitliğini ve kasa bağlantılarını ayrıca denetle. İlk iki sorgunun boş dönmesi gerekir. Başlangıç sürümü 0003 öncesiyse eski kasaların `reconcile` modunda açıldığını doğrula. 0003 daha önce uygulandıysa her kasanın şube ve kimlik modunu kesim öncesindeki kayıtla karşılaştır.
 
 ```sql
 SELECT p.business_id, p.id FROM olvex_products p LEFT JOIN olvex_branch_stock s
@@ -94,7 +94,9 @@ SELECT business_id, kind, COUNT(*) AS kayit, SUM(amount_minor) AS kurus FROM olv
   GROUP BY business_id, kind ORDER BY business_id, kind;
 ```
 
-Geçiş öncesi ödenmiş siparişler için kalemlerin miktar × birim fiyat toplamını `payment` kayıtlarıyla, iptal edilmiş ödenmiş siparişlerin toplamını `refund` kayıtlarıyla karşılaştır. Yeni Pages sürümünü doğru D1 bağıyla etkinleştir. Mevcut bir hesabın oturum ve üyeliğini denetle. Geçmiş bir kasa fişini uzlaştırırken kaynak belgesini ve önceki referansı kullan. Kimlikler üreticide kalıcıysa yönetici kasayı `native` moda alabilir. Stok, fiş ve ödeme kontrolleri bitince yazımı aç ve bekleyen kasa iletilerini özgün referanslarıyla gönder.
+0004 ilk kez uygulanıyorsa geçiş öncesi ödenmiş siparişler için kalemlerin miktar × birim fiyat toplamını `payment` kayıtlarıyla, iptal edilmiş ödenmiş siparişlerin toplamını `refund` kayıtlarıyla karşılaştır. Yeni Pages sürümünü doğru D1 bağıyla etkinleştir. Mevcut bir hesabın oturum ve üyeliğini denetle. Geçmiş bir kasa fişini uzlaştırırken kaynak belgesini ve önceki referansı kullan. Kimlikler üreticide kalıcıysa yönetici kasayı `native` moda alabilir. Stok, fiş ve ödeme kontrolleri bitince yazımı aç ve bekleyen kasa iletilerini özgün referanslarıyla gönder.
+
+0004 daha önce uygulanmışsa kısmi iadeleri, net tahsilatları ve iptalleri içeren mevcut ödeme defterini kesimden önce ve sonra işletme, sipariş, kayıt kimliği, tarih, tür ve kuruş tutarı bazında karşılaştır.
 
 ## 5. Geri dön
 
