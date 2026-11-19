@@ -85,7 +85,7 @@ function orderList(data, state, purchase) {
     const party = purchase ? row.supplier : row.customer || "Perakende";
     const items = row.items_json ? JSON.parse(row.items_json) : [];
     const hasReturn = items.some(item => item.returned > 0);
-    const fullyReturned = hasReturn && items.every(item => item.quantity === 0);
+    const fullyReturned = Boolean(row.fully_returned) || (hasReturn && items.every(item => item.quantity === 0));
     const status = !active ? badge("İptal") : fullyReturned ? badge("Tam iade") : row.paid_on ?
       badge(purchase ? "Ödendi" : "Tahsil edildi", "ok") : badge(purchase ? "Ödeme bekliyor" : "Tahsilat bekliyor", "warn");
     return [
