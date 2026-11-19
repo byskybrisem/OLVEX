@@ -35,6 +35,7 @@ function showField(input, visible) {
   input.closest(".field, .agreement").hidden = !visible;
 }
 
+subtitle.hidden = false;
 request("/api/public-info").then((info) => {
   if (!info.registrationOpen) {
     subtitle.hidden = true;

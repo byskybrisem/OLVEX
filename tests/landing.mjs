@@ -178,7 +178,8 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await page.locator('#site-menu a[href="#moduller"]').click();
     assert.equal(new URL(page.url()).hash, "#moduller");
     await page.getByRole("link", {name: "Ücretsiz Hesap Oluştur", exact: true}).first().click();
-    await page.locator("#name").waitFor();
+    await page.getByText("Hesap kaydı için tarayıcınızda JavaScript’i etkinleştirin.").waitFor();
+    assert.equal(await page.locator("#registerForm").isVisible(), false);
   } finally { await noJS.close(); }
 
   const fallback = await safeContext();
