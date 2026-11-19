@@ -127,9 +127,9 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
 #billing button { padding: 8px 15px; min-height: 44px; border: 1px solid transparent; color: var(--soft); border-radius: 8px; font-size: 14px; font-weight: 600; }
 #billing button[aria-pressed=true] { background: #2b2840; border-color: #b5a6f04a; color: white; }
 #annual span { color: var(--teal); font-size: 12px; padding-left: 3px; }
-.plan-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 32px 0 18px; }
+.plan-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 32px 0 18px; }
 .plan-card { display: flex; flex-direction: column; padding: clamp(18px, 2vw, 30px); border: 1px solid var(--hair); border-radius: 15px; background: linear-gradient(145deg, #1a1d2b, #121620 82%); }
-.plan-card:nth-child(3) { border-color: #a99aff5c; background: linear-gradient(145deg, #2a263c, #171822 78%); }
+.plan-card:nth-child(2) { border-color: #a99aff5c; background: linear-gradient(145deg, #2a263c, #171822 78%); }
 .plan-name { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .plan-name .icon { color: #bdb0ed; width: 20px; height: 20px; }
 .plan-name h3 { font-size: clamp(18px, 1.45vw, 22px); font-weight: 630; letter-spacing: -.045em; }
