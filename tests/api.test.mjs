@@ -388,7 +388,9 @@ test("ücretsiz AI, onay öncesi işlem yok, tek sefer uygulama ve reddetme", as
   const actual = await owner.read(thisBusiness, "finance");
   assert.equal(actual.rows.filter((row) => row.description === "elektrik").length, 1);
   const remaining = await stockFor(owner, thisBusiness, "ELMA");
-  const stockIdea = await owner.mutate(thisBusiness, "ai", "ask", { messages: [{ role: "user", content: "stok ELMA -1 sayım" }] });
+  const defaultBranchId = (await owner.read(thisBusiness, "locations")).rows.find(row => row.is_default)?.id;
+  assert.ok(defaultBranchId);
+  const stockIdea = await owner.mutate(thisBusiness, "ai", "ask", { branchId: defaultBranchId, messages: [{ role: "user", content: "stok ELMA -1 sayım" }] });
   await owner.mutate(thisBusiness, "ai", "discard", { id: stockIdea.proposal.id });
   assert.equal(await stockFor(owner, thisBusiness, "ELMA"), remaining);
   assert.deepEqual((await owner.read(thisBusiness, "ai")).proposals, []);
