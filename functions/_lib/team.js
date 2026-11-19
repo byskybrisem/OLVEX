@@ -1,7 +1,8 @@
+import { resolveBranch } from "./branches.js";
 import { HttpError } from "./http.js";
 import { sha256, TOKEN_PATTERN } from "./session.js";
 import { choice, email, identifier, text } from "./validate.js";
-import { list, rowExists, transact } from "./workspace.js";
+import { list, rowExists, searchTerm, transact } from "./workspace.js";
 
 export async function settings(ctx) {
   const queries = [
@@ -64,30 +65,55 @@ export function changeMember(ctx, body) {
 }
 
 export function posConnections(ctx) {
-  return list(ctx, `SELECT id, name, created_at, revoked_at FROM olvex_pos_connections WHERE business_id = ?
-    ORDER BY revoked_at IS NOT NULL, created_at DESC, id DESC LIMIT ? OFFSET ?`);
+  const query = searchTerm(ctx.paramsUrl.get("q"));
+  const active = ctx.paramsUrl.get("active") === "1";
+  return list(ctx, `SELECT p.id, p.name, p.created_at, p.revoked_at, p.branch_id, p.identity_mode, b.name AS branch_name
+    FROM olvex_pos_connections p JOIN olvex_branches b ON b.id = p.branch_id AND b.business_id = p.business_id
+    WHERE p.business_id = ? AND (? = 0 OR p.revoked_at IS NULL)
+      AND (p.name LIKE ? ESCAPE '\\' OR p.id LIKE ? ESCAPE '\\' OR b.name LIKE ? ESCAPE '\\')
+    ORDER BY p.revoked_at IS NOT NULL, p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`, [active ? 1 : 0, query, query, query]);
+}
+
+function posTokenHash(secret) {
+  if (typeof secret !== "string" || !TOKEN_PATTERN.test(secret)) {
+    throw new HttpError(400, "Bağlantı anahtarı geçersiz.");
+  }
+  return sha256(secret);
 }
 
 export async function createPos(ctx, body) {
-  if (typeof body.secret !== "string" || !TOKEN_PATTERN.test(body.secret)) {
-    throw new HttpError(400, "Bağlantı anahtarı geçersiz.");
-  }
+  const hash = await posTokenHash(body.secret);
+  const branchId = await resolveBranch(ctx, body.branchId);
+  const identityMode = choice(body.identityMode ?? "reconcile", ["native", "reconcile"], "Kaynak kimliği doğrulama yöntemi");
   const data = {
     requestId: identifier(body.requestId), name: text(body.name, "Bağlantı adı", { max: 80 }),
-    hash: await sha256(body.secret)
+    hash,
+    ...(body.branchId != null && { branchId }),
+    ...(body.identityMode != null && { identityMode })
   };
-  try {
-    return await transact(ctx, "pos-create", data, [
-      ctx.db.prepare(`INSERT INTO olvex_pos_connections (business_id, id, name, token_hash, created_by)
-        VALUES (?, ?, ?, ?, ?)`)
-        .bind(ctx.businessId, data.requestId, data.name, data.hash, ctx.actorId)
-    ]);
-  } catch (error) {
-    if (error.message?.includes("olvex_pos_connections.token_hash")) {
-      throw new HttpError(409, "Bu bağlantı anahtarı daha önce kullanılmış.");
-    }
-    throw error;
-  }
+  return transact(ctx, "pos-create", data, [
+    ctx.db.prepare(`INSERT INTO olvex_pos_connections (business_id, id, name, token_hash, created_by, branch_id, identity_mode)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .bind(ctx.businessId, data.requestId, data.name, data.hash, ctx.actorId, branchId, identityMode)
+  ]);
+}
+
+export async function rotatePos(ctx, body) {
+  const id = identifier(body.id, "Kasa");
+  const hash = await posTokenHash(body.secret);
+  return transact(ctx, "pos-rotate", { requestId: body.requestId, id, hash }, [
+    ctx.db.prepare("UPDATE olvex_pos_connections SET token_hash = ?, revoked_at = NULL WHERE business_id = ? AND id = ?")
+      .bind(hash, ctx.businessId, id)
+  ], rowExists("olvex_pos_connections", id));
+}
+
+export function setPosIdentity(ctx, body) {
+  const id = identifier(body.id, "Kasa");
+  const identityMode = choice(body.identityMode, ["native", "reconcile"], "Kaynak kimliği doğrulama yöntemi");
+  return transact(ctx, "pos-identity", { requestId: body.requestId, id, identityMode }, [
+    ctx.db.prepare("UPDATE olvex_pos_connections SET identity_mode = ? WHERE business_id = ? AND id = ?")
+      .bind(identityMode, ctx.businessId, id)
+  ], rowExists("olvex_pos_connections", id, "AND revoked_at IS NULL"));
 }
 
 export function revokePos(ctx, body) {

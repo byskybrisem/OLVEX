@@ -32,7 +32,8 @@ export function editSale(ctx, body) {
   const joined = `FROM olvex_order_items i JOIN json_each(?) j ON j.value ->> 'id' = i.id
     WHERE i.business_id = ? AND i.order_id = ?`;
   const guard = rowExists("olvex_orders", id, `AND kind = 'sale' AND source = 'manual' AND status = 'posted'
-    AND revision = ? AND (paid_on IS NULL OR ? = 0)
+    AND revision = ? AND (? = 0 OR (paid_on IS NULL AND NOT EXISTS (
+      SELECT 1 FROM olvex_returns r WHERE r.business_id = olvex_orders.business_id AND r.order_id = olvex_orders.id)))
     AND (? > 0 OR reference IS NOT ? OR note <> ?)
     AND (SELECT count(*) ${joined} AND (i.quantity <> j.value ->> 'quantity' OR i.unit_minor <> j.value ->> 'unit')) = ?`,
     revision, lines.length, lines.length, reference, note, changes, businessId, id, lines.length);
@@ -46,9 +47,11 @@ export function editSale(ctx, body) {
           'newQuantity', j.value ->> 'quantity', 'oldUnit', i.unit_minor, 'newUnit', j.value ->> 'unit'))
          ${joined}) FROM olvex_orders WHERE business_id = ? AND id = ?`)
       .bind(requestId, reason, reference, note, changes, businessId, id, businessId, id),
-    db.prepare(`INSERT INTO olvex_stock_movements (business_id, id, product_id, order_id, kind, delta, note, created_by)
+    db.prepare(`INSERT INTO olvex_stock_movements (business_id, id, product_id, order_id, kind, delta, note, created_by, branch_id)
       SELECT i.business_id, ? || ':' || i.id, i.product_id, i.order_id, 'adjustment',
-        i.quantity - (j.value ->> 'quantity'), ?, ? ${joined} AND i.quantity <> j.value ->> 'quantity'`)
+        i.quantity - (j.value ->> 'quantity'), ?, ?,
+        (SELECT branch_id FROM olvex_orders o WHERE o.business_id = i.business_id AND o.id = i.order_id)
+        ${joined} AND i.quantity <> j.value ->> 'quantity'`)
       .bind(requestId, reason, actorId, changes, businessId, id),
     db.prepare(`UPDATE olvex_order_items SET quantity = j.value ->> 'quantity', unit_minor = j.value ->> 'unit'
       FROM json_each(?) j WHERE business_id = ? AND order_id = ? AND olvex_order_items.id = j.value ->> 'id'`)

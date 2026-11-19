@@ -98,10 +98,12 @@ function demoData(view) {
     latest: sales.map((s) => ({ occurred_on: s.occurred_on,
       reference: s.reference, total_minor: s.total_minor })),
     lowStock: [{ total: 1, name: "Seramik Kupa", sku: "KUPA-01", stock: 3 }],
-    days: Array.from({ length: 7 }, (_, i) => ({
-      day: offsetDay(now, i - 6),
-      sales: sales.filter(row => row.occurred_on === offsetDay(now, i - 6)).reduce((sum, row) => sum + row.total_minor, 0)
-    }))
+    days: Array.from({ length: 7 }, (_, i) => {
+      const day = offsetDay(now, i - 6);
+      const receipts = sales.filter(row => row.occurred_on === day);
+      const amount = receipts.reduce((sum, row) => sum + row.total_minor, 0);
+      return { day, sales: amount, grossSales: amount, receipts: receipts.length, saleActivity: receipts.length > 0 };
+    })
   };
   if (view === "ai") return {
     mode: "off", proposals: [],

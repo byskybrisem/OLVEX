@@ -181,6 +181,7 @@ async function load() {
   const params = { page: selected.page, q: selected.q, archived: selected.archived ? "1" : "" };
   if (sectionsWithPeriod.has(tab)) Object.assign(params, { from, to });
   if (selected.unpaid) params.unpaid = "1";
+  if (tab === "products" || tab === "stock") params.branchId = selected.branchId;
   if (tab === "overview") params.detail = "dashboard";
   if (tab === "stock") params.product = product;
   if (tab === "tasks") Object.assign(params, taskDay ?
@@ -390,7 +391,9 @@ function command(event) {
       if (!row) return;
       product = id;
       productName = row.name;
-      if (filters.has("stock")) filters.get("stock").page = 1;
+      Object.assign(viewFilter("stock"), {
+        page: 1, branchId: ctx.branchId, branchName: ctx.branchName
+      });
       location.hash = "#stock";
       return;
     case "clear-product":
@@ -412,6 +415,16 @@ function command(event) {
       if (location.hash === "#overview") navigate({ focus: true });
       else location.hash = "#overview";
       return;
+    case "branch-stock":
+    case "all-branch-stock": {
+      if (cmd === "branch-stock" && !row) return;
+      const scope = { branchId: row?.id || "", branchName: row?.name || "", page: 1 };
+      Object.assign(viewFilter("products"), scope);
+      Object.assign(viewFilter("stock"), scope);
+      if (view === "locations") location.hash = "#products";
+      else return load();
+      return;
+    }
     case "export-report": return exportReport();
     default:
       if (!id || row) return formCommand(ctx, cmd, row, id);

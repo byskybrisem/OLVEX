@@ -54,10 +54,21 @@ export async function transact(ctx, action, data, statements, guard) {
   const requestId = identifier(data.requestId, "İstek kimliği");
   const fingerprint = await sha256(JSON.stringify({ ...data, requestId }));
   const conditions = guard ? guard.values(businessId) : [];
-  const actorQuery = pos
-    ? "SELECT created_by FROM olvex_pos_connections WHERE business_id = ? AND id = ? AND revoked_at IS NULL"
-    : `SELECT user_id FROM business_members WHERE business_id = ? AND user_id = ? AND role IN (${roles.map(() => "?").join(", ")})`;
-  const actorValues = pos ? [businessId, pos.id] : [businessId, actorId, ...roles];
+  const checks = [];
+  const actorValues = [actorId];
+  if (pos) {
+    const tokenCheck = ctx.user ? "" : "AND token_hash = ?";
+    checks.push(`EXISTS (SELECT 1 FROM olvex_pos_connections WHERE business_id = ? AND id = ?
+      AND branch_id = ? AND identity_mode = ? AND revoked_at IS NULL ${tokenCheck})`);
+    actorValues.push(businessId, pos.id, pos.branch_id, pos.identity_mode);
+    if (!ctx.user) actorValues.push(ctx.tokenHash);
+  }
+  if (!pos || ctx.user) {
+    checks.push(`EXISTS (SELECT 1 FROM business_members WHERE business_id = ? AND user_id = ?
+      AND role IN (${roles.map(() => "?").join(", ")}))`);
+    actorValues.push(businessId, actorId, ...roles);
+  }
+  const actorQuery = `SELECT ? WHERE ${checks.join(" AND ")}`;
   const requestIdSql = guard ? `CASE WHEN ${guard.sql} OR EXISTS (
     SELECT 1 FROM olvex_operations WHERE business_id = ? AND request_id = ?
   ) THEN ? ELSE NULL END` : "?";
@@ -75,7 +86,7 @@ export async function transact(ctx, action, data, statements, guard) {
     if (message.includes("UNIQUE constraint failed: olvex_operations.")) {
       const record = await db.prepare(`SELECT actor_id, action, fingerprint FROM olvex_operations
         WHERE business_id = ? AND request_id = ?`).bind(businessId, requestId).first();
-      if (record?.actor_id === actorId && record.action === action && record.fingerprint === fingerprint) {
+      if (record && (record.actor_id === actorId || pos) && record.action === action && record.fingerprint === fingerprint) {
         return { success: true, id: requestId, repeated: true };
       }
       throw new HttpError(409, "Bu istek kimliği başka bir işlemde kullanılmış.");
@@ -89,6 +100,11 @@ export async function transact(ctx, action, data, statements, guard) {
     if (message.includes("olvex_product_unavailable") || message.includes("olvex_order_items.product_id")) {
       throw new HttpError(400, "Ürün bulunamadı veya arşivlenmiş. SKU bilgilerini kontrol edin.");
     }
+    if (message.includes("olvex_pos_connections.token_hash") || message.includes("olvex_pos_token_history.token_hash")) {
+      throw new HttpError(409, "Bu kasa anahtarı daha önce kullanılmış.");
+    }
+    if (message.includes("olvex_invalid_branch")) throw new HttpError(409, "İşlem kasanın kayıtlı şubesiyle uyuşmuyor.");
+    if (message.includes("olvex_branches.id")) throw new HttpError(409, "Bu şube kimliği kullanılıyor.");
     if (message.includes("olvex_orders.business_id")) throw new HttpError(409, "Bu satış ya da satın alma referansı daha önce kaydedilmiş.");
     if (message.includes("olvex_products.business_id")) throw new HttpError(409, "Bu SKU işletmede zaten kullanılıyor.");
     if (message.includes("olvex_order_items.business_id")) throw new HttpError(400, "Aynı ürün bir işlemde yalnızca bir satırda yer alabilir.");

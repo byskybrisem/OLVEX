@@ -88,8 +88,8 @@ export const field = (label, name, value = "", opts = {}) => {
 export const note = (label, name, value = "") => `<label class="field">${h(label)}
   <textarea name="${h(name)}" rows="3" maxlength="500">${h(value)}</textarea></label>`;
 
-export const select = (label, name, values, current = "") => `<label class="field">${h(label)}
-  <select name="${h(name)}">${values.map(([value, label]) =>
+export const select = (label, name, values, current = "", required = false) => `<label class="field">${h(label)}
+  <select name="${h(name)}"${required ? " required" : ""}>${values.map(([value, label]) =>
     `<option value="${h(value)}"${value === current ? " selected" : ""}>${h(label)}</option>`
   ).join("")}</select></label>`;
 

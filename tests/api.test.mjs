@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import { passwordHash } from "../functions/_lib/password.js";
 import { sha256 } from "../functions/_lib/session.js";
 import { addDays, today } from "../functions/_lib/validate.js";
+import { stableId } from "../functions/_lib/workspace.js";
 import { localPages } from "./local.mjs";
 
 const id = () => crypto.randomUUID();
@@ -239,7 +240,7 @@ test("alış, iptal, stok üst/alt sınırı ve tahsilat tarihine göre finans",
 
 test("kasa anahtarı, satış/CSV tekrarları, iade ve anahtar iptali", async () => {
   const secret = "p".repeat(43);
-  const created = await owner.mutate(thisBusiness, "pos", "create", { name: "Deneme POS", secret });
+  const created = await owner.mutate(thisBusiness, "pos", "create", { name: "Deneme POS", identityMode: "native", secret });
   const { rows } = await owner.read(thisBusiness, "pos");
   assert.equal(rows[0].id, created.id);
   assert.equal(Object.hasOwn(rows[0], "token_hash"), false);
@@ -255,15 +256,65 @@ test("kasa anahtarı, satış/CSV tekrarları, iade ve anahtar iptali", async ()
   const reversal = { action: "void", reference: "POS-1", date: todayDate };
   await owner.post("/api/pos", reversal, 200, extra);
   await owner.post("/api/pos", reversal, 200, extra);
+  await owner.post("/api/pos", { ...reversal, date: yesterday }, 409, extra);
   assert.equal(await stockFor(owner, thisBusiness, "ELMA"), 8);
-  const csv = { ...posSale, reference: "CSV-1" };
+  await owner.mutate(thisBusiness, "sales", "import", { ...posSale, reference: "CSV-1", action: undefined }, 400);
+  const csv = { ...posSale, registerId: created.id, reference: "CSV-1" };
   const imported = await owner.mutate(thisBusiness, "sales", "import", { ...csv, action: undefined });
   const second = await owner.mutate(thisBusiness, "sales", "import", { ...csv, action: undefined });
   assert.equal(imported.id, second.id);
+  assert.equal((await owner.post("/api/pos", csv, 200, extra)).data.id, imported.id);
   assert.equal(second.repeated, true);
   await owner.mutate(thisBusiness, "pos", "revoke", { id: created.id });
   await owner.post("/api/pos", posSale, 401, extra);
+
+  const renewal = { id: created.id, requestId: id(), secret: "s".repeat(43) };
+  await owner.mutate(thisBusiness, "pos", "rotate", { id: created.id, secret }, 409);
+  await owner.mutate(thisBusiness, "pos", "rotate", renewal);
+  assert.equal((await owner.mutate(thisBusiness, "pos", "rotate", renewal)).repeated, true);
+  const renewed = { headers: { Authorization: `Bearer olvex_pos_${renewal.secret}` }, cookie: false };
+  assert.equal((await owner.post("/api/pos", posSale, 200, renewed)).data.id, result.data.id);
+  await owner.post("/api/pos", posSale, 401, extra);
+  await owner.mutate(thisBusiness, "pos", "create", { name: "Eski anahtar", secret }, 409);
+  await owner.mutate(thisBusiness, "pos", "rotate", { id: created.id, secret }, 409);
   assert.equal(await stockFor(owner, thisBusiness, "ELMA"), 7);
+});
+
+test("uzlaştırma onayını, kalıcı kaynak konumunu ve kasa sınırını doğrular", async () => {
+  const secret = "j".repeat(43);
+  const register = await owner.mutate(thisBusiness, "pos", "create", { name: "Arşiv kasası", secret });
+  const otherRegister = await owner.mutate(thisBusiness, "pos", "create", { name: "Diğer kasa", secret: "k".repeat(43) });
+  const auth = (key) => ({ headers: { Authorization: `Bearer olvex_pos_${key}` }, cookie: false });
+  const send = (body, status, key = secret) => owner.post("/api/pos", body, status, auth(key));
+  const evidence = "JOURNAL-2026-0008/42";
+  const receipt = {
+    action: "sale", evidence, date: yesterday, paid: true, lines: [{ sku: "ELMA", quantity: 2, unit: 330 }]
+  };
+  const stock = await stockFor(owner, thisBusiness, "ELMA");
+  const mapping = { registerId: register.id, eventKind: "sale", evidence, reference: "ARCHIVE-42", requestId: id() };
+  await send({ ...receipt, reference: "random" }, 409);
+  await send({ ...receipt, registerId: otherRegister.id }, 403);
+  await owner.mutate(thisBusiness, "pos", "reconcile", mapping);
+  const approvedAgain = await owner.mutate(thisBusiness, "pos", "reconcile", mapping);
+  assert.equal(approvedAgain.repeated, true);
+  await owner.mutate(thisBusiness, "pos", "reconcile", { ...mapping, requestId: id(), reference: "ARCHIVE-43" }, 409);
+  await owner.mutate(thisBusiness, "pos", "reconcile", { ...mapping, requestId: id(), evidence: "JOURNAL-2026-0008/43" }, 409);
+  await send({ ...receipt, reference: "forged" }, 409);
+  await send(receipt, 409, "k".repeat(43));
+  assert.equal(await stockFor(owner, thisBusiness, "ELMA"), stock);
+  const { data: posted } = await send(receipt, 201);
+  assert.equal((await send(receipt, 200)).data.id, posted.id);
+  const refund = { action: "return", evidence: "JOURNAL-2026-0008/44", saleEvidence: evidence,
+    date: todayDate, lines: [{ sku: "ELMA", quantity: 1 }] };
+  await send(refund, 409);
+  await owner.mutate(thisBusiness, "pos", "reconcile", {
+    registerId: register.id, eventKind: "return", evidence: refund.evidence, reference: "ARCHIVE-44"
+  });
+  await send(refund, 201);
+  assert.equal((await send(refund, 200)).data.repeated, true);
+  assert.equal(await stockFor(owner, thisBusiness, "ELMA"), stock - 1);
+  await send({ action: "void", evidence, date: todayDate }, 200);
+  assert.equal(await stockFor(owner, thisBusiness, "ELMA"), stock);
 });
 
 test("davet, roller ve hassas maliyet alanlarının üyeye dönmemesi", async () => {
@@ -372,4 +423,102 @@ test("giriş deneme sınırı ve yayın dosyalarının izin listesi", async () =
       assert.ok(!body.includes("CREATE TABLE") && !body.includes("function verifyPassword") && !body.includes("class Client"));
     }
   }
+});
+
+test("eşzamanlı kısmi iadeler, net tahsilat ve kalan satışın iptali", async () => {
+  const { data } = await owner.post("/api/businesses", { name: "İade işlemleri" }, 201);
+  const business = data.business.id;
+  await saveProduct(owner, business, { sku: "A", opening: 10 });
+  const secret = "h".repeat(43);
+  await owner.mutate(business, "pos", "create", { name: "İade kasası", identityMode: "native", secret });
+  const headers = { Authorization: `Bearer olvex_pos_${secret}` };
+  const send = (body, status) => owner.post("/api/pos", body, status, { headers, cookie: false });
+  const { data: original } = await send({ action: "sale", reference: "F-1", date: twoDaysAgo,
+    paid: false, lines: [{ sku: "A", quantity: 10, unit: 123 }] }, 201);
+
+  const returns = ["I-1", "I-2"].map((reference) => ({ action: "return", saleReference: "F-1",
+    reference, date: yesterday, lines: [{ sku: "A", quantity: 6 }] }));
+  const raced = await Promise.all(returns.map(async (body) => {
+    const result = await fetch(pages.url + "/api/pos", { method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await result.text();
+    return result.status;
+  }));
+  assert.deepEqual(raced.toSorted(), [201, 409]);
+  assert.equal((await send(returns[raced.indexOf(201)], 200)).data.repeated, true);
+  assert.equal(await stockFor(owner, business, "A"), 6);
+  let report = (await owner.read(business, "reports")).totals;
+  assert.equal(report.sales, 492);
+  assert.equal(report.revenue, 0);
+  assert.equal(report.spending, 0);
+  await owner.mutate(business, "sales", "settle", { id: original.id, date: twoDaysAgo }, 409);
+  await owner.mutate(business, "sales", "settle", { id: original.id, date: todayDate });
+
+  const refund = { action: "return", saleReference: "F-1", reference: "I-3", date: todayDate,
+    lines: [{ sku: "A", quantity: 1 }] };
+  await send({ ...refund, lines: [...refund.lines, { sku: "Z", quantity: 1 }] }, 409);
+  assert.equal(await stockFor(owner, business, "A"), 6);
+  await send(refund, 201);
+  assert.equal(await stockFor(owner, business, "A"), 7);
+  await owner.mutate(business, "sales", "void", { id: original.id, date: todayDate });
+  await send(refund, 200);
+  assert.equal(await stockFor(owner, business, "A"), 10);
+  report = (await owner.read(business, "reports")).totals;
+  assert.deepEqual(report, { sales: 0, saleCount: 0, cost: 0, purchases: 0, revenue: 492, spending: 492 });
+});
+
+test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi korunur", async () => {
+  const { data: created } = await owner.post("/api/businesses", { name: "CSV Arşivi" }, 201);
+  const business = created.business.id;
+  const actor = (await owner.call("/api/auth/me")).data.user.id;
+  const branch = (await owner.read(business, "locations")).rows[0].id;
+  const product = await saveProduct(owner, business, { sku: "P", opening: 10 });
+  const reference = "2019/43";
+  const original = await stableId(JSON.stringify([business, "csv", "sale", reference]));
+  const items = [{ sku: "P", quantity: 2, unit: 150 }];
+  const fingerprint = await sha256(JSON.stringify({
+    requestId: original, source: "csv", reference, occurredOn: yesterday, customerId: null,
+    supplier: "", note: "", paidOn: yesterday, items
+  }));
+  await pages.query(`
+    INSERT INTO olvex_operations(business_id, request_id, actor_id, action, fingerprint)
+      VALUES ('${business}','${original}','${actor}','sale-create','${fingerprint}');
+    INSERT INTO olvex_orders(business_id,id,kind,source,reference,occurred_on,paid_on,created_by,branch_id)
+      VALUES ('${business}','${original}','sale','csv','2019/43','${yesterday}','${yesterday}','${actor}','${branch}');
+    INSERT INTO olvex_order_items(business_id,id,order_id,product_id,product_sku,product_name,quantity,unit_minor,cost_minor)
+      VALUES ('${business}','${id()}','${original}','${product.id}','P','Ürün',2,150,100);
+  `);
+  const cashRegister = (secret, name) => owner.mutate(business, "pos", "create", { identityMode: "native", name, secret });
+  const first = await cashRegister("M".repeat(43), "İlk kasa");
+  const second = await cashRegister("N".repeat(43), "İkinci kasa");
+  const post = (key, body, status) => owner.post("/api/pos", body, status, {
+    headers: { Authorization: `Bearer olvex_pos_${key.repeat(43)}` }, cookie: false
+  });
+  const receipt = { action: "sale", date: yesterday, reference, paid: true, lines: items };
+  const reversed = { action: "return", date: todayDate, reference: "RET/43", saleReference: reference, lines: [{ sku: "P", quantity: 1 }] };
+  const evidence = "Değişmez günlük 2019-03/43";
+  await post("M", receipt, 409);
+  await post("N", receipt, 409);
+  await post("M", reversed, 409);
+  await owner.mutate(business, "pos", "link-csv", { registerId: second.id, reference, decision: "distinct", evidence });
+  await post("N", receipt, 201);
+  await post("M", receipt, 409);
+  await owner.mutate(business, "pos", "link-csv", { registerId: first.id, reference, decision: "same", evidence });
+  const replay = await post("M", receipt, 200);
+  assert.equal(replay.data.id, original);
+  assert.equal(replay.data.repeated, true);
+  assert.equal((await owner.mutate(business, "sales", "import", {
+    registerId: first.id, reference, paid: true, date: yesterday, lines: items
+  })).id, original);
+  await post("M", { ...receipt, lines: [{ sku: "P", quantity: 1, unit: 300 }] }, 409);
+  assert.equal(await stockFor(owner, business, "P"), 6);
+  await post("M", reversed, 201);
+  await post("M", reversed, 200);
+  await post("M", { action: "void", reference, date: todayDate }, 200);
+  await post("M", { action: "void", reference, date: todayDate }, 200);
+  assert.equal(await stockFor(owner, business, "P"), 8);
+  const [payments] = await pages.query(`SELECT kind,amount_minor FROM olvex_order_payments
+    WHERE business_id='${business}' AND order_id='${original}' ORDER BY kind`);
+  assert.deepEqual(payments, [{ kind: "payment", amount_minor: 300 },
+    { kind: "refund", amount_minor: 150 }, { kind: "refund", amount_minor: 150 }]);
 });

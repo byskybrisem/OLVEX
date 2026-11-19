@@ -193,8 +193,9 @@ export async function resolveProposal(ctx, body, apply) {
   }
   if (apply && row.kind === "stock") {
     statements.push(ctx.db.prepare(`INSERT INTO olvex_stock_movements
-      (business_id, id, product_id, kind, delta, note, created_by) VALUES (?, ?, ?, 'adjustment', ?, ?, ?)`)
-      .bind(ctx.businessId, requestId, draft.productId, draft.delta, draft.description, ctx.actorId));
+      (business_id, id, product_id, kind, delta, note, created_by, branch_id) VALUES (?, ?, ?, 'adjustment', ?, ?, ?,
+      (SELECT id FROM olvex_branches WHERE business_id = ? AND is_default = 1))`)
+      .bind(ctx.businessId, requestId, draft.productId, draft.delta, draft.description, ctx.actorId, ctx.businessId));
   }
   const guard = rowExists("olvex_ai_proposals", id,
     "AND user_id = ? AND state = 'pending' AND expires_at > ?", ctx.actorId, new Date().toISOString());

@@ -48,6 +48,40 @@ test("sıfır tutarlı gerçek satış, kayıtsız dönemden ayırt edilir", () 
   assert.match(salesChart([{ day: state.to, sales: 0, saleCount: 0 }]), /Satış kaydedildiğinde/);
 });
 
+test("iade grafiği eksi tutarları eksen içinde gösterir ve sıfıra kadar doldurur", () => {
+  for (const [amounts, expectedY, zero] of [
+    [[-100, -500], [26.4, 92], 10],
+    [[-200, 200], [92, 10], 51],
+    [Array.from({ length: 16 }, (_, i) => i % 2 ? -100 : 100), Array(8).fill(51), 51]
+  ]) {
+    const rows = amounts.map((sales, i) => ({ day: `2026-11-${String(i + 1).padStart(2, "0")}`, sales }));
+    const view = salesChart(rows);
+    const plotted = [...view.matchAll(/class="chart-point" style="left:[^;]+;top:([\d.]+)%"/g)];
+    assert.deepEqual(plotted.map(match => Number(match[1])), expectedY);
+    assert.ok(view.includes(`L 96 ${zero} L 4 ${zero} Z`));
+    assert.doesNotMatch(view, /chart-empty|NaN|Infinity/);
+    assert.ok(view.includes(money(amounts.length > 8 ? 0 : amounts[0])));
+  }
+});
+
+test("iptal fiş sayısını eksiye düşürmez ve iade gününe satış fişi ortalaması atfetmez", () => {
+  const reversal = { day: state.to, sales: -10000, receipts: 0, grossSales: 0, saleCount: -1, saleActivity: true };
+  const data = {
+    totals: { sales: -10000, cost: -5000, revenue: 0, spending: 10000, saleCount: -1 },
+    days: [reversal], latest: [], lowStock: [], leaders: [{ name: "Kahve", sales: -10000, quantity: -1 }]
+  };
+  const view = renderers.overview(data, state);
+  assert.match(view, /0 satış fişi/);
+  assert.match(view, /Ortalama satış fişi \(iade öncesi\)<\/dt><dd>—/);
+  assert.match(view, /Satış hareketi olan gün<\/dt><dd>1 \/ 1/);
+  assert.doesNotMatch(view, /<meter/);
+  const offset = { ...reversal, sales: 0, saleCount: 0, receipts: 1, grossSales: 10000 };
+  const offsetView = renderers.overview({ ...data, totals: { ...data.totals, sales: 0 }, days: [offset] }, state);
+  assert.match(offsetView, /1 satış fişi/);
+  assert.ok(offsetView.includes("Ortalama satış fişi (iade öncesi)</dt><dd>" + money(10000)));
+  assert.match(offsetView, /hareketlerinin net tutarı sıfır/);
+});
+
 test("önceki net nakit negatifse değişim parasal fark olarak gösterilir", () => {
   const view = renderers.overview({
     totals: { sales: 0, cost: 0, revenue: 0, spending: 17500, saleCount: 0 },

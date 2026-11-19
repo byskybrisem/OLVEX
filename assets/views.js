@@ -21,6 +21,7 @@ export const views = {
   shifts: ["Vardiyalar", "Çalışma saatleri ve vardiya takvimi.", "employees", true],
   tasks: ["Görev ve Takvim", "Planlanan işler ve düzenli tekrarlar."],
   branches: ["İşletmeler", "Eriştiğiniz işletmeler arasında geçin ve satış tutarlarını karşılaştırın."],
+  locations: ["Şubeler", "Bu işletmenin şubeleri ve şubelere göre stok durumu.", "branches"],
   reports: ["Raporlar", "Günlük performans, ürün satışları ve brüt kâr.", null, true],
   ai: ["OLVEX AI", "İşletme verilerinize dayalı analiz ve işlem taslakları.", null, true],
   settings: ["Ayarlar", "İşletme bilgileri ve ekip erişimi.", null, true],
@@ -34,30 +35,38 @@ const withPage = (heading, data, content) => panel(heading, content + pagination
 const inventoryTabs = (id) => tabs([["Ürün kartları", "products"], ["Stok hareketleri", "stock"]], id);
 const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "shifts"]], id);
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
+const businessTabs = (id) => tabs([["İşletmeler", "branches"], ["Şubeler", "locations"]], id);
 
+function inventoryScope(state) {
+  return group(`<strong>${h(state.branchName || "Tüm şubeler")}</strong>` +
+    link("Şube seç", "#locations", "small") +
+    (state.branchId ? button("Tüm şubeleri göster", "all-branch-stock", { kind: "small" }) : ""));
+}
 
 function productList(data, state) {
-  const columns = ["Ürün", "Satış fiyatı", ...(state.manager ? ["Maliyet"] : []), "Stok", ...(state.demo ? [] : ["İşlemler"])];
+  const columns = ["Ürün", "Satış fiyatı", ...(state.manager ? ["Maliyet"] : []),
+    ...(state.branchId ? ["Şube stoku"] : []), "İşletme stoku", ...(state.demo ? [] : ["İşlemler"])];
   const rows = data.rows.map((row) => [
     rowName(row.name, [row.sku, row.category].filter(Boolean).join(" · ")),
     h(money(row.price_minor)), ...(state.manager ? [h(money(row.cost_minor))] : []),
     !row.active ? badge(`Arşiv · ${count(row.stock)}`) :
       badge(count(row.stock), row.stock <= row.reorder_at ? "warn" : "ok"),
+    ...(state.branchId ? [h(count(row.total_stock))] : []),
     ...(state.demo ? [] : [group(button("Hareketler", "product-history", { id: row.id, kind: "small" }) + (state.manager ?
       button("Düzenle", "edit-product", { id: row.id, kind: "small" }) +
       (row.active ? button("Stok düzelt", "adjust-stock", { id: row.id, kind: "small" }) : "") +
-      (row.stock === 0 || !row.active ? button(row.active ? "Arşivle" : "Geri aç", "archive-product", { id: row.id, kind: "small" }) : "") : ""))])
+      ((row.total_stock ?? row.stock) === 0 || !row.active ? button(row.active ? "Arşivle" : "Geri aç", "archive-product", { id: row.id, kind: "small" }) : "") : ""))])
   ]);
-  return (state.demo ? "" : inventoryTabs("products")) + filters(state, { query: "Ürün veya SKU", archive: !state.demo }) +
+  return (state.demo ? "" : inventoryTabs("products") + inventoryScope(state)) + filters(state, { query: "Ürün veya SKU", archive: !state.demo }) +
     withPage("Ürün kayıtları", data, table(columns, rows, "Bu görünümde ürün yok."));
 }
 
 function stock(data, state) {
-  return inventoryTabs("stock") + (state.product ?
+  return inventoryTabs("stock") + inventoryScope(state) + (state.product ?
     group(`<span class="muted">${h(state.productName || "Seçilen ürün")}</span>` + button("Tüm hareketler", "clear-product", { kind: "small" })) : "") +
     filters(state, { query: "Ürün, SKU veya açıklama" }) +
-    withPage("Hareket geçmişi", data, table(["Ürün", "Tür", "Stok farkı", "Tarih", "Açıklama"], data.rows.map((row) =>
-      [rowName(row.name, row.sku), h(movementKinds[row.kind]), badge(`${row.delta > 0 ? "+" : ""}${count(row.delta)}`, row.delta > 0 ? "ok" : "warn"),
+    withPage("Hareket geçmişi", data, table(["Ürün", "Şube", "Tür", "Stok farkı", "Tarih", "Açıklama"], data.rows.map((row) =>
+      [rowName(row.name, row.sku), h(row.branch_name), h(movementKinds[row.kind]), badge(`${row.delta > 0 ? "+" : ""}${count(row.delta)}`, row.delta > 0 ? "ok" : "warn"),
         h(day(row.created_at)), h(row.note || "—")]), "Stok hareketi kaydı yok."));
 }
 
@@ -65,17 +74,21 @@ function orderList(data, state, purchase) {
   const rows = data.rows.map((row) => {
     const active = row.status === "posted";
     const party = purchase ? row.supplier : row.customer || "Perakende";
-    const status = active === false ? badge("İptal") : row.paid_on ?
+    const items = row.items_json ? JSON.parse(row.items_json) : [];
+    const hasReturn = items.some(item => item.returned > 0);
+    const fullyReturned = hasReturn && items.every(item => item.quantity === 0);
+    const status = !active ? badge("İptal") : fullyReturned ? badge("Tam iade") : row.paid_on ?
       badge(purchase ? "Ödendi" : "Tahsil edildi", "ok") : badge(purchase ? "Ödeme bekliyor" : "Tahsilat bekliyor", "warn");
     return [
       h(day(row.occurred_on)),
-      rowName(party, [row.reference, sources[row.source]].filter(Boolean).join(" · ")),
-      h(money(row.total_minor)), status,
+      rowName(party, [row.reference, row.branch_name, sources[row.source]].filter(Boolean).join(" · ")),
+      h(money(row.total_minor)), status + (active && hasReturn && !fullyReturned ? badge("Kısmi iade") : ""),
       group(button("Ayrıntı", "order-detail", { id: row.id, kind: "small" }) +
+        (row.can_link_csv && state.manager && !state.demo ? button("Eski fişi karşılaştır", "link-csv", { id: row.id, kind: "small" }) : "") +
         (active && state.manager && !state.demo ?
-          (!purchase && row.source === "manual" ? button("Düzenle", "edit-sale", { id: row.id, kind: "small" }) : "") + (!row.paid_on ?
+          (!purchase && row.source === "manual" ? button("Düzenle", "edit-sale", { id: row.id, kind: "small" }) : "") + (!row.paid_on && !fullyReturned ?
           button(purchase ? "Ödeme kaydet" : "Tahsilat kaydet", "settle-order", { id: row.id, kind: "small" }) : "") +
-          button(purchase ? "İptal et" : "Tam iade / iptal", "void-order", { id: row.id, kind: "small danger" }) : ""))
+          (!fullyReturned ? button(purchase ? "İptal et" : "Tam iade / iptal", "void-order", { id: row.id, kind: "small danger" }) : "") : ""))
     ];
   });
   return filters(state, { unpaid: purchase ? "Ödeme bekleyenler" : "Tahsilat bekleyenler", query: purchase ? "Tedarikçi, ürün veya referans" : "Müşteri, ürün veya referans" }) +
@@ -184,21 +197,29 @@ function tasks(data, state) {
 }
 
 function branches(data, state) {
-  return filters(state, { range: true }) + panel("İşletme karşılaştırması", table(["İşletme", "Rol", "Satış sayısı", "Satış tutarı", "İşlemler"],
+  return businessTabs("branches") + filters(state, { range: true }) + panel("İşletme karşılaştırması", table(["İşletme", "Rol", "Satış sayısı", "Satış tutarı", "İşlemler"],
     data.rows.map((row) => [h(row.name), badge(roles[row.role]), h(count(row.sale_count)), h(money(row.sales)),
       row.id === state.business.id ? badge("Açık", "ok") : button("İşletmeye geç", "switch-business", { id: row.id, kind: "small" })])));
+}
+
+function locations(data, state) {
+  return businessTabs("locations") + filters(state, { query: "Şube adı" }) +
+    withPage(state.business.name, data, table(["Şube", "Stok"], data.rows.map((row) => [
+      rowName(row.name, row.is_default ? "Varsayılan şube" : ""),
+      button("Şube stoklarını göster", "branch-stock", { id: row.id, kind: "small" })
+    ]), "Bu görünümde şube yok."));
 }
 
 function reports(data, state) {
   const { totals, days, topProducts } = data;
   return filters(state, { range: true }) + stats(
-    stat("Satış tutarı", money(totals.sales)) + stat("Satılan ürün maliyeti", money(totals.cost)) +
+    stat("Net satış tutarı", money(totals.sales)) + stat("Satılan ürün maliyeti", money(totals.cost)) +
     stat("Brüt kâr", money(totals.sales - totals.cost), "teal") + stat("Satın alma tutarı", money(totals.purchases))) +
-    panel("Satış seyri", salesChart(days)) +
+    panel("Net satış seyri", salesChart(days)) +
     panel("En çok satış tutarı getiren 20 ürün", table(["Ürün", "Adet", "Satış", "Brüt kâr"],
       topProducts.map((row) => [rowName(row.name, row.sku), h(count(row.quantity)), h(money(row.sales)), h(money(row.sales - row.cost))]),
       "Seçilen tarihlerde ürün satışı yok.")) +
-    panel("Rapor hesabı", `<p class="muted">Brüt kâr, satış tutarından satış kaydedilirken ürün kartındaki birim maliyet düşülerek hesaplanır. Nakit giriş ve çıkışları ödeme tarihine göre gösterilir.</p>`);
+    panel("Rapor hesabı", `<p class="muted">İade ve iptaller işlem gününde net satışı azaltır. Brüt kârda her ürünün satış anındaki maliyeti kullanılır. Nakit giriş ve çıkışları ödeme tarihine göre gösterilir.</p>`);
 }
 
 function settingView(data, state) {
@@ -215,11 +236,16 @@ function settingView(data, state) {
 
 function posView(data) {
   return settingsTabs("pos") +
-    panel("Satış aktarımı", `<p class="muted">Kasa sağlayıcınız OLVEX’in <code>/api/pos</code> uç noktasına satış ve tam iade bildirebilir. CSV dosyaları Satışlar bölümünden içe aktarılır.</p>`,
+    panel("Satış aktarımı", `<p class="muted">Her kasa kendi anahtarıyla <code>/api/pos</code> üzerinden bağlı olduğu şubeye satış, iade ve iptal bildirir.</p>`,
       button("Bağlantı biçimi", "pos-help", { kind: "small" })) +
-    withPage("Kasa bağlantıları", data, table(["Bağlantı", "Tarih", "Durum", "İşlemler"], data.rows.map((row) => [
-      h(row.name), h(day(row.created_at)), badge(row.revoked_at ? "İptal" : "Aktif", row.revoked_at ? "" : "ok"),
-      row.revoked_at ? "—" : button("Anahtarı iptal et", "revoke-pos", { id: row.id, kind: "small danger" })
+    withPage("Kasa bağlantıları", data, table(["Kasa", "Şube", "İşlem kimliği", "Durum", "İşlemler"], data.rows.map((row) => [
+      rowName(row.name, day(row.created_at)), h(row.branch_name),
+      h(row.identity_mode === "native" ? "Kaynak işlem kimliği" : "Uzlaştırma"),
+      badge(row.revoked_at ? "İptal" : "Aktif", row.revoked_at ? "" : "ok"),
+      group(button("Anahtarı yenile", "rotate-pos", { id: row.id, kind: "small" }) +
+        (row.revoked_at ? "" : button("Kimlik ayarı", "pos-identity", { id: row.id, kind: "small" }) +
+        (row.identity_mode === "reconcile" ? button("Kaynak kaydını eşleştir", "pos-reconcile", { id: row.id, kind: "small" }) : "") +
+        button("Anahtarı iptal et", "revoke-pos", { id: row.id, kind: "small danger" })))
     ]), "Henüz kasa bağlantısı kurulmadı."));
 }
 
@@ -298,7 +324,7 @@ function ai(data, state) {
 export const renderers = {
   overview, products: productList, stock, sales: (data, state) => orderList(data, state, false),
   purchases: (data, state) => orderList(data, state, true), customers, finance, invoices,
-  employees, shifts, tasks, branches, reports, settings: settingView, pos: posView, ai
+  employees, shifts, tasks, branches, locations, reports, settings: settingView, pos: posView, ai
 };
 
 export function actions(view, state) {
@@ -316,11 +342,12 @@ export function actions(view, state) {
     case "shifts": return primary("+ Vardiya ekle", "add-shift");
     case "tasks": return primary("+ Görev ekle", "edit-task");
     case "branches": return link("Davetle katıl", "/join.html") + link("+ Yeni işletme", "/setup.html?new=1", "primary");
+    case "locations": return state.manager ? primary("+ Şube ekle", "create-location") : "";
     case "reports": return button("CSV indir", "export-report");
     case "settings": return state.business.role === "owner"
       ? button("İşletme adını düzenle", "rename-business") + primary("+ Ekip daveti", "invite")
       : "";
-    case "pos": return primary("+ Bağlantı oluştur", "create-pos");
+    case "pos": return link("Şubeler", "#locations") + primary("+ Bağlantı oluştur", "create-pos");
     default: return "";
   }
 }
