@@ -206,18 +206,60 @@ function identityField(current = "") {
 
 function createPos(ctx) {
   const secret = randomSecret();
-  saveForm(ctx, {
-    title: "Kasa bağlantısı oluştur", section: "pos", action: "create",
-    html: field("Bağlantı adı", "name", "", { max: 80 }) +
-      lookupField("Şube", "branchId", "Kasanın bağlı olduğu şubeyi seçin", true) +
-      identityField() +
-      '<p class="hint">Oluşturulan anahtarı kasa entegrasyonunun sunucu ayarlarında saklayın.</p>',
-    init: root => findBranch(ctx, root),
-    fields: (form) => ({ name: form.get("name"), branchId: form.get("branchId"), identityMode: form.get("identityMode"), secret }),
-    after: async () => {
-      showSecret(ctx, "Kasa bağlantı anahtarı", "Anahtar yalnızca bu ekranda gösterilir. Kasa sağlayıcınızın sunucusunda saklayın.",
+  editor(ctx, {
+    title: "Kasa bağlantısı oluştur",
+    label: "Kaydet",
+    html: `<p class="hint">1. İşletme · <strong>${h(ctx.business.name)}</strong></p>
+      <div data-pos-branch>
+        <h3>2. Şubeyi seçin</h3>
+        ${lookupField("Şube", "branchId", "Kasanın bağlı olduğu şubeyi seçin", true)}
+        <button class="button secondary" type="button" data-pos-next>Kasaya geç</button>
+      </div>
+      <div data-pos-device hidden>
+        <h3 tabindex="-1">3. Kasayı tanımlayın</h3>
+        <p class="hint" data-pos-summary></p>
+        ${field("Bağlantı adı", "name", "", { max: 80 })}
+        ${fields(field("Kasa markası (isteğe bağlı)", "brand", "", { max: 80, required: false }),
+          field("Satış yazılımı ve sürümü (isteğe bağlı)", "software", "", { max: 100, required: false }))}
+        <p class="hint">Marka ve yazılım bilgisi ekip içi tanımlama içindir. Üretici bağlantısı kurmaz.</p>
+        ${identityField()}
+        <p class="hint">Her fiziksel kasa için ayrı kayıt açın. Üreticinin bağlayıcısı varsa anahtarı yalnızca sunucu ayarlarında saklayın.</p>
+        <button class="button secondary" type="button" data-pos-back>Şubeyi değiştir</button>
+      </div>`,
+    init(root) {
+      findBranch(ctx, root);
+      const branch = root.querySelector("[data-pos-branch]");
+      const device = root.querySelector("[data-pos-device]");
+      const branchSelect = branch.querySelector("select");
+      const save = root.closest("form").querySelector('[type="submit"]');
+      function step(showDevice) {
+        branch.hidden = showDevice;
+        device.hidden = !showDevice;
+        for (const control of device.querySelectorAll("input, select")) control.disabled = !showDevice;
+        save.hidden = !showDevice;
+        if (showDevice) {
+          root.querySelector("[data-pos-summary]").textContent = branchSelect.selectedOptions[0].textContent;
+          device.querySelector("h3").focus();
+        } else branchSelect.focus();
+      }
+      step(false);
+      root.querySelector("[data-pos-next]").onclick = () => { if (branchSelect.reportValidity()) step(true); };
+      root.querySelector("[data-pos-back]").onclick = () => step(false);
+      branch.addEventListener("keydown", event => {
+        if (event.key === "Enter" && event.target.matches("input")) event.preventDefault();
+      });
+    },
+    submit: (form, send, root) => {
+      if (root.querySelector("[data-pos-device]").hidden) throw new Error("Önce kasanızın şubesini seçin.");
+      return send("pos", "create", {
+        name: form.get("name"), branchId: form.get("branchId"), identityMode: form.get("identityMode"),
+        brand: form.get("brand"), software: form.get("software"), secret
+      });
+    },
+    done: async () => {
+      showSecret(ctx, "Kasa bağlantı anahtarı", "Anahtar yalnızca bir kez gösterilir. Bağlayıcının sunucu ayarlarında saklayın. İlk başarılı aktarım kasa listesinde görünür.",
         `olvex_pos_${secret}`);
-      await ctx.changed("Kasa anahtarı oluşturuldu.");
+      await ctx.changed("Kasa kaydı ve anahtarı oluşturuldu.");
     }
   });
 }
@@ -282,12 +324,14 @@ function posHelp(ctx) {
   editor(ctx, {
     title: "Kasa aktarım biçimi",
     html: `<p><code>POST ${h(location.origin)}/api/pos</code></p>
-      <p><code>Authorization: Bearer olvex_pos_…</code></p>
+      <p><code>Authorization: Bearer olvex_pos_…</code><br><code>Content-Type: application/json</code></p>
+      <p>Bu örnek geçerli anahtar ve stokla gönderilirse gerçek satış kaydeder. Denemeler için ayrı işletme ve stok kullanın.</p>
       <pre>${h(example)}</pre>
       <p class="hint">Birim fiyat kuruş cinsinden tam sayıdır. Her fişte ayrı bir kaynak referansı kullanın. Tekrar gönderirken ilk referansı ve işlem tarihini koruyun.</p>
       <p>Ürün iadesinde <code>{"action":"return","reference":"IADE-9","saleReference":"KASA-001","date":"${today()}","lines":[{"sku":"URUN-01","quantity":1}]}</code> gönderin.</p>
-      <p>Satış iptali için <code>{"action":"void","reference":"KASA-001"}</code> gönderin.</p>
-      <p>Uzlaştırma yönteminde önce kaynak kaydını bu kasada eşleştirin. Aktarımda <code>evidence</code> alanına kaynağın kalıcı konumunu girin. Ürün iadesinde ilk satışın konumunu da <code>saleEvidence</code> alanında iletin.</p>`
+      <p>Satış iptali için <code>{"action":"void","reference":"KASA-001","date":"${today()}"}</code> gönderin.</p>
+      <p>Uzlaştırma yönteminde önce kaynak kaydını bu kasada eşleştirin. Aktarımda <code>evidence</code> alanına kaynağın kalıcı konumunu girin. Ürün iadesinde ilk satışın konumunu da <code>saleEvidence</code> alanında iletin.</p>
+      <p><strong>401</strong> · Anahtar geçersiz veya iptal edilmiş. <strong>409</strong> · Kimliği, kaynak kaydını ve şube stoğunu kontrol edin. <strong>429</strong> · Belirtilen süreden sonra aynı işlem kimliğiyle yeniden deneyin.</p>`
   });
 }
 

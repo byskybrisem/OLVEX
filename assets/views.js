@@ -243,19 +243,35 @@ function settingView(data, state) {
     ]), "Bekleyen davet yok.")) : "");
 }
 
+const posTime = new Intl.DateTimeFormat("tr-TR", {
+  dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul"
+});
+
 function posView(data) {
   return settingsTabs("pos") +
-    panel("Satış aktarımı", `<p class="muted">Her kasa kendi anahtarıyla <code>/api/pos</code> üzerinden bağlı olduğu şubeye satış, iade ve iptal bildirir.</p>`,
-      button("Bağlantı biçimi", "pos-help", { kind: "small" })) +
-    withPage("Kasa bağlantıları", data, table(["Kasa", "Şube", "İşlem kimliği", "Durum", "İşlemler"], data.rows.map((row) => [
-      rowName(row.name, day(row.created_at)), h(row.branch_name),
+    panel("Satış aktarım yöntemleri", `<ol class="pos-methods">
+      <li><strong>Otomatik kasa bağlantısı</strong><p>Kasa sağlayıcınız API, webhook, SDK veya dışa aktarma arayüzü sunuyorsa sağlayıcınız ya da teknik ekibiniz bir bağlayıcı hazırlayabilir. İşletmeyi ve şubeyi seçip her fiziksel kasa için ayrı kayıt oluşturun. Anahtar, bağlayıcının OLVEX’e hangi kasadan yazdığını doğrular. Sunucuda gizli saklayın.</p>
+        ${button("API örnekleri", "pos-help", { kind: "small" })}</li>
+      <li><strong>CSV dosyasıyla aktarım</strong><p>Kasanızdan dosya alın ve dosyanın geldiği fiziksel kasayı seçin. CSV ve API aynı kasa ve kalıcı işlem kimliğini kullanırsa aynı satış tekrar kaydedilmez.</p>
+        ${group(button("CSV içe aktar", "import-sales", { kind: "small" }) +
+          '<a class="button small" href="/assets/olvex-kasa-ornek.csv" download>CSV şablonunu indir</a>')}</li>
+      <li><strong>Manuel satış</strong><p>Dosya veya bağlayıcı yoksa satış ekranından şubeyi ve ürünleri seçerek kaydedin.</p>
+        ${link("Satışlara git", "#sales", "small")}</li>
+      </ol>
+      <p class="hint">Farklı kasalar aynı fiş numarasını kullanabilir. Aynı kasada numara sıfırlanıyorsa kasa günlüğünü ve fiş sırasını birlikte kullanın. İade ve iptali özgün satışın kasasından ve bağlantılı referansla gönderin.</p>`) +
+    withPage("Kasa bağlantıları", data, '<div class="pos-registers">' + table(["Kasa", "Şube", "İşlem kimliği", "Durum", "İşlemler"], data.rows.map(row => [
+      rowName(row.name, [row.device_brand, row.device_software].filter(Boolean).join(" · ")), h(row.branch_name),
       h(row.identity_mode === "native" ? "Kaynak işlem kimliği" : "Uzlaştırma"),
-      badge(row.revoked_at ? "İptal" : "Aktif", row.revoked_at ? "" : "ok"),
+      badge(row.revoked_at ? "Anahtar iptal edildi" : row.last_api_success_at ? "API aktarımı alındı" : "API aktarımı bekleniyor",
+        !row.revoked_at && row.last_api_success_at ? "ok" : "") +
+        (row.last_api_success_at ? `<span class="row-sub">Son başarılı API aktarımı: ${h(posTime.format(new Date(row.last_api_success_at)))} (TSİ)</span>`
+          : '<span class="row-sub">Bu anahtarla doğrulanmış API aktarımı yok.</span>'),
       group(button("Anahtarı yenile", "rotate-pos", { id: row.id, kind: "small" }) +
-        (row.revoked_at ? "" : button("Kimlik ayarı", "pos-identity", { id: row.id, kind: "small" }) +
-        (row.identity_mode === "reconcile" ? button("Kaynak kaydını eşleştir", "pos-reconcile", { id: row.id, kind: "small" }) : "") +
-        button("Anahtarı iptal et", "revoke-pos", { id: row.id, kind: "small danger" })))
-    ]), "Henüz kasa bağlantısı kurulmadı."));
+        (row.revoked_at ? "" :
+          button("Kimlik ayarı", "pos-identity", { id: row.id, kind: "small" }) +
+          (row.identity_mode === "reconcile" ? button("Kaynak kaydını eşleştir", "pos-reconcile", { id: row.id, kind: "small" }) : "") +
+          button("Anahtarı iptal et", "revoke-pos", { id: row.id, kind: "small danger" })))
+    ]), "Henüz kasa kaydı oluşturulmadı.") + "</div>");
 }
 
 export function proposalLabel(proposal) {
@@ -370,7 +386,7 @@ export function actions(view, state) {
     case "settings": return state.business.role === "owner"
       ? button("İşletme adını düzenle", "rename-business") + primary("+ Ekip daveti", "invite")
       : "";
-    case "pos": return link("Şubeler", "#locations") + primary("+ Bağlantı oluştur", "create-pos");
+    case "pos": return link("Şubeler", "#locations") + button("Durumu yenile", "refresh-pos") + primary("+ Bağlantı oluştur", "create-pos");
     default: return "";
   }
 }

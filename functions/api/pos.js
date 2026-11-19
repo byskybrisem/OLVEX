@@ -24,12 +24,17 @@ export const onRequestPost = handle(async ({ request, env }) => {
     WHERE c.token_hash = ? AND c.revoked_at IS NULL`).bind(tokenHash).first();
   if (!pos) {
     if (await isRateLimited(db, originKey, KEY_FAILURE_LIMIT, WINDOW_SECONDS)) throw limited();
-    throw new HttpError(401, "POS anahtarı geçersiz.");
+    throw new HttpError(401, "Kasa anahtarı geçersiz veya bağlantı iptal edilmiş. OLVEX’teki kasa kaydını ve güncel anahtarı kontrol edin.");
   }
   const configured = Number(env.OLVEX_POS_REQUESTS_PER_MINUTE);
   const limit = Number.isSafeInteger(configured) && configured > 0 ? configured : REGISTER_LIMIT;
   if (await isRateLimited(db, `pos-register:${pos.business_id}:${pos.id}`, limit, WINDOW_SECONDS)) throw limited();
   const body = await readJson(request, 16384);
   const result = await postRegisterEvent({ db, pos, tokenHash, businessId: pos.business_id, actorId: pos.created_by }, body);
+  // A recorded acknowledgment proves this key reached the API, even on an idempotent replay.
+  await db.prepare(`UPDATE olvex_pos_connections SET last_api_success_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE business_id = ? AND id = ? AND token_hash = ? AND revoked_at IS NULL`)
+    .bind(pos.business_id, pos.id, tokenHash).run()
+    .catch(() => console.warn("OLVEX POS aktarım zamanı kaydedilemedi."));
   return json(result, result.repeated || body.action === "void" ? 200 : 201);
 });

@@ -103,3 +103,11 @@ Zorunlu eşzamanlı satış testinin şube bakiyeleri, finans hesabı ve çalı�
 Brüt kâr satış anındaki ürün maliyetini kullanır. Satın alma fiyatı alış kaydında saklanır. Ürün kartındaki maliyet, ürün düzenleme ekranından güncellenir. Tahsilat ve ödemeler kendi tarihlerinde nakit akışına girer.
 
 Faturalar bölümü belge takibi sağlar. GİB e-Fatura ve e-Arşiv belgeleri için işletmenin yetkili sistemi kullanılır. Lansman paketleri bilgilendirme amaçlıdır. Ödeme altyapısı açılmadan abonelik tahsilatı yapılmaz.
+
+### Kasa listesinde aktarım durumu
+
+Şube seçiminin ardından kasa adı ve işlem kimliği yöntemini belirleyin. Marka ve yazılım sürümü, ekibinizin cihazı tanıması için isteğe bağlı alanlardır. OLVEX bu bilgilerden bir üretici bağlantısı oluşturmaz. Kullanılabilecek üç yol API bağlayıcısı, kasa CSV dosyası ve manuel satıştır. [CSV şablonu](assets/olvex-kasa-ornek.csv)
+
+Kasa tablosundaki son başarılı API aktarımı, o anahtarla doğrulanmış ve işlenmiş bir API isteğinin sunucu zamanıdır. Güvenli bir tekrar gönderim de bu zamanı günceller. CSV ve manuel satışlar API bağlantı durumunu değiştirmez. Anahtar yenilendiğinde yeni anahtarın ilk başarılı aktarımı beklenir. Önceki satış, iade, ödeme ve stok kayıtları korunur.
+
+Kasa ekranı için `0011_pos_connection_details.sql` migrasyonunu önce izole D1 ortamında uygulayın. Üç ek alan mevcut bağlantılarda boş başlar. Üretimde doğru D1 bağı ve yedek/geri dönüş kaydı doğrulandıktan sonra migrasyonu koddan önce uygulayın.

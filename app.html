@@ -56,8 +56,18 @@
         <details id="alerts" hidden><summary aria-label="İşletme bildirimleri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h16l-2-4v-3a6 6 0 0 0-12 0v3z M10 20h4"/></svg></summary>
         <div class="account-card"><strong>Bildirimler</strong><div id="alert-items"></div></div></details>
         <details id="account"><summary aria-label="Kullanıcı menüsü"><span id="initial">O</span></summary>
-        <div class="account-card"><strong id="account-name"></strong><button class="button" type="button" id="account-logout">Çıkış yap</button></div></details></div>
+        <div class="account-card"><strong id="account-name"></strong><a href="/cookies.html#browser-preferences">Çerez ve tarayıcı tercihleri</a><button class="button" type="button" id="account-logout">Çıkış yap</button></div></details></div>
     </header>
+    <section id="browser-preferences" class="browser-preferences" data-preference-banner aria-labelledby="browser-preferences-title" hidden>
+      <h2 id="browser-preferences-title">Tarayıcı tercihleri</h2>
+      <p>İsteğe bağlı olarak son işletmenizi ve menü görünümünüzü hatırlarız.</p>
+      <div class="actions">
+        <button class="button secondary" type="button" data-preference-choice="allow">Tümünü kabul et</button>
+        <button class="button secondary" type="button" data-preference-choice="deny">Tümünü reddet</button>
+        <a class="button secondary" href="/cookies.html#browser-preferences">Tercihleri yönet</a>
+      </div>
+      <p data-preference-status role="status"></p>
+    </section>
     <section class="page-heading" aria-labelledby="title">
       <div><h1 id="title" tabindex="-1">Genel Bakış</h1><p id="subtitle"></p></div>
       <div id="actions" class="actions"></div>
