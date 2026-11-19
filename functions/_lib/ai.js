@@ -1,4 +1,4 @@
-import { HttpError, isLoopback } from "./http.js";
+import { HttpError, isPreviewRequest } from "./http.js";
 import { cashInsert } from "./records.js";
 import { insights } from "./reports.js";
 import { choice, identifier, integer, MAX_STOCK, MAX_UNIT_MINOR, sku, text, today } from "./validate.js";
@@ -10,7 +10,7 @@ const money = (amount) => format.format(amount / 100);
 
 function mode(ctx) {
   if (ctx.env.OLVEX_AI_MODE === "mock" &&
-      (isLoopback(ctx.request) || ctx.env.OLVEX_ENVIRONMENT === "preview")) return "mock";
+      isPreviewRequest(ctx.env, ctx.request)) return "mock";
   return ctx.env.OPENAI_API_KEY ? "openai" : "off";
 }
 

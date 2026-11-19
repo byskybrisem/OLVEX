@@ -74,3 +74,11 @@ export function clientIp(request) {
 export function isLoopback(request) {
   return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(request.url).hostname);
 }
+
+// The public domains and the canonical Pages URL can only use production switches.
+const productionHosts = new Set(["olvex.com.tr", "www.olvex.com.tr", "olvex.pages.dev", "main.olvex.pages.dev"]);
+export function isPreviewRequest(env, request) {
+  if (isLoopback(request)) return true;
+  const host = new URL(request.url).hostname.toLowerCase().replace(/\.$/, "");
+  return env.OLVEX_ENVIRONMENT === "preview" && !productionHosts.has(host);
+}

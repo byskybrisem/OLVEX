@@ -47,7 +47,7 @@ export async function localPages({ seed, https = false, bindings = {}, registrat
   }
 
   try {
-    const assets = ["_headers", "_routes.json", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
+    const assets = ["_headers", "_routes.json", "sitemap.xml", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
       "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts", "scene"];
     await Promise.all([...assets, "functions", "migrations"].map((name) =>
       cp(join(root, name), join(dir, name), { recursive: true })));

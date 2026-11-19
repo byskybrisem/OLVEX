@@ -19,7 +19,10 @@ if (joining) document.querySelector("#login-link").href = "/login.html?next=join
 
 request("/api/public-info").then((info) => {
   if (!info.registrationOpen) {
-    status("Yeni hesap kaydı şu anda kapalı.");
+    form.hidden = true;
+    document.querySelector(".subtitle").hidden = true;
+    document.querySelector("#form-title").textContent = "Yeni hesap kaydı şu anda kapalı.";
+    document.querySelector("#closed-registration").hidden = false;
     return;
   }
   termsVersion = info.termsVersion;
