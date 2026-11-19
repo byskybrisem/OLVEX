@@ -7,3 +7,6 @@ dist/
 .env.*
 test-results/
 playwright-report/
+
+# codebase-index cache (machine-local; do not commit)
+.claude/cache/codebase-index/
