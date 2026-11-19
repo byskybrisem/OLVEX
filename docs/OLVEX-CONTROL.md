@@ -18,7 +18,7 @@ Bu panel işletme sahibi yönetiminden **bağımsızdır**. Platforma ait gelir/
 ## Yayına alma
 
 1. CI ve tarayıcı kontrolleri geçmeden PR'ı birleştirmeyin.
-2. Canlı D1'in geri dönüş noktası/yedeği doğrulanıp `0013_platform_admin.sql` geçişi **açık onayla** uygulanmalı. Bu geçiş yalnızca yeni tablolar, indeksler ve tetikleyiciler ekler.
+2. Canlı D1'in geri dönüş noktası/yedeği doğrulanıp `0014_platform_admin.sql` geçişi **açık onayla** uygulanmalı. Bu geçiş yalnızca yeni tablolar, indeksler ve tetikleyiciler ekler.
 3. Yönetici olarak giriş yapılan hesabın `/api/auth/me` yanıtındaki `user.id` değerini doğrulayın; Cloudflare Pages **Production** değişkeni `OLVEX_SUPER_ADMIN_USER_ID` olarak ekleyin.
 4. Yalnızca bu hesapta `/admin.html` açıp yetki testini tamamlayın. Başka bir kullanıcıyla 403 ve oturumsuz 401 aldığını doğrulayın.
 5. Finans kayıtları oluşturma, idempotent tekrar, iptal ve denetim geçmişini kontrol edin.
