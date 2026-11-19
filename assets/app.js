@@ -2,6 +2,7 @@ import { bindBrowserPreferences, browserPreference } from "./browser-preferences
 import { bindDrawer, bindModuleSearch } from "./navigation.js";
 import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
+import { importProducts } from "./product-import.js";
 import { customerHistory, importSales, lookup, lookupField, newOrder, orderCommand } from "./orders.js";
 import { actions, renderers, roles, views } from "./views.js";
 import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
