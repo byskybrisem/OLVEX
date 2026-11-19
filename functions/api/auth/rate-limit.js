@@ -8,6 +8,15 @@ async function hashKey(value) {
     .join("");
 }
 
+// Invalid POS credentials can be checked without counting legitimate requests.
+export async function reachedRateLimit(db, key, limit, windowSeconds) {
+  const since = Math.floor(Date.now() / 1000) - windowSeconds;
+  const row = await db.prepare(`SELECT 1 FROM auth_rate_limits
+    WHERE key_hash = ? AND window_started_at > ? AND attempts >= ?`)
+    .bind(await hashKey(key), since, limit).first();
+  return row !== null;
+}
+
 export async function isRateLimited(db, key, limit, windowSeconds) {
   const keyHash = await hashKey(key);
   const now = Math.floor(Date.now() / 1000);
