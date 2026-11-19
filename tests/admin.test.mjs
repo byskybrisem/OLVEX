@@ -125,7 +125,7 @@ test("sign-in identifies only the configured platform admin, without trusting a 
     ('${superId}','admin-login@example.test','Super Admin','${hash}'),
     ('${otherId}','tenant-login@example.test','Regular User','${hash}');
   `;
-  const server=await localPages({seed,https:true,bindings:{OLVEX_SUPER_ADMIN_USER_ID:superId}});
+  const server=await localPages({seed,bindings:{OLVEX_SUPER_ADMIN_USER_ID:superId}});
   t.after(()=>server.close());
   async function signIn(email) {
     const response=await fetch(server.url+"/api/auth/login",{
