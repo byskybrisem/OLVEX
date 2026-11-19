@@ -51,8 +51,8 @@ export function posGuideData({ kind, vendor, program, model = "" }) {
   } else {
     steps.push("Sağlayıcıdan değişmeyen fiş kimliği, tarih, ürün SKU'su, miktar ve fiyat bilgilerini alabileceğiniz bir dosya/API yöntemi olup olmadığını sorun.");
   }
-  steps.push("CSV aktarımı mümkünse veriyi OLVEX'in örnek şablonuyla eşleştirip Satışlar → CSV içe aktar bölümünü kullanın. Kaynak kasa kaydı, şube ve fiş kimliğini kontrol edin.");
-  steps.push("Doğrulanmış bir entegrasyon yazılımı satışları OLVEX API'sine gönderebiliyorsa her fiziksel kasa için ayrı bağlantı anahtarı oluşturun. Anahtar tek başına kasa bağlantısını başlatmaz; denemeyi ayrı test işletmesinde yapın.");
+  steps.push("CSV aktarımı mümkünse veriyi OLVEX'in CSV şablonuyla eşleştirip Satışlar → CSV içe aktar bölümünü kullanın. Kaynak kasa kaydı, şube ve fiş kimliğini kontrol edin.");
+  steps.push("Doğrulanmış bir entegrasyon yazılımı satışları OLVEX API'sine gönderebiliyorsa her fiziksel kasa için ayrı bağlantı anahtarı oluşturun. Anahtar tek başına kasa bağlantısını başlatmaz; bağlantıyı üretim stoklarından ayrı bir işletmede doğrulayın.");
   const links = [];
   if (wolvox) {
     links.push(["AKINSOFT WOLVOX Yazarkasa Otomasyonu", "https://www.akinsoft.com.tr/programlar/detay/wolvox-yazarkasa-otomasyonu--wyz9"]);
@@ -85,7 +85,7 @@ export function showPosSetupGuide(ctx, { onCreate }) {
         <p class="hint">Yazarkasa POS'un mali fiş veya ödeme işlevlerini OLVEX değiştirmez. Yetkili servis ve GİB uyum kuralları geçerlidir.</p>
         <div class="pos-guide-links" data-pos-links></div>
         <div class="pos-guide-actions">
-          <a class="button secondary" href="/assets/olvex-kasa-ornek.csv" download>CSV örneği indir</a>
+          <a class="button secondary" href="/assets/olvex-kasa-ornek.csv" download>CSV şablonunu indir</a>
           <button class="button secondary" type="button" data-pos-create-key>API anahtarı oluştur</button>
         </div>
         <p class="hint">API anahtarı yalnızca satışları OLVEX'e gönderebilen bir bağlayıcı mevcutsa kullanılabilir. CSV veya manuel aktarım için önce bu rehberi uygulayın.</p>
