@@ -97,7 +97,12 @@ export async function beginCheckout(ctx, body) {
 
 export async function refreshSubscription(db, config, row, event) {
   const response = await iyzico(config, detailPath(row.provider_ref));
-  const sub = response.data;
+  const data = response.data;
+  let sub = data;
+  if (Array.isArray(data?.items)) {
+    const matches = data.items.filter(item => item?.referenceCode === row.provider_ref);
+    sub = matches.length === 1 ? matches[0] : null;
+  }
   if (response.status !== "success" || sub?.referenceCode !== row.provider_ref ||
       sub.customerReferenceCode !== row.customer_ref || sub.pricingPlanReferenceCode !== row.plan_ref ||
       !Object.hasOwn(providerStates, sub.subscriptionStatus) || !Array.isArray(sub.orders)) {

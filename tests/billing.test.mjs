@@ -61,6 +61,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   let planPrice = "1.00";
   let conversationId;
   let formOk = false;
+  let detailShape = "missing";
   let subscriptionStatus = "ACTIVE";
   const now = Date.now();
   const paidPeriod = { referenceCode: "order-a", orderStatus: "SUCCESS", currencyCode: "TRY", price: "4790.40",
@@ -98,9 +99,14 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
         cancellations++;
         subscriptionStatus = "CANCELED";
         return Response.json({ status: "success" });
-      case "/v2/subscription/subscriptions/sub":
-        return Response.json({ status: "success", data: { referenceCode: "sub", customerReferenceCode: "customer",
-          pricingPlanReferenceCode: "plan-ey", subscriptionStatus, orders } });
+      case "/v2/subscription/subscriptions/sub": {
+        const subscription = { referenceCode: "sub", customerReferenceCode: "customer",
+          pricingPlanReferenceCode: "plan-ey", subscriptionStatus, orders };
+        const unrelated = { ...subscription, referenceCode: "other-sub" };
+        const items = detailShape === "missing" ? [unrelated] : [unrelated, subscription];
+        if (detailShape === "duplicate") items.push(subscription);
+        return Response.json({ status: "success", data: detailShape === "direct" ? subscription : { items } });
+      }
       default: throw new Error("Unexpected iyzico path: " + url.pathname);
     }
   });
@@ -129,6 +135,11 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await confirm("checkout-token", 422);
   assert.equal((await call(null, 200)).subscription.state, "checkout");
   formOk = true;
+  await confirm("checkout-token", 502);
+  detailShape = "duplicate";
+  await confirm("checkout-token", 502);
+  assert.equal((await call(null, 200)).tier, "free");
+  detailShape = "list";
   await confirm("checkout-token", 303);
   await confirm("checkout-token", 303);
   assert.equal((await call(null, 200)).tier, "esnaf");
@@ -143,6 +154,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     }) });
     assert.equal(response.status, status);
   };
+  detailShape = "direct";
   subscriptionStatus = "UNPAID";
   orders = [{ ...paidPeriod, referenceCode: "order-next", orderStatus: "FAILED" }];
   await notify("failure", 403, { valid: false });
