@@ -372,7 +372,10 @@ export function actions(view, state) {
     case "overview": return addSale;
     case "sales": return (state.manager ? button("CSV içe aktar", "import-sales") : "") + addSale;
     case "purchases": return primary("+ Satın alma", "new-order");
-    case "products": return state.manager ? primary("+ Ürün ekle", "edit-product") : "";
+case "products": return state.manager
+  ? button("Toplu Ürün Ekle", "import-products") +
+    primary("+ Ürün ekle", "edit-product")
+  : "";
     case "transfers": return state.manager ? primary("+ Transfer oluştur", "create-transfer") : "";
     case "customers": return primary("+ Müşteri ekle", "edit-customer");
     case "finance": return primary("+ Gelir / gider", "add-cash");
