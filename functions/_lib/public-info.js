@@ -1,3 +1,4 @@
+import { accountMailReady } from "./account-mail.js";
 import { isPreviewRequest } from "./http.js";
 import { recoveryOrigin } from "./recovery.js";
 
@@ -9,12 +10,14 @@ export function publicInfo(env, request) {
   const serviceAddress = env.OLVEX_SERVICE_ADDRESS?.trim();
   const configured = Boolean(operator && serviceAddress && email && /^[\w.+-]+@[\w.-]+\.[a-z]{2,}$/i.test(email));
   const preview = env.OLVEX_SIGNUPS === "preview" && isPreviewRequest(env, request);
+  const mailEnabled = Boolean(accountMailReady(env) && recoveryOrigin(env));
   return {
-    registrationOpen: preview || (env.OLVEX_SIGNUPS === "open" && configured),
+    registrationOpen: preview || (env.OLVEX_SIGNUPS === "open" && configured && mailEnabled),
+    emailVerificationRequired: !preview,
     termsVersion: TERMS_VERSION,
     operator: configured ? operator : null,
     serviceAddress: configured ? serviceAddress : null,
     email: configured ? email : null,
-    passwordResetEnabled: Boolean(env.RESEND_API_KEY && env.OLVEX_FROM_EMAIL && recoveryOrigin(env))
+    passwordResetEnabled: mailEnabled
   };
 }

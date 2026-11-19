@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#090b12">
 <title>Ücretsiz Hesap Oluştur | OLVEX</title>
 <meta name="description" content="OLVEX ile işletmenizi tek merkezden yönetmeye başlayın.">
@@ -31,12 +32,12 @@
 
     <section class="panel" aria-labelledby="form-title">
    <h1 id="form-title">Hesabınızı oluşturun.</h1>
-   <p class="subtitle">Başlamak için birkaç bilgi yeterli.</p>
+   <p class="subtitle">Kayıt seçenekleri yükleniyor…</p>
 
-   <form method="post" id="registerForm">
+   <form method="post" id="registerForm" hidden>
     <div class="field">
      <label for="name">Ad soyad</label>
-     <input id="name" name="name" type="text" placeholder="Adınız ve soyadınız" autocomplete="name" required maxlength="100">
+     <input id="name" name="name" type="text" placeholder="Adınız ve soyadınız" autocomplete="name" required minlength="2" maxlength="100">
     </div>
 
     <div class="field">
@@ -65,8 +66,9 @@
     <p class="hint"><a href="/privacy.html" target="_blank" rel="noopener">KVKK aydınlatma metnini</a> okuyun.</p>
 
     <button class="submit" disabled type="submit">Ücretsiz Hesap Oluştur</button>
-    <div class="message error" id="message" role="alert" hidden></div>
    </form>
+   <div class="message" id="message" role="status" aria-live="polite" hidden></div>
+   <p id="restart" class="hint" hidden><a href="/register.html">Yeni doğrulama bağlantısı isteyin</a></p>
 
    <div id="closed-registration" hidden>
     <p>Mevcut hesabınızla giriş yapabilir veya örnek işletmeyi inceleyebilirsiniz.</p>

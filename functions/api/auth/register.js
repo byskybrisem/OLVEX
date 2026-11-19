@@ -1,29 +1,34 @@
 import { clientIp, handle, HttpError, json, readJson, sameOrigin } from "../../_lib/http.js";
-import { newPassword, passwordHash } from "../../_lib/password.js";
-import { publicInfo, TERMS_VERSION } from "../../_lib/public-info.js";
-import { email, text } from "../../_lib/validate.js";
+import { publicInfo } from "../../_lib/public-info.js";
+import { createSignup, sendSignupLink, signupDetails } from "../../_lib/signup.js";
+import { email } from "../../_lib/validate.js";
 import { isRateLimited } from "./rate-limit.js";
 
 export const onRequestPost = handle(async ({ request, env }) => {
   sameOrigin(request);
-  if (!publicInfo(env, request).registrationOpen) throw new HttpError(403, "Yeni hesap kaydı şu anda kapalı.");
+  const info = publicInfo(env, request);
+  if (!info.registrationOpen) throw new HttpError(403, "Yeni hesap kaydı şu anda kapalı.");
   const data = await readJson(request, 4096);
-  if (data.termsVersion !== TERMS_VERSION || data.acceptedTerms !== true) {
-    throw new HttpError(400, "Güncel kullanım şartlarını okuyup kabul edin.");
-  }
-  const name = text(data.fullName, "Ad soyad", { min: 2, max: 100 });
-  const address = email(data.email);
-  const password = newPassword(data.password);
-  if (await isRateLimited(env.DB, `register:${clientIp(request)}`, 5, 3600)) {
+  if (data.action !== undefined && data.action !== "confirm") throw new HttpError(400, "Kayıt işlemi geçersiz.");
+  const confirm = data.action === "confirm";
+  const details = confirm || !info.emailVerificationRequired ? signupDetails(data) : null;
+  const address = confirm ? null : email(data.email);
+  const counter = confirm ? "signup-confirm" : "register";
+  if (await isRateLimited(env.DB, `${counter}:${clientIp(request)}`, confirm ? 15 : 5, 3600)) {
     throw new HttpError(429, "Çok fazla kayıt denemesi. Biraz sonra tekrar deneyin.", { "Retry-After": "3600" });
   }
-  const id = crypto.randomUUID();
-  await env.DB.batch([
-    env.DB.prepare(`INSERT INTO users (id, email, full_name, password_hash) VALUES (?, ?, ?, ?)
-      ON CONFLICT(email COLLATE NOCASE) DO NOTHING`)
-      .bind(id, address, name, await passwordHash(password)),
-    env.DB.prepare(`INSERT INTO olvex_terms_acceptances (user_id, version)
-      SELECT id, ? FROM users WHERE id = ?`).bind(TERMS_VERSION, id)
-  ]);
+  if (confirm) {
+    if (!info.emailVerificationRequired || !data.token) throw new HttpError(400, "Doğrulama bağlantısı geçersiz.");
+    await createSignup(env.DB, details, null, data.token);
+  } else {
+    if (info.emailVerificationRequired) {
+      if (await isRateLimited(env.DB, `signup-mail:${address}`, 3, 1800)) {
+        throw new HttpError(429, "Doğrulama bağlantısı istemek için lütfen daha sonra tekrar deneyin.", { "Retry-After": "1800" });
+      }
+      await sendSignupLink(env, address, data.joining === true);
+      return json({ verificationRequested: true }, 202);
+    }
+    await createSignup(env.DB, details, address);
+  }
   return json({ success: true }, 202);
 });

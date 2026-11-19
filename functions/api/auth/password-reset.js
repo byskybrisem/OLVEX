@@ -3,6 +3,7 @@ import { newPassword, passwordHash } from "../../_lib/password.js";
 import { randomToken, sha256, TOKEN_PATTERN } from "../../_lib/session.js";
 import { email, choice } from "../../_lib/validate.js";
 import { isRateLimited } from "./rate-limit.js";
+import { accountMailReady, sendAccountMail } from "../../_lib/account-mail.js";
 import { recoveryOrigin } from "../../_lib/recovery.js";
 
 async function sendReset(env, user, origin) {
@@ -17,18 +18,10 @@ async function sendReset(env, user, origin) {
 
   const url = new URL("/forgot-password.html", origin);
   url.hash = token;
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: env.OLVEX_FROM_EMAIL,
-      to: [user.email],
-      subject: "OLVEX şifre sıfırlama",
-      text: `OLVEX şifrenizi sıfırlama bağlantısı (30 dakika geçerli):\n${url.href}\n\nBu isteği siz göndermediyseniz e-postayı yok sayabilirsiniz.`
-    }),
-    signal: AbortSignal.timeout(10000)
-  });
-  if (!response.ok) {
+  try {
+    await sendAccountMail(env, user.email, "OLVEX şifre sıfırlama",
+      `OLVEX şifrenizi sıfırlama bağlantısı (30 dakika geçerli):\n${url.href}\n\nBu isteği siz göndermediyseniz e-postayı yok sayabilirsiniz.`);
+  } catch {
     await env.DB.prepare("DELETE FROM olvex_password_resets WHERE token_hash = ?").bind(hash).run();
     throw new Error("E-posta sağlayıcısı isteği reddetti.");
   }
@@ -45,7 +38,7 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
 
   if (action === "request") {
     const origin = recoveryOrigin(env);
-    if (!env.RESEND_API_KEY || !env.OLVEX_FROM_EMAIL || !origin) {
+    if (!accountMailReady(env) || !origin) {
       throw new HttpError(503, "Şifre sıfırlama e-postası şu anda kullanılamıyor.");
     }
     const address = email(data.email);

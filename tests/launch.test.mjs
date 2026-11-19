@@ -17,9 +17,13 @@ test("kayıt yalnızca doğru ortam, yayın anahtarı ve yayımlanabilir iletiş
   assert.equal(info({ OLVEX_SIGNUPS: "preview" }, "http://localhost:8080").registrationOpen, true);
   assert.equal(info({ OLVEX_SIGNUPS: "preview" }, "https://test.olvex.pages.dev").registrationOpen, false);
   assert.equal(info(contact).registrationOpen, false);
-  assert.equal(info({ OLVEX_SIGNUPS: "open", ...contact }).registrationOpen, true);
+  assert.equal(info({ OLVEX_SIGNUPS: "open", ...contact }).registrationOpen, false);
+  const mail = { RESEND_API_KEY: "fixture", OLVEX_FROM_EMAIL: "account@example.test" };
+  assert.equal(info({ ...mail, ...contact, OLVEX_SIGNUPS: "open" }).registrationOpen, true);
+  assert.equal(info({ ...mail, ...contact, OLVEX_SIGNUPS: "open" }).emailVerificationRequired, true);
+  assert.equal(info({ ...mail, ...contact, OLVEX_PUBLIC_ORIGIN: "http://example.test", OLVEX_SIGNUPS: "open" }).registrationOpen, false);
   for (const field of Object.keys(contact)) {
-    assert.equal(info({ ...contact, [field]: "", OLVEX_SIGNUPS: "open" }).registrationOpen, false);
+    assert.equal(info({ ...contact, ...mail, [field]: "", OLVEX_SIGNUPS: "open" }).registrationOpen, false);
   }
 });
 
