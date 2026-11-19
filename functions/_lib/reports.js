@@ -163,7 +163,8 @@ export async function insights(ctx) {
   ]);
   return {
     from: start, to: end, totals: current.totals, previousSales: previous.totals.sales,
-    lowStock: current.lowStock.map(({ sku, name, stock, reorder_at }) => ({ sku, name, stock, reorder_at })),
+    lowStock: current.lowStock.map(({ branch_name, sku, name, stock, total_stock, reorder_at }) =>
+      ({ branch_name, sku, name, stock, total_stock, reorder_at })),
     lowStockCount: current.lowStock[0]?.total ?? 0, unpaid: current.unpaid
   };
 }
