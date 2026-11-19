@@ -67,7 +67,7 @@ export async function sendAccountMail(env, to, subject, text, flow) {
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: cloudflare ? to : [to], subject, text }),
       signal,
-      redirect: "error"
+      redirect: "manual"
     });
   } catch (error) {
     fail(signal.aborted || error?.name === "TimeoutError" ? "timeout" : "network_error");
