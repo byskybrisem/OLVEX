@@ -97,16 +97,18 @@ export async function stockAdjustment(ctx, body) {
 export function orders(ctx, kind) {
   const query = searchTerm(ctx.paramsUrl.get("q"));
   const manager = MANAGERS.includes(ctx.role);
-  return list(ctx, `SELECT o.id, o.branch_id, b.name AS branch_name, o.source, o.reference, o.revision,
+  return list(ctx, `SELECT o.id, o.branch_id, b.name AS branch_name, r.name AS register_name, o.source, o.reference, o.revision,
       o.occurred_on, o.paid_on, o.status, o.note, o.supplier, o.voided_on, c.name AS customer,
-      o.source = 'csv' AND o.source_key = '' AND NOT EXISTS (SELECT 1 FROM olvex_csv_receipt_matches m
-        WHERE m.business_id = o.business_id AND m.order_id = o.id AND m.decision = 'same') AS can_link_csv,
+      o.source = 'csv' AND o.source_key = '' AND m.register_id IS NULL AS can_link_csv,
       SUM(i.quantity) = 0 AS fully_returned, COALESCE(SUM(i.quantity * i.unit_minor), 0) AS total_minor,
       json_group_array(json_object(${manager && kind === "sale" ? "'id', i.id, " : ""}'sku', i.product_sku,
         'name', i.product_name, 'quantity', i.quantity, 'sold', i.gross_quantity, 'returned', i.gross_quantity - i.quantity,
         'unit', i.unit_minor${manager ? ", 'cost', i.cost_minor" : ""})) AS items_json
     FROM olvex_orders o JOIN olvex_net_order_items i ON i.business_id = o.business_id AND i.order_id = o.id
     JOIN olvex_branches b ON b.business_id = o.business_id AND b.id = o.branch_id
+    LEFT JOIN olvex_csv_receipt_matches m ON m.business_id = o.business_id AND m.order_id = o.id AND m.decision = 'same'
+    LEFT JOIN olvex_pos_connections r ON r.business_id = o.business_id
+      AND r.id = CASE WHEN o.source = 'pos' THEN o.source_key ELSE m.register_id END
     LEFT JOIN olvex_customers c ON c.business_id = o.business_id AND c.id = o.customer_id
     WHERE o.business_id = ? AND o.kind = ?
       AND (? = 0 OR (o.status = 'posted' AND o.paid_on IS NULL AND EXISTS (

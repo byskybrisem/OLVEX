@@ -336,8 +336,10 @@ try {
   await navigate(page, "sales", "Satışlar");
   const tillRow = page.getByRole("row").filter({ hasText: "ISKELE-33" });
   await tillRow.getByText("Kısmi iade", { exact: true }).waitFor();
+  assert.match(await tillRow.innerText(), /Örnek kasa/);
   assert.equal(await tillRow.getByRole("button", { name: "Düzenle", exact: true }).count(), 0);
   await tillRow.getByRole("button", { name: "Ayrıntı" }).click();
+  await dialog(page).getByText("Kasa · Örnek kasa", { exact: true }).waitFor();
   const returnedLine = dialog(page).getByRole("row").filter({ hasText: "KAHVE-01" });
   assert.equal(await returnedLine.locator('[data-label="Satılan"]').innerText(), "2");
   assert.equal(await returnedLine.locator('[data-label="İade"]').innerText(), "1");

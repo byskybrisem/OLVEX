@@ -506,6 +506,9 @@ test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi
   await post("N", receipt, 201);
   await post("M", receipt, 409);
   await owner.mutate(business, "pos", "link-csv", { registerId: first.id, reference, decision: "same", evidence });
+  const legacySale = (await owner.read(business, "sales")).rows.find(row => row.id === original);
+  assert.equal(legacySale.register_name, "İlk kasa");
+  assert.equal(legacySale.can_link_csv, 0);
   const replay = await post("M", receipt, 200);
   assert.equal(replay.data.id, original);
   assert.equal(replay.data.repeated, true);
@@ -567,7 +570,9 @@ test("farklı şubelerin kasalarında aynı fiş, CSV/POS tekrarı ve transfer a
     { success: true, id: fromCsv.id, repeated: true });
   assert.deepEqual(await importAt(coastRegister.id), { success: true, id: fromPos.id, repeated: true });
   assert.deepEqual(await Promise.all([branchStock(center), branchStock(coast)]), [4, 2]);
-  assert.equal((await owner.read(business, "sales")).rows.length, 2);
+  const { rows: sales } = await owner.read(business, "sales");
+  assert.deepEqual(new Map(sales.map(row => [row.id, row.register_name])),
+    new Map([[fromCsv.id, "Merkez kasa"], [fromPos.id, "Sahil kasa"]]));
 
   const refund = { action: "return", reference: "I-42", saleReference: receipt.reference, date: todayDate,
     lines: [{ sku: "KASA-ÜRÜN", quantity: 1 }] };

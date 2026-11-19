@@ -90,7 +90,7 @@ function orderList(data, state, purchase) {
       badge(purchase ? "Ödendi" : "Tahsil edildi", "ok") : badge(purchase ? "Ödeme bekliyor" : "Tahsilat bekliyor", "warn");
     return [
       h(day(row.occurred_on)),
-      rowName(party, [row.reference, row.branch_name, sources[row.source]].filter(Boolean).join(" · ")),
+      rowName(party, [row.reference, row.branch_name, row.register_name, sources[row.source]].filter(Boolean).join(" · ")),
       h(money(row.total_minor)), status + (active && hasReturn && !fullyReturned ? badge("Kısmi iade") : ""),
       group(button("Ayrıntı", "order-detail", { id: row.id, kind: "small" }) +
         (row.can_link_csv && state.manager && !state.demo ? button("Eski fişi karşılaştır", "link-csv", { id: row.id, kind: "small" }) : "") +
