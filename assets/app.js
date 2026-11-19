@@ -378,7 +378,8 @@ function command(event) {
   const rows = [...(data?.rows || []), ...(data?.members || []), ...(data?.invites || []), ...(data?.proposals || [])];
   const row = id ? rows.find((item) => item.id === id) : undefined;
   switch (cmd) {
-    case "retry": return load();
+    case "retry":
+    case "refresh-pos": return load();
     case "open-receivables":
       Object.assign(viewFilter("sales"), {unpaid: true, q: "", page: 1});
       location.hash = "#sales";

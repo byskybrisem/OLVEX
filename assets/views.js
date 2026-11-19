@@ -386,7 +386,7 @@ export function actions(view, state) {
     case "settings": return state.business.role === "owner"
       ? button("İşletme adını düzenle", "rename-business") + primary("+ Ekip daveti", "invite")
       : "";
-    case "pos": return link("Şubeler", "#locations") + button("Durumu yenile", "retry") + primary("+ Bağlantı oluştur", "create-pos");
+    case "pos": return link("Şubeler", "#locations") + button("Durumu yenile", "refresh-pos") + primary("+ Bağlantı oluştur", "create-pos");
     default: return "";
   }
 }
