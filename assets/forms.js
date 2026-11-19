@@ -61,6 +61,30 @@ function stock(ctx, row) {
   });
 }
 
+function transfer(ctx) {
+  saveForm(ctx, {
+    title: "Stok transferi", section: "transfers", action: "create", label: "Transferi kaydet",
+    html: fields(lookupField("Kaynak şube", "sourceBranchId", "Çıkış şubesini seçin", true),
+      lookupField("Hedef şube", "destinationBranchId", "Giriş şubesini seçin", true)) +
+      lookupField("Ürün", "productId", "Ürün seçin", true) +
+      fields(intField("Transfer adedi", "quantity", 1), field("Transfer tarihi", "date", today(), {
+        type: "date", extra: `max="${today()}"`
+      })) + note("Açıklama", "note"),
+    init: root => {
+      for (const name of ["sourceBranchId", "destinationBranchId"]) {
+        lookup(ctx, root, { section: "locations", field: name, label: "şube", labelFor: row => row.name });
+      }
+      lookup(ctx, root, { section: "catalog", field: "productId", label: "ürün", labelFor: row => row.name + " · " + row.sku });
+    },
+    fields: form => ({
+      sourceBranchId: form.get("sourceBranchId"), destinationBranchId: form.get("destinationBranchId"),
+      productId: form.get("productId"), quantity: readInt(form, "quantity", "Transfer adedi"),
+      date: form.get("date"), note: form.get("note")
+    }),
+    message: "Stok transferi kaydedildi."
+  });
+}
+
 function customer(ctx, row = {}) {
   saveForm(ctx, {
     title: row.id ? "Müşteriyi düzenle" : "Müşteri ekle", section: "customers",
@@ -290,6 +314,7 @@ export function formCommand(ctx, cmd, row, id) {
   switch (cmd) {
     case "edit-product": return product(ctx, row);
     case "adjust-stock": return stock(ctx, row);
+    case "create-transfer": return transfer(ctx);
     case "archive-product": return archive(ctx, row, "products", "Ürün");
     case "edit-customer": return customer(ctx, row);
     case "archive-customer": return archive(ctx, row, "customers", "Müşteri");
@@ -337,7 +362,7 @@ export function formCommand(ctx, cmd, row, id) {
     });
     case "apply-proposal": return confirm(ctx, {
       title: "OLVEX AI işlemi onayı", message: proposalLabel(row),
-      section: "ai", action: "apply", data: { id }, label: "Onayla ve uygula"
+      section: "ai", action: "apply", data: { id, ...(row.kind === "stock" && { branchId: row.branchId }) }, label: "Onayla ve uygula"
     });
     case "discard-proposal": return confirm(ctx, {
       title: "OLVEX AI taslağı reddedilsin mi?", message: proposalLabel(row),
