@@ -103,6 +103,7 @@ export function mountAI(container, ctx, mode, actorId) {
   const status = message => { feedback.textContent = message || ""; };
   const atBottom = () => scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 72;
   function render(jump = false) {
+    const scrollTop = scroll.scrollTop;
     $("[data-ai-title]").textContent = chat ? `${chat.title} · ${chat.branch_name || "Tüm işletme"}` : "";
     $(".ai-welcome").hidden = turns.length > 0;
     $(".ai-log").innerHTML = (before
@@ -113,9 +114,9 @@ export function mountAI(container, ctx, mode, actorId) {
     });
     if (composer) {
       composer.querySelector("[type=submit]").disabled = busy || switching || Boolean(outbox);
-      selection.disabled = busy || switching;
+      selection.disabled = busy || switching || Boolean(outbox);
     }
-    if (jump) scroll.scrollTop = scroll.scrollHeight;
+    scroll.scrollTop = jump ? scroll.scrollHeight : scrollTop;
   }
 
   function setBranch(id, name) {
@@ -199,7 +200,6 @@ export function mountAI(container, ctx, mode, actorId) {
       errorText = errorMessage(error);
     }
     if (!root.isConnected) return;
-    const follow = atBottom();
     const loaded = await openChat(payload.id);
     const saved = loaded && turns.find(turn => turn.requestId === payload.requestId);
     if (saved?.state === "complete" || saved?.state === "failed") {
@@ -213,7 +213,7 @@ export function mountAI(container, ctx, mode, actorId) {
     }
     busy = false;
     status(saved?.state === "complete" ? "Yanıt hazır." : errorText);
-    render(follow);
+    render(loaded?.follow);
     if (needsBranch && selection && !composer.elements.prompt.value) {
       composer.elements.prompt.value = payload.prompt;
       selection.focus({ preventScroll: true });
