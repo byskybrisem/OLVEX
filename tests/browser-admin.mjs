@@ -59,7 +59,7 @@ try {
   await dialog.waitFor({state:"hidden"});
   await page.locator('#admin-content[aria-busy="false"]').waitFor();
   await page.getByText("Yönetici arayüz testi").waitFor();
-  assert.ok(await page.getByText("₺1.250,50").count()>=1 || await page.getByText("1.250,50 ₺").count()>=1);
+  assert.match(await page.locator("#admin-content").innerText(), /1\.250,50/);
   if(snapshots)await page.screenshot({path:join(snapshots,"admin-mobile-finance.png"),fullPage:true,animations:"disabled"});
   page.once("dialog",modal=>modal.accept());
   await page.locator('button[data-void-id]').click();
