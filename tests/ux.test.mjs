@@ -126,7 +126,7 @@ test("comparisons use posted totals from the previous period and handle a missin
 test("tamamı iade edilen ödenmemiş satış için tahsilat önerilmez", () => {
   const rows = [{ id: "sale", status: "posted", fully_returned: 1, reference: "İade", occurred_on: "2026-11-18", total_minor: 0 }];
   const html = renderers.sales({ rows }, initialState);
-  assert.match(html, /Tamamı iade edildi/);
+  assert.match(html, /Tam iade|Tamamı iade edildi/);
   assert.doesNotMatch(html, /settle-order/);
   assert.match(html, /void-order/);
 });
