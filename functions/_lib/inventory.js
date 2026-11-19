@@ -25,7 +25,7 @@ export async function stockHistory(ctx) {
   const branch = ctx.paramsUrl.get("branchId");
   const branchId = branch == null ? null : await resolveBranch(ctx, branch);
   const query = searchTerm(ctx.paramsUrl.get("q"));
-  return list(ctx, `SELECT m.id, m.kind, m.delta, m.note, m.created_at, m.branch_id, b.name AS branch_name, p.name, p.sku
+  return list(ctx, `SELECT m.id, m.kind, m.transfer_id, m.delta, m.note, m.created_at, m.branch_id, b.name AS branch_name, p.name, p.sku
     FROM olvex_stock_movements m JOIN olvex_products p
       ON p.business_id = m.business_id AND p.id = m.product_id
     JOIN olvex_branches b ON b.id = m.branch_id AND b.business_id = m.business_id
@@ -95,12 +95,14 @@ export async function stockAdjustment(ctx, body) {
 export function orders(ctx, kind) {
   const query = searchTerm(ctx.paramsUrl.get("q"));
   const manager = MANAGERS.includes(ctx.role);
-  return list(ctx, `SELECT o.id, o.branch_id, o.source, o.reference, o.occurred_on, o.paid_on, o.status,
-      o.note, o.supplier, o.voided_on, c.name AS customer, COALESCE(SUM(i.quantity * i.unit_minor), 0) AS total_minor,
+  return list(ctx, `SELECT o.id, o.branch_id, b.name AS branch_name, o.source, o.reference, o.occurred_on, o.paid_on, o.status,
+      o.note, o.supplier, o.voided_on, c.name AS customer, SUM(i.quantity) = 0 AS fully_returned,
+      COALESCE(SUM(i.quantity * i.unit_minor), 0) AS total_minor,
       json_group_array(json_object('sku', i.product_sku, 'name', i.product_name, 'quantity', i.quantity,
         'sold', i.gross_quantity, 'returned', i.gross_quantity - i.quantity,
         'unit', i.unit_minor${manager ? ", 'cost', i.cost_minor" : ""})) AS items_json
     FROM olvex_orders o JOIN olvex_net_order_items i ON i.business_id = o.business_id AND i.order_id = o.id
+    JOIN olvex_branches b ON b.business_id = o.business_id AND b.id = o.branch_id
     LEFT JOIN olvex_customers c ON c.business_id = o.business_id AND c.id = o.customer_id
     WHERE o.business_id = ? AND o.kind = ?
       AND (? = 0 OR (o.status = 'posted' AND o.paid_on IS NULL AND EXISTS (
@@ -123,6 +125,7 @@ const lineSql = `
 
 export async function createOrder(ctx, body, kind, source = "manual") {
   const { db, businessId, actorId, pos } = ctx;
+  if (body.paid !== undefined && typeof body.paid !== "boolean") throw new HttpError(400, "Ödeme durumu geçersiz.");
   if (!Array.isArray(body.lines) || !body.lines.length || body.lines.length > MAX_LINES) {
     throw new HttpError(400, `1 ile ${MAX_LINES} arasında ürün satırı girin.`);
   }
@@ -158,8 +161,18 @@ export async function createOrder(ctx, body, kind, source = "manual") {
     ...items.map((item) => db.prepare(lineSql)
       .bind(businessId, crypto.randomUUID(), requestId, item.quantity, item.unit, kind, kind, item.unit, businessId, item.sku))
   ];
+  let guard = customerId ? rowExists("olvex_customers", customerId, "AND active = 1") : undefined;
+  if (source === "manual" && body.branchId == null) {
+    const customerGuard = guard;
+    guard = {
+      sql: `NOT EXISTS (SELECT 1 FROM olvex_branches WHERE business_id = ? AND id <> ?)
+        ${customerGuard ? "AND " + customerGuard.sql : ""}`,
+      values: id => [id, branchId, ...(customerGuard ? customerGuard.values(id) : [])],
+      message: "Birden çok şubeli işletmede işlem şubesini seçin ve müşteri kaydını kontrol edin."
+    };
+  }
   try {
-    return await transact(ctx, `${kind}-create`, data, statements, customerId ? rowExists("olvex_customers", customerId, "AND active = 1") : undefined);
+    return await transact(ctx, `${kind}-create`, data, statements, guard);
   } catch (error) {
     if (pos && error.message?.includes("olvex_csv_history")) return replayLegacyCsv(ctx, data);
     throw error;
@@ -193,20 +206,29 @@ export function settleOrder(ctx, body, kind) {
   const paidOn = date(body.date, "Ödeme tarihi");
   if (paidOn > today()) throw new HttpError(400, "Ödeme tarihi bugünden ileri olamaz.");
   const guard = rowExists("olvex_orders", id,
-    `AND kind = ? AND status = 'posted' AND paid_on IS NULL AND occurred_on <= ? AND ${afterReturns}`, kind, paidOn, paidOn);
-  guard.message = "Ödenmemiş bir işlem seçin. Ödeme tarihi satış veya kayıtlı iade tarihinden önce olamaz.";
+    `AND kind = ? AND status = 'posted' AND paid_on IS NULL AND occurred_on <= ? AND ${afterReturns}
+      AND EXISTS (SELECT 1 FROM olvex_net_order_items i WHERE i.business_id = olvex_orders.business_id
+        AND i.order_id = olvex_orders.id AND i.quantity > 0)`, kind, paidOn, paidOn);
+  guard.message = "Ödenmemiş ve tamamı iade edilmemiş bir işlem seçin. Ödeme tarihi işlem veya kayıtlı iade tarihinden önce olamaz.";
   return transact(ctx, `${kind}-settle`, { requestId: body.requestId, id, paidOn }, [
     ctx.db.prepare("UPDATE olvex_orders SET paid_on = ? WHERE business_id = ? AND id = ?")
       .bind(paidOn, ctx.businessId, id)
   ], guard);
 }
 
-export function catalog(ctx) {
+export async function catalog(ctx) {
   const query = searchTerm(ctx.paramsUrl.get("q"));
   if (ctx.paramsUrl.get("type") === "customers") {
     return list(ctx, `SELECT id, name, email FROM olvex_customers WHERE business_id = ? AND active = 1
       AND (name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\') ORDER BY name, id LIMIT ? OFFSET ?`, [query, query]);
   }
-  return list(ctx, `SELECT id, name, sku, price_minor, stock FROM olvex_products WHERE business_id = ? AND active = 1
-    AND (name LIKE ? ESCAPE '\\' OR sku LIKE ? ESCAPE '\\') ORDER BY sku LIMIT ? OFFSET ?`, [query, query]);
+  const branch = ctx.paramsUrl.get("branchId");
+  const branchId = branch == null ? null : await resolveBranch(ctx, branch);
+  return list(ctx, `WITH scope(business_id, branch_id) AS (VALUES (?, ?))
+    SELECT p.id, p.name, p.sku, p.price_minor,
+      CASE WHEN scope.branch_id IS NULL THEN p.stock ELSE COALESCE(s.stock, 0) END AS stock
+    FROM scope JOIN olvex_products p ON p.business_id = scope.business_id
+    LEFT JOIN olvex_branch_stock s ON s.business_id = p.business_id AND s.product_id = p.id AND s.branch_id = scope.branch_id
+    WHERE p.active = 1 AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\')
+    ORDER BY p.sku LIMIT ? OFFSET ?`, [branchId, query, query]);
 }

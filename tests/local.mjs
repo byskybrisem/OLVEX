@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { appendFile, cp, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { get as httpsGet } from "node:https";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -26,7 +26,8 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
   const dir = await mkdtemp(join(tmpdir(), "olvex-test-"));
   const dbId = crypto.randomUUID();
   const config = join(dir, "wrangler.test.toml");
-  const storage = join(dir, "local-data");
+  // Local D1 export reads Wrangler's default persistence directory.
+  const storage = join(dir, ".wrangler", "state");
   const testEnv = {
     OLVEX_SIGNUPS: registration,
     OLVEX_AI_MODE: "mock",
@@ -43,26 +44,49 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
   }
 
   async function wrangler(...args) {
-    const timeout = args[1] === "migrations" ? 120_000 : 30_000;
-    return run(process.execPath, [cli, ...args], { cwd: dir, env: environment, timeout });
+    return run(process.execPath, [cli, ...args], { cwd: dir, env: environment, timeout: 120_000 });
   }
 
   try {
-    const assets = ["_headers", "_routes.json", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
+    const assets = ["_headers", "_routes.json", "sitemap.xml", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
       "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts", "scene"];
-    await Promise.all([...assets, "functions", "migrations"].map((name) =>
+    await Promise.all([...assets, "functions", ...(legacyWorkspaceSeed ? [] : ["migrations"])].map((name) =>
       cp(join(root, name), join(dir, name), { recursive: true })));
-    if (legacyWorkspaceSeed) await appendFile(join(dir, "migrations", "0002_workspace.sql"), "\n" + legacyWorkspaceSeed);
     await symlink(join(root, "node_modules"), join(dir, "node_modules"), "dir");
     await run(process.execPath, ["scripts/build.mjs"], { cwd: dir, env: environment });
     await writeFile(config, `name = "olvex-test"\ncompatibility_date = "2025-10-01"\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "olvex-test"\ndatabase_id = "${dbId}"\nmigrations_dir = "migrations"\n`);
-    const dbArgs = ["DB", "--local", "--config", config, "--persist-to", storage];
-    await wrangler("d1", "migrations", "apply", ...dbArgs);
-    if (seed) {
+    const dbArgs = (path = storage) => ["DB", "--local", "--config", config, "--persist-to", path];
+    const migrate = () => wrangler("d1", "migrations", "apply", ...dbArgs());
+    const replayFile = (name) => wrangler("d1", "execute", ...dbArgs(), "--file", join(dir, "migrations", name));
+    const query = async (sql, path = storage) => {
+      const { stdout } = await wrangler("d1", "execute", ...dbArgs(path), "--command", sql, "--json");
+      return JSON.parse(stdout).map((statement) => statement.results);
+    };
+    const applyFixture = async (sql) => {
       const fixture = join(dir, "fixture.sql");
-      await writeFile(fixture, seed);
-      await wrangler("d1", "execute", ...dbArgs, "--file", fixture);
+      await writeFile(fixture, sql);
+      await wrangler("d1", "execute", ...dbArgs(), "--file", fixture);
+    };
+
+    let restoredQuery;
+    if (legacyWorkspaceSeed) {
+      const migrations = join(dir, "migrations");
+      // Install the last production schema, then exercise the upgrade on genuine old rows.
+      await mkdir(migrations);
+      for (const filename of ["0001_auth.sql", "0002_workspace.sql"]) {
+        await cp(join(root, "migrations", filename), join(migrations, filename));
+      }
+      await migrate();
+      await applyFixture(legacyWorkspaceSeed);
+      const backup = join(dir, "pre-upgrade.sql");
+      await wrangler("d1", "export", "DB", "--local", "--config", config, "--output", backup);
+      const restore = join(dir, "isolated-restore");
+      await wrangler("d1", "execute", ...dbArgs(restore), "--file", backup);
+      restoredQuery = (sql) => query(sql, restore);
+      await cp(join(root, "migrations"), migrations, { recursive: true });
     }
+    await migrate();
+    if (seed) await applyFixture(seed);
 
     const port = await openPort();
     const protocol = https ? "https" : "http";
@@ -75,7 +99,8 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
     worker.stdout.on("data", (chunk) => { logs = (logs + chunk).slice(-5000); });
     worker.stderr.on("data", (chunk) => { logs = (logs + chunk).slice(-5000); });
 
-    for (let attempt = 0; attempt < 90; attempt++) {
+    const startupDeadline = Date.now() + 90_000;
+    while (Date.now() < startupDeadline) {
       if (worker.exitCode !== null || worker.signalCode !== null) break;
       try {
         const health = url + "/api/health";
@@ -86,11 +111,7 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
           }).on("error", reject);
         }) : (await fetch(health)).ok;
         if (ready) {
-          const query = async (sql) => {
-            const { stdout } = await wrangler("d1", "execute", ...dbArgs, "--command", sql, "--json");
-            return JSON.parse(stdout).map((statement) => statement.results);
-          };
-          return { url, close, query, logs: () => logs };
+          return { url, close, query, migrate, replayFile, restoredQuery, logs: () => logs };
         }
       } catch {}
       await delay(180);

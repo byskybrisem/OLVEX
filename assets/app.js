@@ -1,7 +1,7 @@
 import { bindDrawer, bindModuleSearch } from "./navigation.js";
 import { bindSalesChart } from "./sales-chart.js";
 import { formCommand } from "./forms.js";
-import { customerHistory, importSales, newOrder, orderCommand } from "./orders.js";
+import { customerHistory, importSales, lookup, lookupField, newOrder, orderCommand } from "./orders.js";
 import { actions, renderers, roles, views } from "./views.js";
 import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
 
@@ -205,13 +205,18 @@ async function load() {
     if (tab === "overview") {
       const alerts = [];
       const critical = result.lowStock[0]?.total;
-      if (critical) alerts.push(`<a href="#products">${h(critical)} ürün kritik stokta</a>`);
+      if (critical) alerts.push(`<a href="#stock-alerts">${h(critical)} şube stok uyarısı</a>`);
       if (result.unpaid?.sale > 0) alerts.push(button("Bekleyen tahsilatları aç", "open-receivables", {kind:"small"}));
       $("#alert-items").innerHTML = alerts.join("") || "Stok ve tahsilat uyarısı yok.";
       $("#alerts").classList.toggle("has-alert", alerts.length > 0);
       $("#alerts").hidden = false;
     }
     content.innerHTML = renderers[tab](data, state());
+    const aiBranch = content.querySelector("[data-ai-branch]");
+    if (aiBranch) {
+      aiBranch.innerHTML = lookupField("Stok işleminin şubesi", "branchId", "Stok düzeltmesi için şube seçin");
+      lookup(commandContext(), aiBranch, { section: "locations", field: "branchId", label: "şube", labelFor: row => row.name });
+    }
     
     content.scrollTop = 0;
     const chat = content.querySelector(".chat");
@@ -270,7 +275,8 @@ $("#logout").addEventListener("click", async (event) => {
 });
 
 async function askAI(form) {
-  const prompt = new FormData(form).get("prompt")?.trim();
+  const fields = new FormData(form);
+  const prompt = fields.get("prompt")?.trim();
   if (!prompt) return;
   const context = commandContext();
   const businessId = context.business.id;
@@ -281,11 +287,15 @@ async function askAI(form) {
   submit.textContent = "Yanıt bekleniyor…";
   appNotice();
   try {
-    const result = await context.post("ai", "ask", { messages: messages.slice(-8) });
+    const result = await context.post("ai", "ask", { messages: messages.slice(-8), branchId: fields.get("branchId") || undefined });
     conversations.set(businessId, [...messages, { role: "assistant", content: result.answer }].slice(-20));
     if (view === "ai" && business.id === businessId) {
       await load();
-      content.querySelector("[name=prompt]")?.focus();
+      const nextForm = content.querySelector("#ai-form");
+      if (nextForm && business.id === businessId) {
+        if (result.needsBranch) nextForm.elements.prompt.value = prompt;
+        nextForm.elements[result.needsBranch ? "branchId" : "prompt"].focus();
+      }
     }
   } catch (error) {
     if (view === "ai" && business.id === businessId) appNotice(error.message, true);

@@ -1,15 +1,16 @@
+import { sha256 } from "../../_lib/session.js";
 
-async function hashKey(value) {
-  const data = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-
-  return Array.from(new Uint8Array(digest))
-    .map(byte => byte.toString(16).padStart(2, "0"))
-    .join("");
+// Failed key attempts and successful register traffic have independent budgets.
+export async function reachedRateLimit(db, key, limit, windowSeconds) {
+  const since = Math.floor(Date.now() / 1000) - windowSeconds;
+  const row = await db.prepare(`SELECT 1 FROM auth_rate_limits
+    WHERE key_hash = ? AND window_started_at > ? AND attempts >= ?`)
+    .bind(await sha256(key), since, limit).first();
+  return row !== null;
 }
 
 export async function isRateLimited(db, key, limit, windowSeconds) {
-  const keyHash = await hashKey(key);
+  const keyHash = await sha256(key);
   const now = Math.floor(Date.now() / 1000);
 
   const result = await db.prepare(`
@@ -45,7 +46,7 @@ export async function isRateLimited(db, key, limit, windowSeconds) {
 }
 
 export async function clearRateLimit(db, key) {
-  const keyHash = await hashKey(key);
+  const keyHash = await sha256(key);
 
   await db.prepare(
     "DELETE FROM auth_rate_limits WHERE key_hash = ?"

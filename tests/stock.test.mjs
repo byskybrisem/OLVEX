@@ -7,8 +7,22 @@ import { parseSalesCsv } from "../assets/csv.js";
 
 const baseline = readFileSync(new URL("../migrations/0001_auth.sql", import.meta.url), "utf8");
 const migrationDir = new URL("../migrations/", import.meta.url);
-const workspaceMigrations = readdirSync(migrationDir).filter(name => name.endsWith(".sql") && name > "0001_auth.sql")
-  .sort().map(name => readFileSync(new URL(name, migrationDir), "utf8"));
+const workspaceFiles = readdirSync(migrationDir).filter(name => name.endsWith(".sql") && name > "0001_auth.sql").sort();
+const workspaceMigrations = workspaceFiles.map(name => readFileSync(new URL(name, migrationDir), "utf8"));
+
+const migrationFiles = ["0001_auth.sql", ...workspaceFiles];
+const trackedMigrations = "SELECT name FROM d1_migrations ORDER BY id";
+const fingerprints = `
+  SELECT u.id,u.email,u.password_hash,s.token_hash,s.expires_at,b.name,m.role
+    FROM users u JOIN user_sessions s ON s.user_id=u.id JOIN business_members m ON m.user_id=u.id
+    JOIN businesses b ON b.id=m.business_id ORDER BY u.id;
+  SELECT business_id,id,name,token_hash,created_by FROM olvex_pos_connections ORDER BY business_id,id;
+  SELECT id,sku,price_minor,cost_minor,stock FROM olvex_products ORDER BY id;
+  SELECT id,delta FROM olvex_stock_movements ORDER BY id;
+  SELECT id,reference,source_key,occurred_on,paid_on,status,voided_on FROM olvex_orders ORDER BY id;
+  SELECT id,order_id,product_id,quantity,unit_minor,cost_minor FROM olvex_order_items ORDER BY id;
+  SELECT request_id,action,fingerprint FROM olvex_operations ORDER BY request_id;
+  PRAGMA foreign_key_check;`;
 
 test("mevcut D1 kullanıcıları, işletme üyelikleri ve oturumları korunur", () => {
   const db = new DatabaseSync(":memory:");
@@ -31,6 +45,17 @@ test("mevcut D1 kullanıcıları, işletme üyelikleri ve oturumları korunur", 
   }
 });
 
+test("temiz yerel D1 tüm migrasyonları bir kez uygular, ikinci uygulama boş veriyi korur", async (t) => {
+  const pages = await localPages();
+  t.after(pages.close);
+  const check = `${trackedMigrations}; SELECT COUNT(*) AS n FROM users;
+    SELECT COUNT(*) AS n FROM businesses; SELECT COUNT(*) AS n FROM olvex_orders; PRAGMA foreign_key_check;`;
+  const initial = await pages.query(check);
+  assert.deepEqual(initial, [migrationFiles.map(name => ({ name })), [{ n: 0 }], [{ n: 0 }], [{ n: 0 }], []]);
+  await pages.migrate();
+  assert.deepEqual(await pages.query(check), initial);
+});
+
 test("şube geçişinde eski POS satışları, iptalleri, ödemeleri ve tekrar gönderimleri korunur", async (t) => {
   const register = "6dfea2ae-06bf-4932-86a5-ea7287016358";
   const sale = "5243e66c-5b0e-4598-87ca-951699299ada";
@@ -38,7 +63,7 @@ test("şube geçişinde eski POS satışları, iptalleri, ödemeleri ve tekrar g
   const voidId = "e2b0f906-2151-41f7-8b25-86a733530630";
   // Fixed IDs and fingerprints use the pre-branch API's canonical request format.
   const pages = await localPages({ legacyWorkspaceSeed: `
-    INSERT INTO users(id,email) VALUES ('u','eski@example.test');
+    INSERT INTO users(id,email,password_hash) VALUES ('u','eski@example.test','eski-parola-ozeti');
     INSERT INTO businesses(id,name,created_by) VALUES ('merkez','Merkez','u');
     INSERT INTO business_members(id,business_id,user_id,role) VALUES ('m','merkez','u','owner');
     INSERT INTO user_sessions(id,user_id,token_hash,expires_at) VALUES
@@ -62,6 +87,30 @@ test("şube geçişinde eski POS satışları, iptalleri, ödemeleri ve tekrar g
       ('merkez','u','sale-void','${voidId}','7a79919e9a3ba23f9518c371c719506a90d1f9d699115a74558a89533bdbe9d4');
   ` });
   t.after(pages.close);
+  // The recovery database is a separate, empty D1 persistence root populated solely from the SQL export.
+  const archived = await pages.restoredQuery(fingerprints);
+  assert.deepEqual(archived.map(rows => rows.length), [1, 1, 1, 4, 2, 2, 3, 0]);
+  assert.equal(archived[0][0].password_hash, "eski-parola-ozeti");
+  assert.equal(archived[0][0].role, "owner");
+  assert.equal(archived[2][0].stock, 18);
+  assert.deepEqual(await pages.restoredQuery(trackedMigrations), [[{ name: "0001_auth.sql" }, { name: "0002_workspace.sql" }]]);
+  // Exercise the restored old schema and its live triggers independently of the upgraded source.
+  const [, rollbackProbe] = await pages.restoredQuery(`
+    UPDATE olvex_orders SET status='void', voided_by='u', voided_on='2026-01-12' WHERE business_id='merkez' AND id='${sale}';
+    SELECT stock, (SELECT COUNT(*) FROM olvex_stock_movements) AS movement_count FROM olvex_products WHERE id='p';`);
+  assert.deepEqual(rollbackProbe, [{ stock: 20, movement_count: 5 }]);
+  assert.deepEqual(await pages.query(fingerprints), archived);
+  const postUpgrade = `${trackedMigrations}; SELECT id,is_default FROM olvex_branches ORDER BY id;
+    SELECT business_id,id,branch_id,identity_mode FROM olvex_pos_connections;
+    SELECT business_id,branch_id,product_id,stock FROM olvex_branch_stock;
+    SELECT id,order_id,kind,amount_minor FROM olvex_order_payments ORDER BY id; ${fingerprints}`;
+  const original = await pages.query(postUpgrade);
+  assert.deepEqual(original[0], migrationFiles.map(name => ({ name })));
+  assert.equal(original[2][0].identity_mode, "reconcile");
+  await pages.migrate();
+  assert.deepEqual(await pages.query(postUpgrade), original);
+  await assert.rejects(pages.replayFile("0003_branch_inventory.sql"), /already exists/i);
+  assert.deepEqual(await pages.query(postUpgrade), original);
   const headers = { Cookie: `olvex_session=${"y".repeat(43)}` };
   const session = await fetch(pages.url + "/api/auth/me", { headers });
   assert.equal((await session.json()).user.id, "u");
@@ -78,6 +127,14 @@ test("şube geçişinde eski POS satışları, iptalleri, ödemeleri ve tekrar g
   const receipt = { action: "sale", reference: "FIS-41", date: "2026-01-10", paid: true,
     lines: [{ sku: "KAHVE", quantity: 2, unit: 1250 }] };
   await post("/api/pos", receipt, token, 409);
+  const evidence = "Kapanis-2026-01-10/Kasa-A/Satir-41";
+  await post("/api/pos", { ...receipt, evidence }, token, 409);
+  await post("/api/workspace/merkez/pos", {
+    action: "reconcile", requestId: crypto.randomUUID(), registerId: register,
+    eventKind: "sale", reference: receipt.reference, evidence
+  }, headers, 200);
+  assert.deepEqual(await post("/api/pos", { ...receipt, reference: undefined, evidence }, token, 200),
+    { success: true, id: sale, repeated: true });
   await post("/api/workspace/merkez/pos", {
     action: "identity", requestId: crypto.randomUUID(), id: register, identityMode: "native"
   }, headers, 200);
@@ -217,11 +274,13 @@ test("CSV tarih, Türkçe ondalık fiyat, tırnaklar ve fiş tekrarları", () =>
   assert.throws(() => parseSalesCsv(header + "F1,2026-01-01,T1,1,50,10"), /Beş sütun/);
 });
 
-test("şubeler arası transfer iki hareket üretir ve işletme bakiyesini korur", () => {
+test("transfer geçmişi geçişi eski tarihi, iki stok hareketini ve bakiyeleri korur", () => {
   const db = new DatabaseSync(":memory:");
   try {
     db.exec(baseline);
-    for (const migration of workspaceMigrations) db.exec(migration);
+    const upgrade = workspaceFiles.indexOf("0007_transfer_history.sql");
+    assert.ok(upgrade >= 0);
+    for (const migration of workspaceMigrations.slice(0, upgrade)) db.exec(migration);
     db.exec(`INSERT INTO users(id,email) VALUES ('u','transfer@example.test');
       INSERT INTO businesses(id,name,created_by) VALUES ('b','Birinci','u'),('c','İkinci','u');
       INSERT INTO olvex_branches(business_id,id,name) VALUES ('b','sahil','Sahil');
@@ -233,6 +292,13 @@ test("şubeler arası transfer iki hareket üretir ve işletme bakiyesini korur"
       (business_id,id,source_branch_id,destination_branch_id,product_id,quantity,created_by) VALUES ('b',? ,?,?,'p',?,'u')`);
     const from = branch("b");
     transfer.run("t1", from, "sahil", 5);
+    const original = db.prepare("SELECT * FROM olvex_stock_transfers WHERE id='t1'").get();
+    for (const migration of workspaceMigrations.slice(upgrade)) db.exec(migration);
+    const { occurred_on, note, ...preserved } = db.prepare("SELECT * FROM olvex_stock_transfers WHERE id='t1'").get();
+    assert.deepEqual(preserved, { ...original });
+    assert.equal(occurred_on, null);
+    assert.equal(note, "");
+    assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
     assert.throws(() => transfer.run("t1", from, "sahil", 5), /UNIQUE constraint/);
     assert.throws(() => transfer.run("t2", from, "sahil", 8), /olvex_insufficient_stock/);
     assert.throws(() => transfer.run("t3", from, branch("c"), 1), /olvex_invalid_branch|FOREIGN KEY/);

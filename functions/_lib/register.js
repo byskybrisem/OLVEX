@@ -19,9 +19,6 @@ export async function postRegisterEvent(ctx, body) {
     return voidOrder(ctx, { id, requestId, date: body.date }, "sale");
   }
   if (action === "return") return returnOrder(ctx, { ...body, ...refs });
-  if (body.paid !== undefined && typeof body.paid !== "boolean") {
-    throw new HttpError(400, "Ödeme bilgisi true veya false olmalı.");
-  }
   return createOrder(ctx, { ...body, ...refs, customerId: null }, "sale", "pos");
 }
 

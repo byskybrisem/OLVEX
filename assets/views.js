@@ -11,8 +11,10 @@ const invoiceStates = { open: "Açık", paid: "Ödendi", cancelled: "İptal" };
 export const views = {
   overview: ["Genel Bakış", "Satışlar, nakit ve stok durumu."],
   sales: ["Satışlar", "Tamamlanan satışlar ve tahsilatlar."],
+  "stock-alerts": ["Kritik stok uyarıları", "Kritik eşiğe ulaşan şube stokları.", "products"],
   products: ["Ürünler ve Stok", "Ürün kartları, fiyatlar ve mevcut stok."],
   stock: ["Stok Hareketleri", "Açılış, satış, satın alma ve sayım düzeltmeleri.", "products"],
+  transfers: ["Şubeler arası transferler", "Ürünlerin çıkış ve giriş şubelerini, adetlerini ve işlem geçmişini görüntüleyin.", "products"],
   purchases: ["Satın Alma", "Teslim alınan ürünleri, tedarikçileri ve ödemeleri kaydedin.", null, true],
   customers: ["Müşteriler", "İletişim bilgileri ve satış geçmişi."],
   finance: ["Finans", "Tahsil edilen satışlar, ödenen alışlar ve diğer nakit hareketleri.", null, true],
@@ -32,7 +34,7 @@ const group = (inner) => `<div class="inline">${inner}</div>`;
 const stats = (inner) => `<div class="stat-grid">${inner}</div>`;
 const grid = (left, right) => `<div class="split">${left}${right}</div>`;
 const withPage = (heading, data, content) => panel(heading, content + pagination(data));
-const inventoryTabs = (id) => tabs([["Ürün kartları", "products"], ["Stok hareketleri", "stock"]], id);
+const inventoryTabs = (id) => tabs([["Ürün kartları", "products"], ["Stok hareketleri", "stock"], ["Kritik stok", "stock-alerts"], ["Şubeler arası transferler", "transfers"]], id);
 const staffTabs = (id) => tabs([["Çalışanlar", "employees"], ["Vardiyalar", "shifts"]], id);
 const settingsTabs = (id) => tabs([["İşletme ve ekip", "settings"], ["Kasa bağlantıları", "pos"]], id);
 const businessTabs = (id) => tabs([["İşletmeler", "branches"], ["Şubeler", "locations"]], id);
@@ -66,15 +68,22 @@ function stock(data, state) {
     group(`<span class="muted">${h(state.productName || "Seçilen ürün")}</span>` + button("Tüm hareketler", "clear-product", { kind: "small" })) : "") +
     filters(state, { query: "Ürün, SKU veya açıklama" }) +
     withPage("Hareket geçmişi", data, table(["Ürün", "Şube", "Tür", "Stok farkı", "Tarih", "Açıklama"], data.rows.map((row) =>
-      [rowName(row.name, row.sku), h(row.branch_name), h(movementKinds[row.kind]), badge(`${row.delta > 0 ? "+" : ""}${count(row.delta)}`, row.delta > 0 ? "ok" : "warn"),
+      [rowName(row.name, row.sku), h(row.branch_name), h(row.transfer_id ? "Şube transferi" : movementKinds[row.kind]), badge(`${row.delta > 0 ? "+" : ""}${count(row.delta)}`, row.delta > 0 ? "ok" : "warn"),
         h(day(row.created_at)), h(row.note || "—")]), "Stok hareketi kaydı yok."));
+}
+
+function transfers(data, state) {
+  return inventoryTabs("transfers") + filters(state, { query: "Şube, ürün, SKU veya açıklama" }) +
+    withPage("Transfer geçmişi", data, table(["Tarih", "Kaynak şube", "Hedef şube", "Ürün", "Adet", "İşlemi yapan", "Açıklama"],
+      data.rows.map(row => [h(day(row.occurred_on)), h(row.source_name), h(row.destination_name), rowName(row.name, row.sku),
+        h(count(row.quantity)), h(row.actor_name), h(row.note || "—")]), "Transfer kaydı yok."));
 }
 
 function orderList(data, state, purchase) {
   const rows = data.rows.map((row) => {
     const active = row.status === "posted";
     const party = purchase ? row.supplier : row.customer || "Perakende";
-    const status = active === false ? badge("İptal") : row.paid_on ?
+    const status = active === false ? badge("İptal") : row.fully_returned ? badge("Tamamı iade edildi") : row.paid_on ?
       badge(purchase ? "Ödendi" : "Tahsil edildi", "ok") : badge(purchase ? "Ödeme bekliyor" : "Tahsilat bekliyor", "warn");
     return [
       h(day(row.occurred_on)),
@@ -82,7 +91,7 @@ function orderList(data, state, purchase) {
       h(money(row.total_minor)), status,
       group(button("Ayrıntı", "order-detail", { id: row.id, kind: "small" }) +
         (row.source === "csv" && state.manager && !state.demo ? button("Eski fişi karşılaştır", "link-csv", { id: row.id, kind: "small" }) : "") +
-        (active && state.manager && !state.demo ? (!row.paid_on ?
+        (active && state.manager && !state.demo ? (!row.paid_on && !row.fully_returned ?
           button(purchase ? "Ödeme kaydet" : "Tahsilat kaydet", "settle-order", { id: row.id, kind: "small" }) : "") +
           button(purchase ? "İptal et" : "Tam iade / iptal", "void-order", { id: row.id, kind: "small danger" }) : ""))
     ];
@@ -234,10 +243,23 @@ function posView(data) {
 
 export function proposalLabel(proposal) {
   if (proposal.kind === "expense") return `${money(proposal.amount)} gider · ${proposal.description} · ${day(proposal.occurredOn)}`;
-  return `${proposal.name} (${proposal.sku}) · ${proposal.delta > 0 ? "+" : ""}${count(proposal.delta)} adet · ${proposal.description}`;
+  const product = `${proposal.name} (${proposal.sku})`;
+  if (!proposal.branchId) return `${product} · Bu eski taslakta şube seçilmemiş. Şube seçerek yeni bir taslak hazırlayın.`;
+  const action = proposal.delta > 0 ? "Stok girişi" : "Stok çıkışı";
+  return `İşletme: ${proposal.businessName} · Şube: ${proposal.branchName} · ${product} · ${action}, ${count(Math.abs(proposal.delta))} adet · ${proposal.description}`;
 }
 
-function freeBusinessInsights(facts) {
+function stockAlertTable(rows) {
+  return table(["Şube", "Ürün", "Şube stoku", "Kritik eşik", "İşletme toplamı"], rows.map(row => [
+    h(row.branch_name), rowName(row.name, row.sku), badge(count(row.stock), "warn"), h(count(row.reorder_at)), h(count(row.total_stock))
+  ]), "Kritik stok uyarısı yok.");
+}
+
+function stockAlerts(data, state) {
+  return inventoryTabs("stock-alerts") + filters(state, { query: "Şube, ürün veya SKU" }) + withPage("Şube stokları", data, stockAlertTable(data.rows));
+}
+
+function freeBusinessInsights(facts, demo) {
   const sales = Number(facts.totals?.sales || 0);
   const previous = Number(facts.previousSales || 0);
   const lowCount = Number(facts.lowStockCount || 0);
@@ -258,7 +280,7 @@ function freeBusinessInsights(facts) {
   }
 
   const stockMessage = lowCount > 0
-    ? count(lowCount) + " ürün kritik stok eşiğine ulaşmış. Ürünleri gözden geçirin."
+    ? count(lowCount) + " şube stok uyarısı var. Kritik eşiğe ulaşan ürünleri ve şubeleri inceleyin."
     : "Kritik stok uyarısı bulunmuyor. Bu, henüz hiç ürün eklenmediği anlamına da gelebilir.";
   const paymentMessage = receivables > 0
     ? money(receivables) + " tutarında tahsilat bekleyen satış var."
@@ -268,7 +290,7 @@ function freeBusinessInsights(facts) {
     panel("Satış eğilimi", '<p class="hint">' + h(salesMessage) + '</p>' +
       link("Satışları incele", "#sales", "small")) +
     panel("Stok kontrolü", '<p class="hint">' + h(stockMessage) + '</p>' +
-      link("Stokları incele", "#products", "small")) +
+      link("Stokları incele", demo ? "#products" : "#stock-alerts", "small")) +
     panel("Tahsilat kontrolü", '<p class="hint">' + h(paymentMessage) + '</p>' +
       link("Finansa geç", "#finance", "small")) +
     '</div>';
@@ -282,7 +304,7 @@ function ai(data, state) {
   const chat = state.chat.map((msg) => `<article class="${msg.role === "user" ? "user" : "assistant"}">
     <strong>${msg.role === "user" ? "Siz" : "OLVEX AI"}</strong><p>${h(msg.content)}</p></article>`).join("");
   const chatForm = mode === "off" ? empty("Canlı AI sohbeti bu ortamda etkinleştirilmemiş. Yukarıdaki ücretsiz veri analizleri çalışmaya devam eder.") :
-    `<form class="ai-form" id="ai-form"><label>Mesaj
+    `<form class="ai-form" id="ai-form"><div data-ai-branch></div><label>Mesaj
       <textarea name="prompt" required maxlength="2000" rows="3" placeholder="Son 7 günlük satışlarımı değerlendir"></textarea></label>
       <p class="hint">${mode === "mock" ? "Test modu. Örnek gider taslağı için “gider 125,50 elektrik” yazın." :
       "Mesajınız ve işletme özetiniz OpenAI’ye iletilir. Kişisel bilgi veya parola girmeyin."}</p>
@@ -293,19 +315,19 @@ function ai(data, state) {
   return stats(stat("Son 7 gün satış", money(facts.totals.sales)) + stat("Kritik stok", count(facts.lowStockCount), "warm") +
     stat("Bekleyen tahsilat", money(facts.unpaid.sale), "teal")) +
     grid(panel("İşletme analizi", `<p class="hint">${h(day(facts.from))} – ${h(day(facts.to))} · ${h(change)}</p>` +
-      table(["Kritik ürün", "Stok"], facts.lowStock.map((row) => [rowName(row.name, row.sku), h(count(row.stock))]), "Kritik stok kaydı yok.")),
+      stockAlertTable(facts.lowStock)),
     panel("Bekleyen işlem taslakları", proposals.length ? `<div class="proposals">${proposals.map((proposal) =>
       `<article class="proposal"><strong>${h(proposalLabel(proposal))}</strong>${group(
-        button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" }) +
+        (proposal.kind === "stock" && !proposal.branchId ? "" : button("Onayı incele", "apply-proposal", { id: proposal.id, kind: "small primary" })) +
         button("Reddet", "discard-proposal", { id: proposal.id, kind: "small" }))}</article>`
     ).join("")}</div>` : empty("Onay bekleyen işlem yok."))) +
-    panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts)) +
+    panel("Ücretsiz veriye dayalı analiz", freeBusinessInsights(facts, state.demo)) +
     panel("OLVEX AI sohbeti", `<div class="chat" aria-live="polite">${chat}</div>${chatForm}`,
       mode === "mock" ? badge("Test modu", "warn") : "");
 }
 
 export const renderers = {
-  overview, products: productList, stock, sales: (data, state) => orderList(data, state, false),
+  overview, "stock-alerts": stockAlerts, products: productList, stock, transfers, sales: (data, state) => orderList(data, state, false),
   purchases: (data, state) => orderList(data, state, true), customers, finance, invoices,
   employees, shifts, tasks, branches, locations, reports, settings: settingView, pos: posView, ai
 };
@@ -318,6 +340,7 @@ export function actions(view, state) {
     case "sales": return (state.manager ? button("CSV içe aktar", "import-sales") : "") + addSale;
     case "purchases": return primary("+ Satın alma", "new-order");
     case "products": return state.manager ? primary("+ Ürün ekle", "edit-product") : "";
+    case "transfers": return state.manager ? primary("+ Transfer oluştur", "create-transfer") : "";
     case "customers": return primary("+ Müşteri ekle", "edit-customer");
     case "finance": return primary("+ Gelir / gider", "add-cash");
     case "invoices": return primary("+ Fatura kaydı", "edit-invoice");

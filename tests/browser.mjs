@@ -195,7 +195,7 @@ try {
   assert.ok(await chartData.getByRole("row").count() > 1);
   await chartData.locator("summary").click();
   await page.locator("#alerts summary").click();
-  await page.getByText("1 ürün kritik stokta").waitFor();
+  await page.getByText("1 şube stok uyarısı").waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("button", {name:"Menüyü daralt"}).click();
   assert.equal(await page.locator("#rail-toggle").getAttribute("aria-expanded"), "false");

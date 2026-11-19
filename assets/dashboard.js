@@ -40,7 +40,7 @@ export function overview(data, state) {
     change(profit, previous && previous.sales - previous.cost)) : "";
   const balance = state.manager ? metric("cash", "Net nakit", money(cash),
     change(cash, previous && previous.revenue - previous.spending)) : "";
-  const stock = metric("stock", "Kritik stok", count(lowStock[0]?.total), "<small>Güncel ürün sayısı</small>");
+  const stock = metric("stock", "Kritik stok", count(lowStock[0]?.total), "<small>Şubelerdeki stok uyarıları</small>");
   const due = state.manager ? metric("due", "Bekleyen tahsilat", money(data.unpaid?.sale), "<small>Tüm dönemler</small>") : "";
   const summary = `<section class="performance"><article class="revenue">
     <div class="revenue-head"><div><h2>${icon("sales")} Toplam satış</h2><strong>${h(money(totals.sales))}</strong></div>
@@ -51,8 +51,9 @@ export function overview(data, state) {
     symbol:"receipt", name:row.reference || "Manuel satış", note:day(row.occurred_on), value:h(money(row.total_minor))
   })), "Seçilen tarihlerde satış yok."), link("Satışları aç", "#sales", "small"));
   const critical = panel("Kritik stok", ledger(lowStock.map(row => ({
-    symbol:"stock", name:row.name, note:row.sku, value:badge(count(row.stock) + " adet", "warn")
-  })), "Kritik stok kaydı yok."), link("Ürünler", "#products", "small"));
+    symbol:"stock", name:row.name, note:`${row.branch_name} · ${row.sku} · Eşik ${count(row.reorder_at)} · İşletme toplamı ${count(row.total_stock)}`,
+    value:badge(count(row.stock) + " adet", "warn")
+  })), "Kritik stok kaydı yok."), link(state.demo ? "Ürünler" : "Tüm uyarılar", state.demo ? "#products" : "#stock-alerts", "small"));
   const pending = state.manager ? panel("Bekleyen tahsilatlar", ledger((data.receivables || []).map(row => ({
     symbol:"due", name:row.customer || "Perakende", note:row.reference || day(row.occurred_on), value:h(money(row.total_minor))
   })), "Bekleyen tahsilat yok."), state.demo ? "" : button("Bekleyenleri aç","open-receivables",{kind:"small"})) : "";
