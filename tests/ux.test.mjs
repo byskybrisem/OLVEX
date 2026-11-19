@@ -128,5 +128,5 @@ test("tamamı iade edilen ödenmemiş satış için tahsilat önerilmez", () => 
   const html = renderers.sales({ rows }, initialState);
   assert.match(html, /Tam iade|Tamamı iade edildi/);
   assert.doesNotMatch(html, /settle-order/);
-  assert.match(html, /void-order/);
+  assert.doesNotMatch(html, /void-order/);
 });
