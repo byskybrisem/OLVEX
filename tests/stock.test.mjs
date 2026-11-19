@@ -7,8 +7,8 @@ import { parseSalesCsv } from "../assets/csv.js";
 
 const baseline = readFileSync(new URL("../migrations/0001_auth.sql", import.meta.url), "utf8");
 const migrationDir = new URL("../migrations/", import.meta.url);
-const workspaceMigrations = readdirSync(migrationDir).filter(name => name.endsWith(".sql") && name > "0001_auth.sql")
-  .sort().map(name => readFileSync(new URL(name, migrationDir), "utf8"));
+const workspaceFiles = readdirSync(migrationDir).filter(name => name.endsWith(".sql") && name > "0001_auth.sql").sort();
+const workspaceMigrations = workspaceFiles.map(name => readFileSync(new URL(name, migrationDir), "utf8"));
 
 test("mevcut D1 kullanıcıları, işletme üyelikleri ve oturumları korunur", () => {
   const db = new DatabaseSync(":memory:");
@@ -233,6 +233,46 @@ test("şubeler arası transfer iki hareket üretir ve işletme bakiyesini korur"
       (business_id,id,source_branch_id,destination_branch_id,product_id,quantity,created_by) VALUES ('b',? ,?,?,'p',?,'u')`);
     const from = branch("b");
     transfer.run("t1", from, "sahil", 5);
+    assert.throws(() => transfer.run("t1", from, "sahil", 5), /UNIQUE constraint/);
+    assert.throws(() => transfer.run("t2", from, "sahil", 8), /olvex_insufficient_stock/);
+    assert.throws(() => transfer.run("t3", from, branch("c"), 1), /olvex_invalid_branch|FOREIGN KEY/);
+    const balance = db.prepare("SELECT stock FROM olvex_branch_stock WHERE business_id='b' AND branch_id=? AND product_id='p'");
+    assert.equal(balance.get(from).stock, 7);
+    assert.equal(balance.get("sahil").stock, 5);
+    assert.equal(db.prepare("SELECT stock FROM olvex_products WHERE business_id='b' AND id='p'").get().stock, 12);
+    assert.deepEqual(db.prepare("SELECT delta FROM olvex_stock_movements WHERE transfer_id IS NOT NULL ORDER BY delta").all()
+      .map(row => row.delta), [-5, 5]);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM olvex_stock_transfers").get().n, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("transfer geçmişi geçişi eski tarihi, iki stok hareketini ve bakiyeleri korur", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(baseline);
+    const upgrade = workspaceFiles.indexOf("0008_transfer_history.sql");
+    assert.ok(upgrade >= 0);
+    for (const migration of workspaceMigrations.slice(0, upgrade)) db.exec(migration);
+    db.exec(`INSERT INTO users(id,email) VALUES ('u','transfer@example.test');
+      INSERT INTO businesses(id,name,created_by) VALUES ('b','Birinci','u'),('c','İkinci','u');
+      INSERT INTO olvex_branches(business_id,id,name) VALUES ('b','sahil','Sahil');
+      INSERT INTO olvex_products(business_id,id,sku,name,price_minor,cost_minor) VALUES ('b','p','SKU','Ürün',100,70);
+      INSERT INTO olvex_stock_movements(business_id,branch_id,id,product_id,kind,delta,created_by)
+      SELECT 'b',id,'opening','p','opening',12,'u' FROM olvex_branches WHERE business_id='b' AND is_default=1;`);
+    const branch = business => db.prepare("SELECT id FROM olvex_branches WHERE business_id=? AND is_default=1").get(business).id;
+    const transfer = db.prepare(`INSERT INTO olvex_stock_transfers
+      (business_id,id,source_branch_id,destination_branch_id,product_id,quantity,created_by) VALUES ('b',? ,?,?,'p',?,'u')`);
+    const from = branch("b");
+    transfer.run("t1", from, "sahil", 5);
+    const original = db.prepare("SELECT * FROM olvex_stock_transfers WHERE id='t1'").get();
+    for (const migration of workspaceMigrations.slice(upgrade)) db.exec(migration);
+    const { occurred_on, note, ...preserved } = db.prepare("SELECT * FROM olvex_stock_transfers WHERE id='t1'").get();
+    assert.deepEqual(preserved, { ...original });
+    assert.equal(occurred_on, null);
+    assert.equal(note, "");
+    assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
     assert.throws(() => transfer.run("t1", from, "sahil", 5), /UNIQUE constraint/);
     assert.throws(() => transfer.run("t2", from, "sahil", 8), /olvex_insufficient_stock/);
     assert.throws(() => transfer.run("t3", from, branch("c"), 1), /olvex_invalid_branch|FOREIGN KEY/);
