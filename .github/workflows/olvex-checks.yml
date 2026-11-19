@@ -43,4 +43,5 @@ jobs:
       - name: Browser end-to-end test
         run: npm run test:browser
       - name: Branch, register, stock transfer browser test
+        if: ${{ success() || failure() }}
         run: npm run test:browser:branches
