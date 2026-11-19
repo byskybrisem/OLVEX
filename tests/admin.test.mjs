@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomToken, sha256 } from "../functions/_lib/session.js";
+import { passwordHash } from "../functions/_lib/password.js";
 import { today } from "../functions/_lib/validate.js";
 import { localPages } from "./local.mjs";
 
@@ -112,4 +113,29 @@ test("unconfigured super-admin ID fails closed without exposing any platform dat
   const result=await fetch(server.url+"/api/admin/overview",{headers:{Cookie:`olvex_session=${token}`}});
   assert.equal(result.status,503);
   assert.doesNotMatch(JSON.stringify(await result.json()),/businesses|users|income/);
+});
+
+test("sign-in identifies only the configured platform admin, without trusting a browser role", async t => {
+  const superId="11111111-1111-4111-8111-111111111111";
+  const otherId="22222222-2222-4222-8222-222222222222";
+  const password="OLVEX-Safe-Test-Password-2026!";
+  const hash=await passwordHash(password);
+  const seed=`
+    INSERT INTO users(id,email,full_name,password_hash) VALUES
+    ('${superId}','admin-login@example.test','Super Admin','${hash}'),
+    ('${otherId}','tenant-login@example.test','Regular User','${hash}');
+  `;
+  const server=await localPages({seed,bindings:{OLVEX_SUPER_ADMIN_USER_ID:superId}});
+  t.after(()=>server.close());
+  async function signIn(email) {
+    const response=await fetch(server.url+"/api/auth/login",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Origin:server.url},
+      body:JSON.stringify({email,password,remember:false})
+    });
+    assert.equal(response.status,200);
+    return response.json();
+  }
+  assert.deepEqual(await signIn("admin-login@example.test"),{success:true,isPlatformAdmin:true});
+  assert.deepEqual(await signIn("tenant-login@example.test"),{success:true,isPlatformAdmin:false});
 });

@@ -32,12 +32,12 @@ form.addEventListener("submit", async (event) => {
   submit.textContent = "Giriş yapılıyor…";
   message.hidden = true;
   try {
-    await request("/api/auth/login", "POST", {
+    const session = await request("/api/auth/login", "POST", {
       email: document.querySelector("#email").value.trim(),
       password: password.value,
       remember: document.querySelector('input[name="remember"]').checked
     });
-    location.replace(joining ? "/join.html" : adminLogin ? "/admin.html" : "/app.html");
+    location.replace(joining ? "/join.html" : (adminLogin || session.isPlatformAdmin === true) ? "/admin.html" : "/app.html");
   } catch (error) {
     status(error.message || "Giriş yapılamadı.");
     submit.disabled = false;
