@@ -1,5 +1,5 @@
 import { addDays, period, today } from "./validate.js";
-import { MANAGERS } from "./workspace.js";
+import { list, MANAGERS, searchTerm } from "./workspace.js";
 
 const blank = () => ({ sales: 0, saleCount: 0, cost: 0, purchases: 0, revenue: 0, spending: 0 });
 
@@ -50,6 +50,21 @@ export async function financials(ctx, start, end) {
   }
 
   return { totals, days: [...days.values()] };
+}
+
+// A product with no movement in a branch has zero on hand there.
+const criticalStock = `SELECT b.id AS branch_id, b.name AS branch_name, p.id, p.name, p.sku,
+    COALESCE(s.stock, 0) AS stock, p.stock AS total_stock, p.reorder_at
+  FROM olvex_branches b JOIN olvex_products p ON p.business_id = b.business_id AND p.active = 1
+  LEFT JOIN olvex_branch_stock s ON s.business_id = b.business_id AND s.branch_id = b.id AND s.product_id = p.id
+  WHERE b.business_id = ? AND COALESCE(s.stock, 0) <= p.reorder_at`;
+const stockAlertOrder = "ORDER BY b.name COLLATE NOCASE, b.id, p.sku, p.id";
+
+export function stockAlerts(ctx) {
+  const query = searchTerm(ctx.paramsUrl.get("q"));
+  return list(ctx, `${criticalStock}
+    AND (p.sku LIKE ? ESCAPE '\\' OR p.name LIKE ? ESCAPE '\\' OR b.name LIKE ? ESCAPE '\\')
+    ${stockAlertOrder} LIMIT ? OFFSET ?`, [query, query, query]);
 }
 
 export async function summary(ctx) {
