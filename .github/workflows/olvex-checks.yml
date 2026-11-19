@@ -45,3 +45,6 @@ jobs:
       - name: Branch, register, stock transfer browser test
         if: ${{ success() || failure() }}
         run: npm run test:browser:branches
+      - name: Super Admin responsive and finance browser test
+        if: ${{ success() || failure() }}
+        run: npm run test:browser:admin
