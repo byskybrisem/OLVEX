@@ -22,4 +22,4 @@ jobs:
       - name: Build
         run: npm run build
       - name: Run integration and security tests
-        run: npm test
+        run: node --test --test-concurrency=1 tests/*.test.mjs
