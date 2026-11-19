@@ -20,10 +20,9 @@ async function sendReset(env, user, origin) {
   url.hash = token;
   try {
     await sendAccountMail(env, user.email, "OLVEX şifre sıfırlama",
-      `OLVEX şifrenizi sıfırlama bağlantısı (30 dakika geçerli):\n${url.href}\n\nBu isteği siz göndermediyseniz e-postayı yok sayabilirsiniz.`);
+      `OLVEX şifrenizi sıfırlama bağlantısı (30 dakika geçerli):\n${url.href}\n\nBu isteği siz göndermediyseniz e-postayı yok sayabilirsiniz.`, "password_reset");
   } catch {
     await env.DB.prepare("DELETE FROM olvex_password_resets WHERE token_hash = ?").bind(hash).run();
-    throw new Error("E-posta sağlayıcısı isteği reddetti.");
   }
 }
 
@@ -33,20 +32,25 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
   const data = await readJson(request, 4096);
   const action = choice(data.action, ["request", "reset"], "İşlem");
   if (await isRateLimited(db, `password-${action}:${clientIp(request)}`, 10, 1800)) {
+    if (action === "request") console.info("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "ip_rate_limit" });
     throw new HttpError(429, "Biraz sonra tekrar deneyin.", { "Retry-After": "1800" });
   }
 
   if (action === "request") {
     const origin = recoveryOrigin(env);
     if (!accountMailReady(env) || !origin) {
+      console.error("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "configuration_unavailable" });
       throw new HttpError(503, "Şifre sıfırlama e-postası şu anda kullanılamıyor.");
     }
     const address = email(data.email);
-    if (!await isRateLimited(db, `password-address:${address}`, 3, 1800)) {
+    if (await isRateLimited(db, `password-address:${address}`, 3, 1800)) {
+      console.info("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "address_rate_limit" });
+    } else {
       waitUntil((async () => {
         const user = await db.prepare("SELECT id, email FROM users WHERE email = ? COLLATE NOCASE").bind(address).first();
         if (user) await sendReset(env, user, origin);
-      })().catch(() => console.error("OLVEX şifre sıfırlama e-postası teslim edilemedi.")));
+        else console.info("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "no_matching_account" });
+      })().catch(() => console.error("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "storage_error" })));
     }
     return json({ success: true });
   }

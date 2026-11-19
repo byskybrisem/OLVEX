@@ -15,6 +15,7 @@ export const onRequestPost = handle(async ({ request, env }) => {
   const address = confirm ? null : email(data.email);
   const counter = confirm ? "signup-confirm" : "register";
   if (await isRateLimited(env.DB, `${counter}:${clientIp(request)}`, confirm ? 15 : 5, 3600)) {
+    if (!confirm && info.emailVerificationRequired) console.info("OLVEX_ACCOUNT_MAIL", { flow: "signup", outcome: "ip_rate_limit" });
     throw new HttpError(429, "Çok fazla kayıt denemesi. Biraz sonra tekrar deneyin.", { "Retry-After": "3600" });
   }
   if (confirm) {
@@ -23,6 +24,7 @@ export const onRequestPost = handle(async ({ request, env }) => {
   } else {
     if (info.emailVerificationRequired) {
       if (await isRateLimited(env.DB, `signup-mail:${address}`, 3, 1800)) {
+        console.info("OLVEX_ACCOUNT_MAIL", { flow: "signup", outcome: "address_rate_limit" });
         throw new HttpError(429, "Doğrulama bağlantısı istemek için lütfen daha sonra tekrar deneyin.", { "Retry-After": "1800" });
       }
       await sendSignupLink(env, address, data.joining === true);
