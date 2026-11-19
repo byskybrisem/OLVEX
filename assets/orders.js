@@ -297,6 +297,7 @@ function orderSummary(row, purchase) {
   return `<div class="panel">
     <strong>${h(money(row.total_minor))}</strong>
     <span class="row-sub">${h(party)} · ${h(day(row.occurred_on))}</span>
+    ${row.branch_name ? `<span class="row-sub">Şube · ${h(row.branch_name)}</span>` : ""}
     <span class="row-sub">Referans · ${h(row.reference || "Belirtilmedi")}</span>
   </div>`;
 }
