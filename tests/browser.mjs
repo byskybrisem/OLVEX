@@ -370,6 +370,27 @@ try {
 
   await navigate(page, "settings", "Ayarlar");
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
+  // Onboarding first: customers choose the physical POS and its sales program.
+  await page.getByRole("button", { name: "Kasa ve yazılım seç" }).first().click();
+  const guideDialog = dialog(page);
+  await guideDialog.getByLabel("1. Kasa türü").selectOption("ynokc");
+  await guideDialog.getByLabel("2. Yazarkasa POS markası").selectOption("worldline");
+  await guideDialog.getByLabel("3. Satış / kasa yazılımı").selectOption("wolvox_fast");
+  await guideDialog.getByLabel("Model (isteğe bağlı)").fill("Move/5000");
+  await guideDialog.getByRole("button", { name: "Kurulum rehberini göster" }).click();
+  await guideDialog.getByRole("heading", { name: "Size uygun bağlantı rehberi" }).waitFor();
+  await guideDialog.getByText("Worldline / Ingenico · Move/5000 · AKINSOFT WOLVOX Hızlı Satış").waitFor();
+  await guideDialog.getByRole("link", { name: "AKINSOFT Worldline ÖKC bilgisi" }).waitFor();
+  await guideDialog.getByText(/hazır bir WOLVOX bağlayıcısı henüz sunulmuyor/).waitFor();
+  await guideDialog.getByRole("button", { name: "API anahtarı oluştur" }).click();
+  await guideDialog.getByRole("heading", { name: "Kasa bağlantısı oluştur" }).waitFor();
+  await guideDialog.locator('[name="branchId"]').selectOption({ label: "İskele" });
+  await guideDialog.getByRole("button", { name: "Kasaya geç" }).click();
+  assert.match(await guideDialog.getByLabel("Bağlantı adı").inputValue(), /Worldline.*WOLVOX/);
+  // The guided flow can create a token without depending on migration 0011.
+  assert.equal(await guideDialog.locator('[name="brand"]').count(), 0);
+  await guideDialog.getByRole("button", { name: "Vazgeç" }).click();
+  await guideDialog.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "+ Bağlantı oluştur" }).click();
   await dialog(page).locator('[name="branchId"]').selectOption({ label: "İskele" });
   await dialog(page).getByRole("button", { name: "Kasaya geç" }).click();
