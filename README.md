@@ -1,5 +1,11 @@
 # OLVEX
 
+## Lansman fiyatları ve erişim
+
+Kesinleştirilen iki paket, aylık/yıllık fiyatlar, müşteri sınırları ve **satış açılmadan tamamlanacak teknik denetimler** için [Paketler ve lansman kararı](docs/PAKETLER-VE-LANSMAN-KARARI-20261119.md) belgesine bakın.
+
+Önemli: Pazarlama tablosundaki şube/kullanıcı limitleri henüz sunucu tarafında uygulanmıyor. İyzico canlı ödeme ve abonelik yetkilendirmesi tamamlanmadan ücretli satış açılmamalıdır.
+
 Cloudflare Pages Functions ve D1 üzerinde çalışan Türkçe işletme paneli. Mevcut kullanıcılar, işletmeler, oturumlar ve parola özetleri korunur.
 
 ## Geliştirme ve doğrulama
