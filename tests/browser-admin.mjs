@@ -81,7 +81,7 @@ try {
   const anonymous=await browser.newContext({locale:"tr-TR",ignoreHTTPSErrors:true});
   const loggedOut=await anonymous.newPage();
   await loggedOut.goto(local.url+"/admin.html");
-  await loggedOut.waitForURL(url=>url.pathname==="/login.html" && url.searchParams.get("next")==="admin");
+  await loggedOut.waitForURL(url=>["/login", "/login.html"].includes(url.pathname) && url.searchParams.get("next")==="admin");
   await anonymous.close();
 
   // Stub only the authentication response to verify the front-end return URL.
