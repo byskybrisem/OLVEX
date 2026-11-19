@@ -3,12 +3,14 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { chromium, devices, webkit } from "playwright-core";
+import { chromium, devices, firefox, webkit } from "playwright-core";
 import { offsetDay } from "../assets/ui.js";
 import { views } from "../assets/views.js";
 import { localPages } from "./local.mjs";
 import { landingChecks, widths } from "./landing.mjs";
 
+const desktopEngineName = process.env.OLVEX_DESKTOP_BROWSER || "chromium";
+assert.ok(["chromium", "firefox", "webkit"].includes(desktopEngineName), "Unknown desktop engine");
 const local = await localPages({ https: true });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
@@ -56,8 +58,12 @@ async function prepareScreenshot(page, filename) {
   await page.screenshot({ path: join(snapshots, filename), fullPage: true, animations: "disabled" });
 }
 
+let desktopEngine = browser;
 try {
-  const desktop = await safeContext({ viewport: { width: 1366, height: 850 }, acceptDownloads: true });
+  if (desktopEngineName === "firefox") desktopEngine = await firefox.launch();
+  if (desktopEngineName === "webkit") desktopEngine = await webkit.launch();
+  console.log("Masaüstü iş akışı", desktopEngineName, desktopEngine.version());
+  const desktop = await safeContext({ viewport: { width: 1366, height: 850 }, acceptDownloads: true }, desktopEngine);
   const page = await desktop.newPage();
   watch(page);
   await page.goto(local.url);
@@ -133,7 +139,14 @@ try {
   await dialog(page).getByRole("button", { name: "Vazgeç" }).click();
   await saleRow.getByRole("button", { name: "Tam iade / iptal" }).waitFor();
 
+  const csvRegister = await page.request.post(local.url + "/api/workspace/" + await page.locator("#business").inputValue() + "/pos", {
+    headers: { Origin: local.url }, data: {
+      action: "create", requestId: crypto.randomUUID(), name: "CSV kasa", identityMode: "native", secret: randomBytes(32).toString("base64url")
+    }
+  });
+  assert.ok(csvRegister.ok(), await csvRegister.text());
   await page.getByRole("button", { name: "CSV içe aktar", exact: true }).click();
+  await dialog(page).locator('[name="registerId"]').selectOption((await csvRegister.json()).id);
   const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   await dialog(page).getByLabel("CSV dosyası").setInputFiles({
     name: "ornek.csv", mimeType: "text/csv",
@@ -188,7 +201,7 @@ try {
   assert.ok(await chartData.getByRole("row").count() > 1);
   await chartData.locator("summary").click();
   await page.locator("#alerts summary").click();
-  await page.getByText("1 ürün kritik stokta").waitFor();
+  await page.getByText("1 şube stok uyarısı").waitFor();
   await page.keyboard.press("Escape");
   await page.getByRole("button", {name:"Menüyü daralt"}).click();
   assert.equal(await page.locator("#rail-toggle").getAttribute("aria-expanded"), "false");
@@ -205,6 +218,45 @@ try {
   await dialog(page).getByText(/124,50/).waitFor();
   await dialog(page).getByRole("button", { name: "Vazgeç" }).click();
   await unpaidRow.getByRole("button", { name: "Tahsilat kaydet" }).waitFor();
+  await navigate(page, "products", "Ürünler ve Stok");
+  const coffeeStock = page.getByRole("row").filter({ hasText: "KAHVE-01" }).locator('[data-label="İşletme stoku"]');
+  assert.equal((await coffeeStock.innerText()).trim(), "3", "6 opening - 2 manual - 1 CSV sale");
+  // Correct an unpaid manual sale and follow the stock delta and immutable history in the UI.
+  await record("sales", "create", {date, paid: false, reference: "REV-1", lines: [{sku: "KAHVE-01", quantity: 1}]});
+  await navigate(page, "sales", "Satışlar");
+  const editedRow = page.getByRole("row").filter({hasText: "REV-1"});
+  await editedRow.getByRole("button", {name: "Düzenle", exact: true}).click();
+  const correction = page.getByRole("dialog", {name: "Satışı düzenle"});
+  await correction.getByLabel("Adet", {exact: true}).fill("2");
+  await correction.getByLabel("Birim fiyat", {exact: true}).fill("80,00");
+  await correction.getByLabel("Düzeltme nedeni").fill("Müşteri iki paket aldı");
+  await correction.getByRole("button", {name: "Düzeltmeyi kaydet"}).click();
+  await correction.waitFor({state:"hidden"});
+  await editedRow.getByText(/160,00/).waitFor();
+  await editedRow.getByRole("button", {name: "Ayrıntı"}).click();
+  await dialog(page).getByRole("button", {name:"Düzeltmeleri göster"}).click();
+  await dialog(page).getByText("Müşteri iki paket aldı", {exact:false}).waitFor();
+  if (snapshots) {
+    await mkdir(snapshots, {recursive:true});
+    await dialog(page).screenshot({path: join(snapshots, "sale-correction.png"), animations:"disabled"});
+  }
+  await dialog(page).getByRole("button", {name:"Kapat", exact:true}).last().click();
+  await navigate(page, "products", "Ürünler ve Stok");
+  assert.equal((await coffeeStock.innerText()).trim(), "1", "Only the quantity difference is applied on correction");
+  await navigate(page, "sales", "Satışlar");
+  await page.getByLabel("Tahsilat bekleyenler").uncheck();
+  await page.getByRole("button", { name: "Uygula" }).click();
+  await saleRow.waitFor();
+  await editedRow.getByRole("button", { name: "Tahsilat kaydet" }).click();
+  await dialog(page).getByText(/160,00/).waitFor();
+  await dialog(page).getByRole("button", { name: "Tahsilatı kaydet" }).click();
+  await editedRow.getByText("Tahsil edildi").waitFor();
+  await editedRow.getByRole("button", { name: "Tam iade / iptal" }).click();
+  await dialog(page).getByRole("button", { name: "İptali onayla" }).click();
+  await editedRow.getByText("İptal", { exact: true }).waitFor();
+  await navigate(page, "products", "Ürünler ve Stok");
+  assert.equal((await coffeeStock.innerText()).trim(), "3", "Refund restores both corrected units");
+
   await page.route("**/api/workspace/*/customers?**", route => route.fulfill({
     status:503, contentType:"application/json", body:JSON.stringify({error:"Geçici bağlantı hatası"})
   }), {times:1});
@@ -220,23 +272,94 @@ try {
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await heading(page, "Kasa Bağlantıları");
   await loaded(page);
+  await page.getByRole("link", { name: "Şubeler", exact: true }).click();
+  await page.getByRole("button", { name: "+ Şube ekle" }).click();
+  await dialog(page).getByLabel("Şube adı").fill("İskele");
+  await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "İskele" }).getByRole("button", { name: "Şube stoklarını göster" }).click();
+  const coffee = page.getByRole("row").filter({ hasText: "Filtre kahve" });
+  await coffee.getByRole("cell", { name: "0", exact: true }).waitFor();
+  assert.equal(await coffee.locator('[data-label="İşletme stoku"]').innerText(), "3");
+  await coffee.getByRole("button", { name: "Stok düzelt" }).click();
+  assert.equal(await dialog(page).locator('[name="branchId"]').evaluate(el => el.selectedOptions[0].textContent), "İskele");
+  await dialog(page).getByLabel("Adet farkı").fill("2");
+  await dialog(page).getByLabel("Düzeltme nedeni").fill("Depo sayımı");
+  await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
+  await coffee.getByRole("cell", { name: "2", exact: true }).waitFor();
+  assert.equal(await coffee.locator('[data-label="İşletme stoku"]').innerText(), "5");
+
+  await navigate(page, "settings", "Ayarlar");
+  await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await page.getByRole("button", { name: "+ Bağlantı oluştur" }).click();
   await dialog(page).getByLabel("Bağlantı adı").fill("Örnek kasa");
+  await dialog(page).locator('[name="branchId"]').selectOption({ label: "İskele" });
+  await dialog(page).getByLabel("İşlem kimliği").selectOption("reconcile");
   await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
   await dialog(page).getByRole("heading", { name: "Kasa bağlantı anahtarı" }).waitFor();
-  assert.match(await dialog(page).getByLabel("Kopyalanacak değer").inputValue(), /^olvex_pos_[A-Za-z0-9_-]{43}$/);
+  const initialKey = await dialog(page).getByLabel("Kopyalanacak değer").inputValue();
+  assert.match(initialKey, /^olvex_pos_[A-Za-z0-9_-]{43}$/);
   await dialog(page).getByRole("button", { name: "Kapat", exact: true }).last().click();
-  await page.getByText("Örnek kasa", { exact: true }).waitFor();
+  const register = page.getByRole("row").filter({ hasText: "Örnek kasa" });
+  await register.getByRole("cell", { name: "İskele", exact: true }).waitFor();
+  await register.getByRole("button", { name: "Kaynak kaydını eşleştir" }).click();
+  await dialog(page).getByLabel("Kaynak belgedeki kalıcı konum").fill("journal-84/row-33");
+  await dialog(page).getByLabel("Doğrulanan işlem referansı").fill("ISKELE-33");
+  await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
+  await dialog(page).waitFor({ state: "hidden" });
+  await register.getByRole("button", { name: "Kaynak kaydını eşleştir" }).click();
+  await dialog(page).getByLabel("Kaynak kaydının türü").selectOption("return");
+  await dialog(page).getByLabel("Kaynak belgedeki kalıcı konum").fill("journal-84/row-34");
+  await dialog(page).getByLabel("Doğrulanan işlem referansı").fill("ISKELE-34");
+  await dialog(page).getByRole("button", { name: "Kaydet", exact: true }).click();
+  await dialog(page).waitFor({ state: "hidden" });
+  await register.getByRole("button", { name: "Anahtarı yenile" }).click();
+  await dialog(page).getByRole("button", { name: "Yeni anahtar oluştur" }).click();
+  await dialog(page).getByRole("heading", { name: "Yeni kasa bağlantı anahtarı" }).waitFor();
+  const replacementKey = await dialog(page).getByLabel("Kopyalanacak değer").inputValue();
+  assert.match(replacementKey, /^olvex_pos_[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(replacementKey, initialKey);
+  await dialog(page).getByRole("button", { name: "Kapat", exact: true }).last().click();
+
+  const registerEvent = (data) => page.request.post(local.url + "/api/pos", {
+    headers: { Authorization: "Bearer " + replacementKey }, data
+  });
+  const tillSale = { action: "sale", evidence: "journal-84/row-33", date, paid: false,
+    lines: [{ sku: "KAHVE-01", quantity: 2, unit: 9000 }] };
+  const firstReceipt = await registerEvent(tillSale);
+  assert.equal(firstReceipt.status(), 201, await firstReceipt.text());
+  const duplicateReceipt = await registerEvent(tillSale);
+  assert.equal(duplicateReceipt.status(), 200, await duplicateReceipt.text());
+  assert.equal((await firstReceipt.json()).id, (await duplicateReceipt.json()).id);
+  const partialReturn = await registerEvent({ action: "return", evidence: "journal-84/row-34",
+    saleEvidence: tillSale.evidence, date, lines: [{ sku: "KAHVE-01", quantity: 1 }] });
+  assert.equal(partialReturn.status(), 201, await partialReturn.text());
+  await navigate(page, "sales", "Satışlar");
+  const tillRow = page.getByRole("row").filter({ hasText: "ISKELE-33" });
+  await tillRow.getByText("Kısmi iade", { exact: true }).waitFor();
+  assert.equal(await tillRow.getByRole("button", { name: "Düzenle", exact: true }).count(), 0);
+  await tillRow.getByRole("button", { name: "Ayrıntı" }).click();
+  const returnedLine = dialog(page).getByRole("row").filter({ hasText: "KAHVE-01" });
+  assert.equal(await returnedLine.locator('[data-label="Satılan"]').innerText(), "2");
+  assert.equal(await returnedLine.locator('[data-label="İade"]').innerText(), "1");
+  assert.equal(await returnedLine.locator('[data-label="Kalan adet"]').innerText(), "1");
+  await dialog(page).getByRole("button", { name: "Kapat", exact: true }).last().click();
+  await tillRow.getByRole("button", { name: "Tahsilat kaydet" }).click();
+  await dialog(page).getByText(/90,00/).waitFor();
+  await dialog(page).getByRole("button", { name: "Tahsilatı kaydet" }).click();
+  await tillRow.getByText("Tahsil edildi").waitFor();
+  await navigate(page, "products", "Ürünler ve Stok");
+  await coffee.getByRole("cell", { name: "1", exact: true }).waitFor();
+  assert.equal(await coffee.locator('[data-label="İşletme stoku"]').innerText(), "4");
 
   // Join as a real member to verify the search uses the selected business role.
-  const member = await safeContext();
+  const member = await safeContext({}, desktopEngine);
   try {
     const email = "member-browser@example.test";
     const secret = randomBytes(32).toString("base64url");
     const { termsVersion } = await (await member.request.get(local.url + "/api/public-info")).json();
     const memberPost = (path, data) => member.request.post(local.url + path, { headers: { Origin: local.url }, data });
     assert.equal((await memberPost("/api/auth/register", { fullName: "Ekip Üyesi",
-      email, password: credentials.password, acceptedTerms: true, termsVersion })).status(), 201);
+      email, password: credentials.password, acceptedTerms: true, termsVersion })).status(), 202);
     assert.ok((await memberPost("/api/auth/login", { email, password: credentials.password })).ok());
     await record("settings", "invite", { email, role: "member", secret });
     assert.ok((await memberPost("/api/join", { token: secret })).ok());
@@ -333,6 +456,7 @@ try {
   assert.deepEqual(browserErrors, []);
   console.log("Tarayıcı doğrulandı: masaüstü ve mobil akış, satış/CSV, AI onayı, rapor, kasa ve oturum.");
 } finally {
+  if (desktopEngine !== browser) await desktopEngine.close();
   await browser.close();
   await local.close();
 }

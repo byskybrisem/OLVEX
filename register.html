@@ -47,15 +47,15 @@
     <div class="field">
      <label for="password">Şifre</label>
      <div class="input-wrap">
-      <input class="password" id="password" name="password" type="password" placeholder="En az 8 karakter" autocomplete="new-password" aria-describedby="password-hint" minlength="8" maxlength="128" required>
+      <input class="password" id="password" name="password" type="password" placeholder="En az 15 karakter" autocomplete="new-password" aria-describedby="password-hint" minlength="15" maxlength="128" required>
       <button class="show" type="button" id="togglePassword" aria-pressed="false" aria-controls="password confirmPassword">Göster</button>
      </div>
-     <p id="password-hint" class="hint">En az 8 karakter kullanın.</p>
+     <p id="password-hint" class="hint">En az 15 karakter kullanın.</p>
     </div>
 
     <div class="field">
      <label for="confirmPassword">Şifre tekrar</label>
-     <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Şifrenizi tekrar girin" autocomplete="new-password" minlength="8" maxlength="128" required>
+     <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Şifrenizi tekrar girin" autocomplete="new-password" minlength="15" maxlength="128" required>
     </div>
 
     <label class="agreement">
@@ -68,6 +68,10 @@
     <div class="message error" id="message" role="alert" hidden></div>
    </form>
 
+   <div id="closed-registration" hidden>
+    <p>Mevcut hesabınızla giriş yapabilir veya örnek işletmeyi inceleyebilirsiniz.</p>
+    <a href="/demo.html#overview">İşletme demosunu aç</a>
+   </div>
    <div class="bottom">
     Zaten hesabınız var mı?
     <a href="/login.html" id="login-link">Giriş yapın</a>

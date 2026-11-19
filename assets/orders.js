@@ -1,8 +1,8 @@
 import { parseSalesCsv } from "./csv.js";
 import { amount, check, editor, field, fields, intField, note } from "./editor.js";
-import { button, count, day, empty, h, money, table, today, toMinor, whole } from "./ui.js";
+import { button, count, day, empty, fromMinor, h, money, table, today, toMinor, whole } from "./ui.js";
 
-export function lookup(ctx, root, { section, field: name, label, labelFor, query = {} }) {
+export function lookup(ctx, root, { section, field: name, label, labelFor, query = {}, selectOnlyOption = false }) {
   const wrapper = root.querySelector(`[data-lookup="${name}"]`);
   const input = wrapper.querySelector("input");
   const select = wrapper.querySelector("select");
@@ -14,19 +14,24 @@ export function lookup(ctx, root, { section, field: name, label, labelFor, query
     const token = ++revision;
     try {
       const data = await ctx.get(section, { ...query, q: input.value.trim() });
-      if (token !== revision || !root.isConnected) return;
+      if (token !== revision || !wrapper.isConnected) return;
       const previous = select.value;
       const remembered = select.selectedOptions[0]?.textContent;
       select.replaceChildren(new Option(first, ""));
       for (const row of data.rows) select.add(new Option(labelFor(row), row.id));
       if (previous && ![...select.options].some((item) => item.value === previous)) select.add(new Option(remembered, previous));
       select.value = previous;
+      if (selectOnlyOption && !previous && !input.value && !data.hasMore && data.rows.length === 1) {
+        select.value = data.rows[0].id;
+        select.dispatchEvent(new Event("change"));
+      }
       status.textContent = data.hasMore ? `Daha fazla ${label} için aramayı daraltın.` : "";
     } catch (error) {
       if (token === revision) status.textContent = error.message;
     }
   };
   input.addEventListener("input", () => {
+    revision++;
     clearTimeout(timeout);
     timeout = setTimeout(load, 210);
   });
@@ -35,9 +40,16 @@ export function lookup(ctx, root, { section, field: name, label, labelFor, query
 
 export function lookupField(label, name, placeholder, required = false) {
   return `<div class="lookup" data-lookup="${h(name)}">${field(`${label} ara`, "", "", { type: "search", required: false, max: 80 })}
-    <label class="field">${h(label)}<select name="${h(name)}"${required ? " required" : ""}>
+    <label class="field">${h(label)}<select aria-label="${h(label)}" name="${h(name)}"${required ? " required" : ""}>
       <option value="">${h(placeholder)}</option></select></label><p class="hint" data-lookup-status role="status"></p>
   </div>`;
+}
+
+export function findRegister(ctx, root) {
+  lookup(ctx, root, {
+    section: "pos", field: "registerId", label: "kasa", query: { active: "1" },
+    labelFor: row => `${row.name} · ${row.branch_name}`
+  });
 }
 
 function orderLine(index) {
@@ -50,12 +62,14 @@ function orderLine(index) {
 }
 
 function productLines(ctx, root, purchase = false) {
+  const branch = root.querySelector('[name="branchId"]');
   const lines = root.querySelector(".lines");
   const dataList = root.querySelector("#sku-list");
   const add = root.querySelector("[data-add-line]");
   const status = root.querySelector("[data-sku-status]");
   const total = root.querySelector("[data-order-total]");
   const knownProducts = new Map();
+  const refreshPickers = new WeakMap();
   let revision = 0;
   let timeout;
 
@@ -65,7 +79,7 @@ function productLines(ctx, root, purchase = false) {
       item.querySelector("legend").textContent = "Ürün " + (index + 1);
       item.querySelector("[data-remove-line]").disabled = fieldsets.length === 1;
     }
-    add.disabled = fieldsets.length >= 25;
+    add.disabled = !branch.value || fieldsets.length >= 25;
   };
 
   const updateTotal = () => {
@@ -99,9 +113,10 @@ function productLines(ctx, root, purchase = false) {
 
   const load = async (query = "") => {
     const token = ++revision;
+    if (!branch.value) return;
     try {
-      const data = await ctx.get("catalog", { q: query });
-      if (token !== revision || !root.isConnected) return;
+      const data = await ctx.get("catalog", { q: query, branchId: branch.value });
+      if (token !== revision || !lines.isConnected) return;
       for (const row of data.rows) knownProducts.set(row.sku, row);
       dataList.replaceChildren(...data.rows.map((row) =>
         new Option(row.name + " · " + row.stock + " adet", row.sku)));
@@ -140,9 +155,10 @@ function productLines(ctx, root, purchase = false) {
 
     const fetchProducts = async () => {
       const token = ++requestNumber;
+      if (!branch.value) return;
       info.textContent = "Ürünler aranıyor...";
       try {
-        const result = await ctx.get("catalog", { q: search.value.trim() });
+        const result = await ctx.get("catalog", { q: search.value.trim(), branchId: branch.value });
         if (token !== requestNumber || !picker.isConnected) return;
         for (const row of result.rows) knownProducts.set(row.sku, row);
         choice.replaceChildren(
@@ -150,7 +166,7 @@ function productLines(ctx, root, purchase = false) {
           ...result.rows.map((row) => new Option(
             row.name + " · " + row.sku +
               (purchase ? "" : " · " + money(row.price_minor)) +
-              " · stok: " + row.stock,
+              " · şube stoku: " + row.stock,
             row.sku
           ))
         );
@@ -190,7 +206,13 @@ function productLines(ctx, root, purchase = false) {
       if (choice.value !== skuInput.value) choice.value = "";
       updateTotal();
     });
-    fetchProducts();
+    refreshPickers.set(line, () => {
+      line.disabled = !branch.value;
+      choice.replaceChildren(new Option("Ürün seçin...", ""));
+      info.textContent = "";
+      return fetchProducts();
+    });
+    refreshPickers.get(line)();
   }
 
   lines.addEventListener("input", (event) => {
@@ -216,6 +238,17 @@ function productLines(ctx, root, purchase = false) {
     updateTotal();
   });
   for (const line of lines.children) enhanceLine(line);
+  branch.addEventListener("change", () => {
+    clearTimeout(timeout);
+    knownProducts.clear();
+    dataList.replaceChildren();
+    status.textContent = branch.value ? "" : "Ürünleri görmek için şube seçin.";
+    for (const line of lines.children) refreshPickers.get(line)();
+    refreshLines();
+    updateTotal();
+    load();
+  });
+  status.textContent = "Ürünleri görmek için şube seçin.";
   refreshLines();
   updateTotal();
   load();
@@ -225,7 +258,8 @@ export function newOrder(ctx, purchase) {
   const section = purchase ? "purchases" : "sales";
   editor(ctx, {
     title: purchase ? "Satın alma kaydı" : "Yeni satış",
-    html: fields(field("Tarih", "date", today(), { type: "date", extra: `max="${today()}"` }),
+    html: lookupField(purchase ? "Teslim alan şube" : "Satış şubesi", "branchId", "Şube seçin", true) +
+      fields(field("Tarih", "date", today(), { type: "date", extra: `max="${today()}"` }),
       field("Referans", "reference", "", { required: false, max: 100 })) +
       (purchase ? field("Tedarikçi", "supplier") : lookupField("Müşteri", "customerId", "Perakende satışı")) +
       `<div class="lines">${orderLine(0)}</div><datalist id="sku-list"></datalist>
@@ -236,13 +270,17 @@ export function newOrder(ctx, purchase) {
       check(purchase ? "Ödendi" : "Tahsil edildi", "paid", true) + note("Not", "note"),
     init: (root) => {
       productLines(ctx, root, purchase);
+      lookup(ctx, root, {
+        section: "locations", field: "branchId", label: "şube", labelFor: row => row.name,
+        selectOnlyOption: true
+      });
       if (!purchase) lookup(ctx, root, {
         section: "catalog", field: "customerId", label: "müşteri", query: { type: "customers" },
         labelFor: (row) => row.email ? `${row.name} · ${row.email}` : row.name
       });
     },
     submit: (form, send, root) => send(section, "create", {
-      date: form.get("date"), reference: form.get("reference"), supplier: form.get("supplier"),
+      branchId: form.get("branchId"), date: form.get("date"), reference: form.get("reference"), supplier: form.get("supplier"),
       customerId: form.get("customerId"), paid: form.get("paid") === "on", note: form.get("note"),
       lines: [...root.querySelectorAll(".order-line")].map((item) => ({
         sku: item.querySelector('[name="sku"]').value,
@@ -259,28 +297,105 @@ function orderSummary(row, purchase) {
   return `<div class="panel">
     <strong>${h(money(row.total_minor))}</strong>
     <span class="row-sub">${h(party)} · ${h(day(row.occurred_on))}</span>
+    ${row.branch_name ? `<span class="row-sub">Şube · ${h(row.branch_name)}</span>` : ""}
     <span class="row-sub">Referans · ${h(row.reference || "Belirtilmedi")}</span>
   </div>`;
 }
 
 export function orderDetail(ctx, row, purchase) {
   const items = JSON.parse(row.items_json);
-  const columns = ["Ürün", "Adet", "Birim fiyat", "Toplam"];
+  const hasReturns = items.some(item => item.returned > 0);
+  const columns = ["Ürün", ...(hasReturns ? ["Satılan", "İade", "Kalan adet"] : ["Adet"]), "Birim fiyat", "Toplam"];
   if (ctx.manager && !purchase) columns.push("Birim maliyet");
+  const history = ctx.manager && !purchase && row.revision > 0;
   editor(ctx, {
     title: purchase ? "Satın alma ayrıntısı" : "Satış ayrıntısı",
     html: orderSummary(row, purchase) +
       (row.note ? `<p class="muted">${h(row.note)}</p>` : "") +
       table(columns, items.map((item) => [
         `<strong>${h(item.name)}</strong><small class="row-sub">${h(item.sku)}</small>`,
+        ...(hasReturns ? [h(count(item.sold)), h(count(item.returned))] : []),
         h(count(item.quantity)), h(money(item.unit)), h(money(item.unit * item.quantity)),
         ...(ctx.manager && !purchase ? [h(money(item.cost))] : [])
-      ]))
+      ])) +
+      (history ? '<section><h3>Düzeltme geçmişi</h3><div data-edits></div><button class="button" type="button" data-more>Düzeltmeleri göster</button><p class="hint" role="status" data-feedback></p></section>' : ""),
+    init(root) {
+      if (history) bindSaleHistory(ctx, row.id, root);
+    }
+  });
+}
+
+function bindSaleHistory(ctx, id, root) {
+  const entries = root.querySelector("[data-edits]");
+  const more = root.querySelector("[data-more]");
+  const status = root.querySelector("[data-feedback]");
+  let page = 1;
+  more.addEventListener("click", async () => {
+    more.disabled = true;
+    status.textContent = "Geçmiş yükleniyor…";
+    try {
+      const data = await ctx.get("sale-edits", { id, page });
+      const cards = data.rows.map(edit => {
+        const details = [];
+        if (edit.old_reference !== edit.new_reference) details.push(`Referans · ${edit.old_reference || "—"} → ${edit.new_reference || "—"}`);
+        if (edit.old_note !== edit.new_note) details.push(`Not · ${edit.old_note || "—"} → ${edit.new_note || "—"}`);
+        for (const line of JSON.parse(edit.line_changes)) {
+          details.push(`${line.sku} · ${count(line.oldQuantity)} × ${money(line.oldUnit)} → ${count(line.newQuantity)} × ${money(line.newUnit)}`);
+        }
+        return `<article class="panel"><strong>${h(edit.reason)}</strong><small class="row-sub">${h(day(edit.created_at))} · ${h(edit.actor || "Kullanıcı")} · Sürüm ${h(edit.revision)}</small>${details.map(detail => `<p>${h(detail)}</p>`).join("")}</article>`;
+      });
+      entries.insertAdjacentHTML("beforeend", cards.join(""));
+      page++;
+      more.hidden = !data.hasMore;
+      more.textContent = "Daha eski düzeltmeleri göster";
+      status.textContent = data.rows.length + " düzeltme gösterildi.";
+    } catch (error) {
+      status.textContent = error.message;
+    } finally { more.disabled = false; }
+  });
+}
+
+function editSale(ctx, row) {
+  const items = JSON.parse(row.items_json);
+  const lines = row.paid_on ? '<p class="hint">Tahsil edilmiş satışın referansını ve notunu düzenleyebilirsiniz. Tutar düzeltmesi için iade işlemini kullanın.</p>' :
+    items.map((item, index) => `<fieldset class="order-line"><legend>${h(item.name)} · ${h(item.sku)}</legend>${
+      intField("Adet", "quantity-" + index, String(item.quantity))}${
+      amount("Birim fiyat", "unit-" + index, fromMinor(item.unit))}</fieldset>`).join("");
+  const values = form => items.map((item, index) => ({
+    id: item.id, quantity: whole(form.get("quantity-" + index), "Adet"), unit: toMinor(form.get("unit-" + index))
+  }));
+  editor(ctx, {
+    title: "Satışı düzenle", label: "Düzeltmeyi kaydet",
+    html: orderSummary(row, false) +
+      field("Referans", "reference", row.reference || "", { required: false, max: 100 }) +
+      note("Satış notu", "note", row.note) + lines +
+      (row.paid_on ? "" : `<p class="hint">Düzeltilmiş satış tutarı · <output data-edited-total>${h(money(row.total_minor))}</output></p>`) +
+      field("Düzeltme nedeni", "reason", "", { max: 180 }),
+    init(root) {
+      const total = root.querySelector("[data-edited-total]");
+      if (!total) return;
+      const form = root.closest("form");
+      root.querySelectorAll(".order-line").forEach(fieldset => fieldset.addEventListener("input", () => {
+        try {
+          const rows = values(new FormData(form));
+          const sum = rows.reduce((amount, item) => amount + item.unit * item.quantity, 0);
+          total.value = rows.every(item => item.quantity > 0) && Number.isSafeInteger(sum) ? money(sum) : "—";
+        } catch { total.value = "—"; }
+      }));
+    },
+    submit: (form, send) => {
+      const changed = row.paid_on ? [] : values(form).filter((line, index) =>
+        line.quantity !== items[index].quantity || line.unit !== items[index].unit);
+      return send("sales", "edit", { id: row.id, revision: row.revision, lines: changed,
+        reference: form.get("reference"), note: form.get("note"), reason: form.get("reason") });
+    },
+    done: () => ctx.changed("Satış ve düzeltme geçmişi güncellendi.")
   });
 }
 
 export function orderCommand(ctx, row, command, purchase) {
   const section = purchase ? "purchases" : "sales";
+  if (command === "edit-sale") return editSale(ctx, row);
   if (command === "order-detail") {
     orderDetail(ctx, row, purchase);
     return;
@@ -290,10 +405,10 @@ export function orderCommand(ctx, row, command, purchase) {
       title: purchase ? "Satın almayı iptal et" : "Tam iade / iptal",
       label: "İptali onayla",
       html: orderSummary(row, purchase) +
-        `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde bu satıştaki ürünler stoka döner."}</p>` +
+        `<p>${purchase ? "İptal edildiğinde bu alımdaki ürünler stoktan düşer." : "İptal edildiğinde satışın kalan ürünleri şube stokuna döner."}</p>` +
         (row.paid_on ? '<p class="hint">Tam iadenin tamamlandığı tarihi girin. İade bu tarihte nakit akışına eklenir.</p>' : '') +
         field("İptal / iade tarihi", "date", today(), { type: "date", extra: `min="${h(row.paid_on || row.occurred_on)}" max="${today()}"` }),
-      submit: (form, send) => send(section, "void", { id: row.id, date: form.get("date") }),
+      submit: (form, send) => send(section, "void", { id: row.id, revision: row.revision, expectedPaidOn: row.paid_on, date: form.get("date") }),
       done: () => ctx.changed("Kayıt iptal edildi. Stok güncellendi.")
     });
     return;
@@ -303,7 +418,7 @@ export function orderCommand(ctx, row, command, purchase) {
     label: purchase ? "Ödemeyi kaydet" : "Tahsilatı kaydet",
     html: orderSummary(row, purchase) +
       field("Tarih", "date", today(), { type: "date", extra: `min="${h(row.occurred_on)}" max="${today()}"` }),
-    submit: (form, send) => send(section, "settle", { id: row.id, date: form.get("date") }),
+    submit: (form, send) => send(section, "settle", { id: row.id, revision: row.revision, date: form.get("date") }),
     done: () => ctx.changed(purchase ? "Ödeme kaydedildi." : "Tahsilat kaydedildi.")
   });
 }
@@ -313,9 +428,12 @@ export function importSales(ctx) {
     title: "Kasa satışlarını CSV ile içe aktar",
     label: "Satışları aktar",
     html: `<p>Başlık sırası <code>referans;tarih;sku;adet;birim_fiyat</code>. Tarih biçimi YYYY-AA-GG. Aynı fişin ürünleri aynı referansı kullanır.</p>
+      ${lookupField("Kaynak kasa", "registerId", "Dosyanın geldiği kasayı seçin", true)}
+      <p class="hint">Kaynak işlem kimliği kullanan kasalarda referans sütununa kalıcı işlem kimliğini girin. Uzlaştırma kullanan kasalarda bu sütuna onaylı kaynak kayıt konumunu girin.</p>
       <label class="field">CSV dosyası<input name="file" type="file" accept=".csv,text/csv" required></label>
       ${check("Dosyadaki satışlar tahsil edildi", "paid")}
       <p class="hint" role="status" data-progress></p>`,
+    init: root => findRegister(ctx, root),
     submit: async (form, _send, root) => {
       const file = form.get("file");
       if (!file?.size || file.size > 512 * 1024) throw new Error("En fazla 512 KB boyutunda bir CSV dosyası seçin.");
@@ -327,7 +445,7 @@ export function importSales(ctx) {
       for (const [index, sale] of sales.entries()) {
         progress.textContent = `${index + 1} / ${sales.length} satış aktarılıyor`;
         try {
-          const result = await ctx.post("sales", "import", { ...sale, paid });
+          const result = await ctx.post("sales", "import", { ...sale, paid, registerId: form.get("registerId") });
           if (result.repeated) repeated++;
           else created++;
         } catch (error) {

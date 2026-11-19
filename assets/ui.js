@@ -2,14 +2,20 @@ const escaped = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&
 export const h = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => escaped[char]);
 const currency = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
 const quantity = new Intl.NumberFormat("tr-TR");
-const dateFormat = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "UTC" });
+const dateFormat = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeZone: "Europe/Istanbul" });
 const dayFormat = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit"
 });
 
 export const money = (minor) => currency.format(Number(minor ?? 0) / 100);
 export const count = (amount) => quantity.format(amount ?? 0);
-export const day = (iso) => iso ? dateFormat.format(new Date(iso.slice(0, 10))) : "—";
+export function day(iso) {
+  if (!iso) return "—";
+  // D1 CURRENT_TIMESTAMP values are UTC, with a space and no zone suffix.
+  const value = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(iso)
+    ? iso.replace(" ", "T") + "Z" : iso;
+  return dateFormat.format(new Date(value));
+}
 export const today = () => dayFormat.format(new Date());
 
 export function offsetDay(date, count) {

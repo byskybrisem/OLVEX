@@ -3,8 +3,9 @@ import { newPassword, passwordHash } from "../../_lib/password.js";
 import { randomToken, sha256, TOKEN_PATTERN } from "../../_lib/session.js";
 import { email, choice } from "../../_lib/validate.js";
 import { isRateLimited } from "./rate-limit.js";
+import { recoveryOrigin } from "../../_lib/recovery.js";
 
-async function sendReset(env, user) {
+async function sendReset(env, user, origin) {
   const token = randomToken();
   const hash = await sha256(token);
   const now = new Date();
@@ -14,7 +15,6 @@ async function sendReset(env, user) {
       .bind(hash, user.id, new Date(+now + 30 * 60 * 1000).toISOString())
   ]);
 
-  const origin = env.OLVEX_PUBLIC_ORIGIN || "https://olvex.com.tr";
   const url = new URL("/forgot-password.html", origin);
   url.hash = token;
   const response = await fetch("https://api.resend.com/emails", {
@@ -44,14 +44,15 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
   }
 
   if (action === "request") {
-    if (!env.RESEND_API_KEY || !env.OLVEX_FROM_EMAIL) {
+    const origin = recoveryOrigin(env);
+    if (!env.RESEND_API_KEY || !env.OLVEX_FROM_EMAIL || !origin) {
       throw new HttpError(503, "Şifre sıfırlama e-postası şu anda kullanılamıyor.");
     }
     const address = email(data.email);
     if (!await isRateLimited(db, `password-address:${address}`, 3, 1800)) {
       waitUntil((async () => {
         const user = await db.prepare("SELECT id, email FROM users WHERE email = ? COLLATE NOCASE").bind(address).first();
-        if (user) await sendReset(env, user);
+        if (user) await sendReset(env, user, origin);
       })().catch(() => console.error("OLVEX şifre sıfırlama e-postası teslim edilemedi.")));
     }
     return json({ success: true });

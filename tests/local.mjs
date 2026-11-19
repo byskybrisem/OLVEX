@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { get as httpsGet } from "node:https";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -22,7 +22,7 @@ async function openPort() {
   return port;
 }
 
-export async function localPages({ seed, https = false, bindings = {}, registration = "preview" } = {}) {
+export async function localPages({ seed, legacyWorkspaceSeed, https = false, bindings = {}, registration = "preview" } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "olvex-test-"));
   const dbId = crypto.randomUUID();
   const config = join(dir, "wrangler.test.toml");
@@ -43,14 +43,16 @@ export async function localPages({ seed, https = false, bindings = {}, registrat
   }
 
   async function wrangler(...args) {
-    return run(process.execPath, [cli, ...args], { cwd: dir, env: environment, timeout: 30_000 });
+    const timeout = args[1] === "migrations" ? 120_000 : 30_000;
+    return run(process.execPath, [cli, ...args], { cwd: dir, env: environment, timeout });
   }
 
   try {
-    const assets = ["_headers", "_routes.json", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
+    const assets = ["_headers", "_routes.json", "sitemap.xml", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "login.html", "register.html", "setup.html",
       "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html", "scripts", "scene"];
     await Promise.all([...assets, "functions", "migrations"].map((name) =>
       cp(join(root, name), join(dir, name), { recursive: true })));
+    if (legacyWorkspaceSeed) await appendFile(join(dir, "migrations", "0002_workspace.sql"), "\n" + legacyWorkspaceSeed);
     await symlink(join(root, "node_modules"), join(dir, "node_modules"), "dir");
     await run(process.execPath, ["scripts/build.mjs"], { cwd: dir, env: environment });
     await writeFile(config, `name = "olvex-test"\ncompatibility_date = "2025-10-01"\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "olvex-test"\ndatabase_id = "${dbId}"\nmigrations_dir = "migrations"\n`);
@@ -83,7 +85,13 @@ export async function localPages({ seed, https = false, bindings = {}, registrat
             resolve(response.statusCode === 200);
           }).on("error", reject);
         }) : (await fetch(health)).ok;
-        if (ready) return { url, close, logs: () => logs };
+        if (ready) {
+          const query = async (sql) => {
+            const { stdout } = await wrangler("d1", "execute", ...dbArgs, "--command", sql, "--json");
+            return JSON.parse(stdout).map((statement) => statement.results);
+          };
+          return { url, close, query, logs: () => logs };
+        }
       } catch {}
       await delay(180);
     }

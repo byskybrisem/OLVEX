@@ -18,15 +18,12 @@ export const onRequestPost = handle(async ({ request, env }) => {
     throw new HttpError(429, "Çok fazla kayıt denemesi. Biraz sonra tekrar deneyin.", { "Retry-After": "3600" });
   }
   const id = crypto.randomUUID();
-  try {
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO users (id, email, full_name, password_hash) VALUES (?, ?, ?, ?)")
-        .bind(id, address, name, await passwordHash(password)),
-      env.DB.prepare("INSERT INTO olvex_terms_acceptances (user_id, version) VALUES (?, ?)").bind(id, TERMS_VERSION)
-    ]);
-  } catch (error) {
-    if (error.message?.includes("UNIQUE constraint failed")) throw new HttpError(409, "Bu e-posta adresi zaten kayıtlı.");
-    throw error;
-  }
-  return json({ success: true }, 201);
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO users (id, email, full_name, password_hash) VALUES (?, ?, ?, ?)
+      ON CONFLICT(email COLLATE NOCASE) DO NOTHING`)
+      .bind(id, address, name, await passwordHash(password)),
+    env.DB.prepare(`INSERT INTO olvex_terms_acceptances (user_id, version)
+      SELECT id, ? FROM users WHERE id = ?`).bind(TERMS_VERSION, id)
+  ]);
+  return json({ success: true }, 202);
 });

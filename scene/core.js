@@ -56,15 +56,27 @@ function studio(renderer) {
   finally { filter.dispose(); texture.dispose(); }
 }
 
-const poses = [
-  // Scroll position, pitch, yaw, roll, camera distance, layer separation.
-  [0, -.42, -.58, -.24, 6.65, .09],
-  [.18, -.37, -.76, -.19, 6.3, .14],
-  [.38, -.28, -.87, -.13, 6.15, .28],
-  [.62, -.19, -1.02, -.09, 7.25, .67],
-  [.83, -.38, -.67, -.22, 6.75, .22],
-  [1, -.42, -.58, -.24, 6.65, .09]
-];
+function ease(progress, start, end) {
+  const t = Math.max(0, Math.min(1, (progress - start) / (end - start)));
+  return t * t * (3 - 2 * t);
+}
+
+// Overlapping cues keep the turn continuous while the five plates travel.
+// After the rebuild the model rests for 12% of the track before leaving.
+export function corePose(progress) {
+  const turn = ease(progress, .03, .73);
+  const split = ease(progress, .12, .41) * (1 - ease(progress, .52, .73));
+  const exit = ease(progress, .85, 1);
+  return {
+    yaw: -.58 + turn * Math.PI * 2,
+    pitch: -.42 + split * .21,
+    roll: -.24 + split * .12,
+    gap: .09 + split * .50,
+    depth: 6.65 + split * 1.75 + exit * .70,
+    rise: exit * 6,
+    parallax: 1 - ease(progress, .65, .73)
+  };
+}
 
 export function createCore(canvas, context, simple) {
   const renderer = new WebGLRenderer({ canvas, context, alpha: true, antialias: true, powerPreference: "low-power" });
@@ -113,7 +125,8 @@ export function createCore(canvas, context, simple) {
       layers.push(group);
       return group;
     }
-    plate(.98, .52, .12, .035, titanium, -.35);
+    const caseBack = plate(.98, .52, .12, .035, titanium, -.35);
+    add(caseBack, ring(.90, .62, .02, .01, simple), graphite, 0, 0, -.06);
     const heatSink = plate(.93, .53, .20, .025, graphite, -.22);
     const fin = ring(.975, .91, .025, .009, simple);
     for (const z of [.025, .10, .17]) add(heatSink, fin, titanium, 0, 0, z);
@@ -150,15 +163,12 @@ export function createCore(canvas, context, simple) {
       camera.updateProjectionMatrix();
     }
     function draw(progress, pointerX = 0, pointerY = 0) {
-      const next = poses.findIndex(pose => pose[0] >= progress);
-      const b = poses[next < 0 ? poses.length - 1 : next];
-      const a = poses[Math.max(0, (next < 0 ? poses.length - 1 : next) - 1)];
-      const t = a === b ? 0 : Math.min(1, Math.max(0, (progress - a[0]) / (b[0] - a[0])));
-      const smooth = t * t * (3 - 2 * t);
-      const at = i => a[i] + (b[i] - a[i]) * smooth;
-      assembly.rotation.set(at(1) + pointerY * .06, at(2) + pointerX * .075, at(3));
-      for (const [i, layer] of layers.entries()) layer.position.z = layer.userData.rest + (i - 2) * at(5);
-      camera.position.z = at(4) * Math.max(1, .99 / camera.aspect);
+      const pose = corePose(progress);
+      assembly.rotation.set(pose.pitch + pointerY * .06 * pose.parallax,
+        pose.yaw + pointerX * .075 * pose.parallax, pose.roll);
+      assembly.position.y = pose.rise;
+      for (const [i, layer] of layers.entries()) layer.position.z = layer.userData.rest + (i - 2) * pose.gap;
+      camera.position.z = pose.depth * Math.max(1, .99 / camera.aspect);
       renderer.render(scene, camera);
     }
     return { draw, resize, dispose };

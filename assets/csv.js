@@ -55,7 +55,8 @@ export function parseSalesCsv(input) {
     try {
       if (row.length !== 5) throw new Error("Beş sütun olmalı.");
       const [reference, day, sku, qty, price] = row.map((value) => value.trim());
-      if (!reference || reference.length > 100 || !sku || sku.length > 64) throw new Error("Referans ve SKU gerekli.");
+      if (reference !== row[0] || /[\x00-\x1f\x7f]/.test(reference)) throw new Error("Referansta kenar boşluğu veya kontrol karakteri var.");
+      if (!reference || reference.length > 200 || !sku || sku.length > 64) throw new Error("Referans ve SKU gerekli.");
       const parsed = new Date(day);
       if (!/^2\d{3}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(+parsed) ||
           parsed.toISOString().slice(0, 10) !== day || day > today()) throw new Error("Tarih geçersiz.");

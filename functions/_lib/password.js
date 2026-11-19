@@ -13,8 +13,8 @@ async function derive(password, salt) {
 }
 
 export function newPassword(value) {
-  if (typeof value !== "string" || value.length < 8 || value.length > 128) {
-    throw new HttpError(400, "Şifre 8 ile 128 karakter arasında olmalı.");
+  if (typeof value !== "string" || value.length > 128 || [...value].length < 15) {
+    throw new HttpError(400, "Şifre 15 ile 128 karakter arasında olmalı.");
   }
   return value;
 }

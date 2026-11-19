@@ -13,6 +13,7 @@ const products = [
   { id: "demo-p3", name: "Çikolatalı Kurabiye", sku: "KURABIYE-01", category: "Atıştırmalık",
     price_minor: 5950, cost_minor: 2800, stock: 24, reorder_at: 6, active: true }
 ];
+const lowStock = [{ ...products[1], branch_name: "Merkez", total_stock: products[1].stock, total: 1 }];
 const customers = [
   { id: "demo-c1", name: "Ayşe Yılmaz", email: "ornek@example.com" },
   { id: "demo-c2", name: "Perakende müşteri", email: "" }
@@ -56,6 +57,7 @@ function showNotice(message, error = false) {
 const ctx = {
   manager: true,
   get: async (section, query = {}) => {
+    if (section === "locations") return { rows: [{ id: "demo-merkez", name: "Merkez" }], hasMore: false, page: 1 };
     if (section !== "catalog") throw new Error("Bu işlem demoda mevcut değil.");
     const isCustomers = query.type === "customers";
     const records = isCustomers ? customers : products;
@@ -97,11 +99,13 @@ function demoData(view) {
     unpaid: { sale: 12950 }, receivables: sales.filter(row => !row.paid_on),
     latest: sales.map((s) => ({ occurred_on: s.occurred_on,
       reference: s.reference, total_minor: s.total_minor })),
-    lowStock: [{ total: 1, name: "Seramik Kupa", sku: "KUPA-01", stock: 3 }],
-    days: Array.from({ length: 7 }, (_, i) => ({
-      day: offsetDay(now, i - 6),
-      sales: sales.filter(row => row.occurred_on === offsetDay(now, i - 6)).reduce((sum, row) => sum + row.total_minor, 0)
-    }))
+    lowStock,
+    days: Array.from({ length: 7 }, (_, i) => {
+      const day = offsetDay(now, i - 6);
+      const receipts = sales.filter(row => row.occurred_on === day);
+      const amount = receipts.reduce((sum, row) => sum + row.total_minor, 0);
+      return { day, sales: amount, grossSales: amount, receipts: receipts.length, saleActivity: receipts.length > 0 };
+    })
   };
   if (view === "ai") return {
     mode: "off", proposals: [],
@@ -109,7 +113,7 @@ function demoData(view) {
       from: offsetDay(now, -6), to: now,
       totals,
       previousSales: 70000,
-      lowStock: [{ name: "Seramik Kupa", sku: "KUPA-01", stock: 3 }],
+      lowStock,
       lowStockCount: 1,
       unpaid: { sale: 12950 }
     }
@@ -117,6 +121,7 @@ function demoData(view) {
   if (view === "finance") return {
     summary: {
       totals,
+      days: [{ day: now, revenue: totals.revenue, spending: totals.spending }],
       unpaid: { sale: 12950, purchase: 0 }
     },
     rows: [{ occurred_on: now, description: "Kargo hizmeti", category: "Nakliye", kind: "expense", amount_minor: totals.spending }],

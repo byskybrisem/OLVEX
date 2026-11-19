@@ -1,31 +1,11 @@
+import { json } from "../_lib/http.js";
 
 export async function onRequest({ env }) {
   try {
-    if (!env.DB) {
-      return Response.json(
-        { status: "unavailable" },
-        {
-          status: 503,
-          headers: { "Cache-Control": "no-store" }
-        }
-      );
-    }
-
+    if (!env.DB) return json({ status: "unavailable" }, 503);
     await env.DB.prepare("SELECT 1").first();
-
-    return Response.json(
-      { status: "ok" },
-      {
-        headers: { "Cache-Control": "no-store" }
-      }
-    );
+    return json({ status: "ok" });
   } catch {
-    return Response.json(
-      { status: "unavailable" },
-      {
-        status: 503,
-        headers: { "Cache-Control": "no-store" }
-      }
-    );
+    return json({ status: "unavailable" }, 503);
   }
 }
