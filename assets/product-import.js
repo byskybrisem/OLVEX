@@ -146,7 +146,7 @@ export function importProducts(ctx) {
         Ürün ve Fiyat zorunludur; diğer sütunlar isteğe bağlıdır.
       </p>
       <button type="button" class="button secondary" data-template>
-        Örnek CSV indir
+        CSV şablonunu indir
       </button>
       <label class="field">
         CSV dosyası

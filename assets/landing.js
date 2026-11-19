@@ -121,11 +121,11 @@ async function showSignupStatus() {
     if (info.registrationOpen !== false) return;
     for (const label of document.querySelectorAll("[data-signup-label]")) label.textContent = "Kayıt durumu";
     document.querySelector(".hero [data-signup-label]").textContent = "Yeni kayıtlar kapalı";
-    document.querySelector("#start-title").textContent = "OLVEX’i örnek panelde deneyin.";
-    document.querySelector("#baslayin p").textContent = "Yeni hesap kaydı şu anda kapalı. Örnek işletmenin panelini giriş yapmadan inceleyebilirsiniz.";
+    document.querySelector("#start-title").textContent = "OLVEX panelini inceleyin.";
+    document.querySelector("#baslayin p").textContent = "Yeni hesap kayıtları şu anda kapalı. Panelin inceleme sürümünü giriş yapmadan görüntüleyebilirsiniz.";
     const action = document.querySelector("#baslayin .button");
     action.href = "/demo.html#overview";
-    action.querySelector("[data-signup-label]").textContent = "Örnek paneli aç";
+    action.querySelector("[data-signup-label]").textContent = "Paneli incele";
   } catch {
     // The link still opens the authoritative registration status page offline or on API errors.
   }

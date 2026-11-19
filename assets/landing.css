@@ -142,6 +142,11 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
 .plan-workflow span { display: block; color: var(--muted); margin-bottom: 5px; font-size: 12px; }
 .plan-footer p { max-width: 73ch; line-height: 1.55; font-size: 14px; color: var(--dim); }
 .plan-footer .text-link { font-size: 14px; }
+.plan-features { margin: 20px 0 0; padding-left: 19px; color: var(--soft); font-size: 14px; line-height: 1.6; display: grid; gap: 8px; }
+.plan-features li { padding-left: 2px; }
+.plan-features li::marker { color: #aa99ff; }
+.pricing-availability { margin-top: 16px; color: var(--dim); font-size: 13px; line-height: 1.5; }
+
 @media (min-width: 1051px) {
   .plan-workflow { min-height: 74px; }
 }

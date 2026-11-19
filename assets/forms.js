@@ -328,7 +328,7 @@ function posHelp(ctx) {
     title: "Kasa aktarım biçimi",
     html: `<p><code>POST ${h(location.origin)}/api/pos</code></p>
       <p><code>Authorization: Bearer olvex_pos_…</code><br><code>Content-Type: application/json</code></p>
-      <p>Bu örnek geçerli anahtar ve stokla gönderilirse gerçek satış kaydeder. Denemeler için ayrı işletme ve stok kullanın.</p>
+      <p>Bu API isteği geçerli anahtar ve yeterli stokla gönderilirse gerçek satış kaydeder. İlk bağlantıyı üretim stoklarından ayrı bir işletmede doğrulayın.</p>
       <pre>${h(example)}</pre>
       <p class="hint">Birim fiyat kuruş cinsinden tam sayıdır. Her fişte ayrı bir kaynak referansı kullanın. Tekrar gönderirken ilk referansı ve işlem tarihini koruyun.</p>
       <p>Ürün iadesinde <code>{"action":"return","reference":"IADE-9","saleReference":"KASA-001","date":"${today()}","lines":[{"sku":"URUN-01","quantity":1}]}</code> gönderin.</p>

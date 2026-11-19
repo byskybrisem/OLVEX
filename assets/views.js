@@ -252,7 +252,7 @@ function posView(data) {
     panel("Kasanızı ve yazılımınızı seçin", `<p class="muted">Yeni nesil yazarkasa POS veya AKINSOFT kullanıyorsanız önce cihazınızı ve programınızı seçin. Size uygun bağlantı rehberini görüntüleyin; anahtar yalnızca teknik aktarım mümkünse gerekir.</p><div class="inline">${button("Kasa ve yazılım seç", "pos-guide", { kind: "primary" })}</div>`) +
     panel("Satış aktarım yöntemleri", `<ol class="pos-methods">
       <li><strong>Otomatik kasa bağlantısı</strong><p>Kasa sağlayıcınız API, webhook, SDK veya dışa aktarma arayüzü sunuyorsa sağlayıcınız ya da teknik ekibiniz bir bağlayıcı hazırlayabilir. İşletmeyi ve şubeyi seçip her fiziksel kasa için ayrı kayıt oluşturun. Anahtar, bağlayıcının OLVEX’e hangi kasadan yazdığını doğrular. Sunucuda gizli saklayın.</p>
-        ${button("API örnekleri", "pos-help", { kind: "small" })}</li>
+        ${button("API kullanım biçimi", "pos-help", { kind: "small" })}</li>
       <li><strong>CSV dosyasıyla aktarım</strong><p>Kasanızdan dosya alın ve dosyanın geldiği fiziksel kasayı seçin. CSV ve API aynı kasa ve kalıcı işlem kimliğini kullanırsa aynı satış tekrar kaydedilmez.</p>
         ${group(button("CSV içe aktar", "import-sales", { kind: "small" }) +
           '<a class="button small" href="/assets/olvex-kasa-ornek.csv" download>CSV şablonunu indir</a>')}</li>
