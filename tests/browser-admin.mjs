@@ -24,7 +24,7 @@ let browser;
 try {
   browser=await chromium.launch({executablePath,args:["--enable-unsafe-swiftshader"]});
   const context=await browser.newContext({locale:"tr-TR",ignoreHTTPSErrors:true,viewport:{width:1366,height:860}});
-  await context.route("**/*",route=>new URL(route.request().url).origin===local.url ? route.continue():route.abort());
+  await context.route("**/*",route=>new URL(route.request().url()).origin===local.url ? route.continue():route.abort());
   await context.addCookies([{name:"olvex_session",value:token,url:local.url,secure:true,httpOnly:true,sameSite:"Lax"}]);
   const page=await context.newPage();
   const errors=[];
@@ -33,7 +33,7 @@ try {
   await page.locator('#admin-content[aria-busy="false"]').waitFor();
   await page.getByRole("heading",{name:"Genel Bakış",level:1}).waitFor();
   await page.getByText("Toplam işletme").waitFor();
-  assert.equal(await page.locator(".admin-kpi").count(),4);
+  assert.equal(await page.locator("#admin-content > .admin-kpis > .admin-kpi").count(),4);
   assert.equal(await page.locator(".admin-sidebar.glass").count(),1);
   const snapshots=process.env.OLVEX_SCREENSHOT_DIR;
   if(snapshots){await mkdir(snapshots,{recursive:true});await page.screenshot({path:join(snapshots,"admin-desktop.png"),fullPage:true,animations:"disabled"});}

@@ -48,3 +48,21 @@ jobs:
       - name: Super Admin responsive and finance browser test
         if: ${{ success() || failure() }}
         run: npm run test:browser:admin
+
+  admin-browser-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx --no-install playwright-core install chromium
+      - name: Build
+        run: npm run build
+      - name: Super Admin responsive and finance browser test
+        run: npm run test:browser:admin
