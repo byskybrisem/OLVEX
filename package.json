@@ -6,7 +6,8 @@
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "node tests/browser.mjs",
-    "test:browser:branches": "node tests/browser-branches.mjs"
+    "test:browser:branches": "node tests/browser-branches.mjs",
+    "test:browser:admin": "node tests/browser-admin.mjs"
   },
   "engines": {
     "node": ">=22"
