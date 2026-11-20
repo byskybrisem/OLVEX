@@ -1,5 +1,5 @@
 import { clientIp, handle, HttpError, json, readJson } from "../_lib/http.js";
-import { requirePaidSubscription, paidSql, subscriptionEnvironment } from "../_lib/entitlements.js";
+import { requirePaidSubscription } from "../_lib/entitlements.js";
 import { postRegisterEvent } from "../_lib/register.js";
 import { sha256, TOKEN_PATTERN } from "../_lib/session.js";
 import { isRateLimited, reachedRateLimit } from "./auth/rate-limit.js";
@@ -36,8 +36,8 @@ export const onRequestPost = handle(async ({ request, env }) => {
   const result = await postRegisterEvent(ctx, body);
   // A recorded acknowledgment proves this key reached the API, even on an idempotent replay.
   await db.prepare(`UPDATE olvex_pos_connections SET last_api_success_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE business_id = ? AND id = ? AND token_hash = ? AND revoked_at IS NULL AND ${paidSql}`)
-    .bind(pos.business_id, pos.id, tokenHash, ctx.businessId, subscriptionEnvironment(ctx)).run()
+    WHERE business_id = ? AND id = ? AND token_hash = ? AND revoked_at IS NULL AND ${ctx.packageGuard.sql}`)
+    .bind(pos.business_id, pos.id, tokenHash, ...ctx.packageGuard.values(ctx.businessId)).run()
     .catch(() => console.warn("OLVEX POS aktarım zamanı kaydedilemedi."));
   return json(result, result.repeated || body.action === "void" ? 200 : 201);
 });
