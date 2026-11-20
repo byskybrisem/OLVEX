@@ -10,7 +10,7 @@
 <meta property="og:description" content="Satıştan stoğa, günlük işlerinizi aynı panelden yönetin.">
 <link rel="stylesheet" href="/assets/tokens.css?v=20261119-launch">
 <link rel="stylesheet" href="/assets/landing.css?v=20261120-pricing-glass-v2">
-<script src="/assets/landing.js?v=20261120-pricing-cta" type="module"></script>
+<script src="/assets/landing.js?v=20261120-private-payment-test" type="module"></script>
 <script src="/assets/core.js" type="module"></script>
 <link rel="stylesheet" href="/assets/site-cookie-banner.css">
 <script type="module" src="/assets/site-cookie-banner.js"></script>
@@ -156,6 +156,12 @@
         <a class="text-link" href="/subscription-terms.html">Abonelik koşullarını incele <svg class="icon" aria-hidden="true"><use href="#diagonal"/></svg></a>
         <p class="billing-availability" id="billing-availability">Ücretli abonelik tahsilatı şu anda kapalıdır.</p>
         <a class="pricing-cta" id="pricing-cta" href="/register.html" aria-describedby="billing-availability">Ücretsiz Hesap Oluştur</a>
+        <!-- TEMP QA: visible only when the special URL parameter is supplied. Remove after test. -->
+        <div id="private-payment-test" hidden>
+          <p style="margin-top:16px;color:#f4dbad;font-weight:700">Sadece gerçek ödeme denemesi · Abonelik değildir</p>
+          <a class="pricing-cta" href="/odeme-testi.html">30 TL ile Gerçek Ödeme Testi Yap</a>
+          <p>Tek seferlik tahsilattır, yenileme ve OLVEX erişimi oluşturmaz. Sadece yönetici hesabından açılır.</p>
+        </div>
       </footer>
     </article>
   </section>
