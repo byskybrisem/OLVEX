@@ -8,9 +8,9 @@
 <meta name="description" content="Satış, stok, müşteri, finans ve şube yönetimini OLVEX ile tek panelden takip edin.">
 <meta property="og:title" content="OLVEX · İşletmenizin tüm gücü, tek merkezde.">
 <meta property="og:description" content="Satıştan stoğa, günlük işlerinizi aynı panelden yönetin.">
-<link rel="stylesheet" href="/assets/tokens.css?v=20261119-launch">
-<link rel="stylesheet" href="/assets/landing.css?v=20261119-launch">
-<script src="/assets/landing.js?v=20261119-launch" type="module"></script>
+<link rel="stylesheet" href="/assets/tokens.css?v=20261120-trial">
+<link rel="stylesheet" href="/assets/landing.css?v=20261120-trial">
+<script src="/assets/landing.js?v=20261120-trial" type="module"></script>
 <script src="/assets/core.js" type="module"></script>
 <link rel="stylesheet" href="/assets/site-cookie-banner.css">
 <script type="module" src="/assets/site-cookie-banner.js"></script>
@@ -49,7 +49,7 @@
         <h1 id="hero-title">İşletmenizin<br> tüm gücü,<br> <em>tek merkezde.</em></h1>
         <p class="hero-description">Satışınızı kaydedin, stoğunuzu görün, tahsilatınızı takip edin. İşletmenizin günlük işleri aynı panelde buluşsun.</p>
         <div class="cta-row">
-          <a href="/register.html" class="button primary"><span data-signup-label>Ücretsiz Hesap Oluştur</span> <svg class="icon" aria-hidden="true"><use href="#arrow"/></svg></a>
+          <a href="/register.html" class="button primary"><span data-signup-label>Hesap oluştur</span> <svg class="icon" aria-hidden="true"><use href="#arrow"/></svg></a>
           <a href="/demo.html#overview" class="button ghost"><svg class="icon" aria-hidden="true"><use href="#panel"/></svg> Paneli incele</a>
         </div>
       </section>
@@ -124,8 +124,8 @@
   </div>
   <section id="fiyatlandirma" class="wrap section pricing" aria-labelledby="pricing-title">
     <div class="pricing-head">
-      <div><h2 id="pricing-title">Paketler ve fiyatlar</h2>
-        <p>İki net paket: günlük işletme yönetimi için Esnaf, şubeli ve ekipli işletmeler için Profesyonel. Yıllık abonelikte %20 indirim.</p></div>
+      <div><h2 id="pricing-title">Tek paket. Tüm özellikler.</h2>
+        <p>OLVEX Profesyonel'i 14 gün ücretsiz deneyin. Deneme için kredi kartınızı iyzico üzerinden doğrulayın; 14 gün boyunca abonelik ücreti alınmaz.</p></div>
       <div id="billing" role="group" aria-label="Fiyat dönemi" hidden>
         <button type="button" id="monthly" aria-pressed="true">Aylık</button>
         <button type="button" id="annual" aria-pressed="false">Yıllık <span>−%20</span></button>
@@ -133,38 +133,26 @@
     </div>
     <div class="plan-grid">
       <article class="plan-card">
-        <div class="plan-name"><svg class="icon" aria-hidden="true"><use href="#flow-sale"/></svg><h3>Esnaf</h3></div>
-        <p class="plan-audience">Tek şubede günlük satış ve stok kontrolü yapan işletmeler için.</p>
-        <p class="plan-price"><strong data-price="499">₺499</strong><span> / ay</span></p>
-        <p class="plan-period"><span data-period-note>12 ayda ₺5.988</span></p>
-        <ul class="plan-features">
-          <li>1 işletme, 1 şube</li>
-          <li>İşletme sahibi dahil 2 kullanıcı</li>
-          <li>Ürün ve stok takibi, toplu CSV ürün aktarımı</li>
-          <li>Manuel ve CSV satış kayıtları</li>
-          <li>Müşteri, tahsilat ve finans yönetimi</li>
-          <li>Kritik stok ekranı ve temel raporlar</li>
-        </ul>
-      </article>
-      <article class="plan-card">
         <div class="plan-name"><svg class="icon" aria-hidden="true"><use href="#flow-cash"/></svg><h3>Profesyonel</h3></div>
-        <p class="plan-audience">Birden fazla şubeyi ve ekibi tek merkezde yöneten işletmeler için.</p>
+        <p class="plan-audience"><strong>İlk 14 gün ücretsiz deneme.</strong> Kart doğrulaması gerekir; ilk abonelik tahsilatı deneme bitiminde gerçekleşir.</p>
         <p class="plan-price"><strong data-price="999">₺999</strong><span> / ay</span></p>
         <p class="plan-period"><span data-period-note>12 ayda ₺11.988</span></p>
         <ul class="plan-features">
-          <li>Esnaf paketindeki tüm özellikler</li>
           <li>1 işletme, 5 şubeye kadar</li>
           <li>İşletme sahibi dahil 10 kullanıcı</li>
+          <li>Satış, müşteri, tahsilat ve finans yönetimi</li>
+          <li>Ürün ve stok takibi, toplu CSV ürün aktarımı</li>
           <li>Şubeler arası stok transferi</li>
           <li>Personel ve vardiya kayıtları</li>
           <li>Kasa satış API'si; uyumlu bağlayıcı gerekir</li>
           <li>Şube bazlı raporlar ve ekip yetkileri</li>
         </ul>
+        <a class="button primary" href="/register.html">Hesap oluştur <svg class="icon" aria-hidden="true"><use href="#arrow"/></svg></a>
       </article>
     </div>
-    <div class="plan-footer"><p>Ücretler aylık veya yıllık abonelik dönemi içindir. Yıllık ödemede gösterilen aylık karşılık ile tahsil edilecek yıllık toplam farklıdır. Otomatik kasa aktarımı için kasa/yazılım sağlayıcısının uyumlu veri çıkışı ve ayrıca bağlayıcı gerekir. Canlı AI sohbeti bu paketlere dahil değildir.</p>
-      <a class="text-link" href="/contact.html">Paketler hakkında iletişime geçin <svg class="icon" aria-hidden="true"><use href="#diagonal"/></svg></a></div>
-    <p class="pricing-availability">Ücretli abonelik tahsilatı şu anda kapalıdır. Ödeme altyapısı etkinleştirilmeden kart bilgisi alınmaz.</p>
+    <div class="plan-footer"><p>14 gün sonunda iptal edilmemiş abonelikte seçilen aylık veya yıllık dönem bedeli karttan otomatik tahsil edilir. Yıllık bedel 9.590,40 TL'dir (%20 indirim); yıllık görünümde aylık karşılık ayrı gösterilir. iyzico kart doğrulaması için 1 TL çeker ve hemen iade eder. Kasa otomasyonu uyumlu bağlayıcı gerektirir; canlı AI sohbeti pakete dahil değildir. İptal ve iade şartları için <a href="/subscription-terms.html">abonelik koşullarını</a> okuyun.</p>
+      <a class="text-link" href="/contact.html">Abonelik hakkında iletişime geçin <svg class="icon" aria-hidden="true"><use href="#diagonal"/></svg></a></div>
+    <p class="pricing-availability">Ücretli abonelik tahsilatı ve kart doğrulamalı deneme henüz açık değildir. iyzico canlı onayı tamamlanmadan kart bilgisi alınmaz.</p>
     <p class="sr-only" id="pricing-status" role="status"></p>
   </section>
   <section class="wrap section details-row" id="guvenlik" aria-labelledby="trust-title">

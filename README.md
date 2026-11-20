@@ -2,7 +2,7 @@
 
 ## Lansman fiyatları ve erişim
 
-Kesinleştirilen iki paket, aylık/yıllık fiyatlar, müşteri sınırları ve **satış açılmadan tamamlanacak teknik denetimler** için [Paketler ve lansman kararı](docs/PAKETLER-VE-LANSMAN-KARARI-20261119.md) belgesine bakın.
+Güncel model: tek **Profesyonel** paket, aylık **999 TL** veya yıllık **9.590,40 TL** (%20 indirim); iyzico üzerinden kartla başlatılan **14 günlük ücretsiz deneme**, süre sonunda iptal edilmezse otomatik yenileme. [Güncel abonelik kararı](docs/TEK-PAKET-14-GUN-DENEME-20261120.md). Önceki [iki paket kararı](docs/PAKETLER-VE-LANSMAN-KARARI-20261119.md) arşivdir.
 
 Şube ve kullanıcı limitleri ile Profesyonel özellik erişimi sunucuda doğrulanır. Ücretli satış için canlı iyzico onayı, izole ödeme sayfası ve uçtan uca ödeme doğrulaması gerekir.
 

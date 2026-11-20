@@ -1,4 +1,4 @@
-import { billingConfig } from "./iyzico.js";
+import { billingConfig, canStartTrial } from "./iyzico.js";
 import { HttpError, isPreviewRequest } from "./http.js";
 
 export const paidMessage = "Aktif aboneliğiniz bulunmuyor. İşletme kayıtlarınızı görüntüleyebilirsiniz.";
@@ -9,10 +9,14 @@ export function subscriptionEnvironment({ env, request }) {
   return env.OLVEX_BILLING === "sandbox" && isPreviewRequest(env, request) ? "sandbox" : "live";
 }
 
+const databaseNow = "CAST(strftime('%s','now') AS INTEGER) * 1000 + CAST(substr(strftime('%f','now'),4) AS INTEGER)";
+
 function paidSubscription(professionalOnly = false, business = "?", environment = "?") {
-  return `SELECT ${professionalOnly ? "1" : "plan, paid_until"} FROM olvex_subscriptions
-    WHERE business_id = ${business} AND environment = ${environment} AND state IN ('active','canceling')
-      AND paid_until > CAST(strftime('%s','now') AS INTEGER) * 1000 + CAST(substr(strftime('%f','now'),4) AS INTEGER)
+  return `SELECT ${professionalOnly ? "1" : "plan, paid_until, trial_until"} FROM olvex_subscriptions
+    WHERE business_id = ${business} AND environment = ${environment}
+      AND ((state IN ('active','canceling') AND paid_until > ${databaseNow})
+        OR (state IN ('active','canceling','canceled') AND plan IN ('profesyonel-monthly','profesyonel-yearly')
+          AND trial_started_at <= ${databaseNow} AND trial_until > ${databaseNow}))
       AND provider_ref IS NOT NULL AND customer_ref IS NOT NULL
       ${professionalOnly ? "AND plan IN ('profesyonel-monthly','profesyonel-yearly')" : ""}`;
 }
@@ -29,7 +33,7 @@ export async function entitlement(ctx) {
   const row = await ctx.db.prepare(paidSubscription()).bind(ctx.businessId, environment).first();
   const professional = row?.plan.startsWith("profesyonel-") === true;
   const tier = row ? (professional ? "profesyonel" : "esnaf") : "inactive";
-  return { professional, tier, paidUntil: row?.paid_until ?? null,
+  return { professional, tier, paidUntil: row?.paid_until ?? null, trialUntil: row?.trial_until ?? null,
     limits: row ? { businesses: 1, branches: professional ? 5 : 1, users: professional ? 10 : 2 } : null };
 }
 
@@ -42,7 +46,7 @@ export async function requireProfessional(ctx) {
 export async function requirePaidSubscription(ctx, { professional = false } = {}) {
   const environment = subscriptionEnvironment(ctx);
   const plan = await entitlement(ctx);
-  if (!plan.paidUntil) {
+  if (plan.tier === "inactive") {
     throw new HttpError(403, billingAvailable(ctx) ? paidMessage : paidMessage + " " + billingUnavailable);
   }
   if (professional && !plan.professional) throw new HttpError(403, professionalMessage);
@@ -51,7 +55,7 @@ export async function requirePaidSubscription(ctx, { professional = false } = {}
 
 export function billingAvailable(ctx) {
   const config = billingConfig(ctx.env);
-  return Boolean(config && config.environment === subscriptionEnvironment(ctx));
+  return canStartTrial(ctx, config);
 }
 
 export function branchCapacity(ctx) {

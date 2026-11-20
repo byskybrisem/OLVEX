@@ -33,7 +33,7 @@ async function checkStaticPage(page, url) {
   const missingTargets = await page.locator('a[href^="#"]').evaluateAll(links =>
     links.map(link => link.hash.slice(1)).filter(id => id && !document.getElementById(decodeURIComponent(id))));
   assert.deepEqual(missingTargets, []);
-  await page.getByRole("link", {name: "Ücretsiz Hesap Oluştur", exact: true}).first().waitFor();
+  await page.getByRole("link", {name: "Hesap oluştur", exact: true}).first().waitFor();
 }
 
 export async function landingChecks({ safeContext, url, snapshots }) {
@@ -100,9 +100,9 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await overviewTab.focus();
     await overviewTab.press("ArrowRight");
     assert.equal(await page.locator("#tour-products-tab").getAttribute("aria-selected"), "true");
-    const pricing = page.getByRole("region", { name: "Paketler ve fiyatlar" });
+    const pricing = page.getByRole("region", { name: "Tek paket. Tüm özellikler." });
     assert.deepEqual(await pricing.getByRole("heading", {level: 3}).allTextContents(),
-      ["Esnaf", "Profesyonel"]);
+      ["Profesyonel"]);
     for (const width of [375, 390, 430, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const layout = await pricing.evaluate(section => {
@@ -123,17 +123,17 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     }
     const prices = pricing.locator("[data-price]");
     const totals = pricing.locator("[data-period-note]");
-    const monthly = ["₺499", "₺999"];
+    const monthly = ["₺999"];
     assert.deepEqual(await prices.allTextContents(), monthly);
     await pricing.locator("#annual").focus();
     await page.keyboard.press("Enter");
     assert.equal(await pricing.locator("#annual").getAttribute("aria-pressed"), "true");
-    assert.deepEqual(await prices.allTextContents(), ["₺399,20", "₺799,20"]);
-    assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺4.790,40", "Yıllık toplam ₺9.590,40"]);
-    assert.equal(await pricing.locator(".plan-card").count(), 2);
+    assert.deepEqual(await prices.allTextContents(), ["₺799,20"]);
+    assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺9.590,40"]);
+    assert.equal(await pricing.locator(".plan-card").count(), 1);
     await pricing.locator("#monthly").click();
     assert.deepEqual(await prices.allTextContents(), monthly);
-    assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺5.988", "12 ayda ₺11.988"]);
+    assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺11.988"]);
     assert.equal(requests.some(path => path.endsWith("/core-scene.js")), false,
       "The WebGL bundle must be deferred until activation");
 
@@ -190,7 +190,7 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await page.locator("#site-menu summary").click();
     await page.locator('#site-menu a[href="#moduller"]').click();
     assert.equal(new URL(page.url()).hash, "#moduller");
-    await page.getByRole("link", {name: "Ücretsiz Hesap Oluştur", exact: true}).first().click();
+    await page.getByRole("link", {name: "Hesap oluştur", exact: true}).first().click();
     await page.getByText("Hesap kaydı için tarayıcınızda JavaScript’i etkinleştirin.").waitFor();
     assert.equal(await page.locator("#registerForm").isVisible(), false);
   } finally { await noJS.close(); }

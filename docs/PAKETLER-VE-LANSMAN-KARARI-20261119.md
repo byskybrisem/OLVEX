@@ -1,3 +1,5 @@
+> **ARŞİV / 20 Kasım 2026'da değiştirildi:** Güncel karar için [tek Profesyonel paket ve 14 günlük kartlı deneme](TEK-PAKET-14-GUN-DENEME-20261120.md) belgesine bakın. Esnaf yeni abonelik satışından çıkarıldı; tarihsel abonelik kayıtları korunur.
+
 # OLVEX — 19.11.2026 paket ve lansman kararı
 
 Bu belge pazarlama/fiyat kararı ile **gerçekte etkin teknik yetkileri** ayırır. Fiyatlar kaynak kodundaki `functions/_lib/iyzico.js` ile eşleşir.

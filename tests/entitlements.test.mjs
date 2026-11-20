@@ -111,7 +111,11 @@ test("Paket yetkileri, D1 limitleri ve abonelik geçişleri", { timeout: 120_000
   assert.equal((await read("products")).rows[0].total_stock, 8);
   assert.deepEqual((await read("csv-sources")).rows, []);
 
-  await change("profesyonel-yearly");
+  await change("profesyonel-yearly", "active", "NULL");
+  await local.query("UPDATE olvex_subscriptions SET trial_started_at=" + (future - 14 * 86400000) +
+    ", trial_until=" + future + " WHERE id='sandbox'");
+  assert.equal((await read("ai?chat=1")).mode, "mock");
+  assert.equal((await read("ai")).mode, "mock");
   assert.deepEqual((await read("package")).limits, { businesses: 1, branches: 5, users: 10 });
   for (let index = 0; index < 3; index++) await write("locations", "create", { name: "Şube " + index });
   const branchResults = await Promise.all(["Kıyı", "Yayla"].map(name =>
@@ -142,6 +146,7 @@ test("Paket yetkileri, D1 limitleri ve abonelik geçişleri", { timeout: 120_000
   await read("employees");
   await write("locations", "create", { name: "Dönem sonuna kadar limit korunur" }, 409);
   await write("settings", "rename", { name: "İptal bekleyen işletme" });
+  await local.query("UPDATE olvex_subscriptions SET trial_until=" + (Date.now() - 1) + " WHERE id='sandbox'");
   await change("profesyonel-yearly", "active", Date.now() - 1);
   assert.equal((await read("package")).tier, "inactive");
   expect(await request("pos", { ...pos, reference: "POS-2" }, "owner", secret), 403);

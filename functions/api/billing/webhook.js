@@ -3,7 +3,7 @@ import { handle, HttpError, json, readJson } from "../../_lib/http.js";
 import { verifyWebhook } from "../../_lib/iyzico.js";
 
 export const onRequestPost = handle(async ({ request, env }) => {
-  const config = requireBilling(env);
+  const config = requireBilling(env, request);
   const event = await readJson(request, 8192);
   if (!await verifyWebhook(config, event, request.headers.get("X-IYZ-SIGNATURE-V3"))) {
     throw new HttpError(403, "iyzico bildirim imzası geçersiz.");

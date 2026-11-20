@@ -139,14 +139,14 @@ try {
   const page = await desktop.newPage();
   watch(page);
   await page.goto(local.url);
-  await page.getByRole("link", { name: "Ücretsiz Hesap Oluştur", exact: true }).first().click();
+  await page.getByRole("link", { name: "Hesap oluştur", exact: true }).first().click();
   await page.locator("#name").fill("Örnek Kullanıcı");
   await page.locator("#email").fill(credentials.email);
   await page.locator("#password").fill(credentials.password);
   await page.locator("#confirmPassword").fill(credentials.password);
   assert.equal(await page.getByRole("link", { name: "Kullanım şartlarını" }).getAttribute("href"), "/terms.html");
   await page.locator("#terms").check();
-  await page.getByRole("button", { name: "Ücretsiz Hesap Oluştur" }).click();
+  await page.getByRole("button", { name: "Hesap Oluştur" }).click();
   await page.waitForURL(/\/login(?:\.html)?\?registered=1$/);
   await login(page);
   await page.waitForURL(/\/setup(?:\.html)?$/);
@@ -406,6 +406,11 @@ try {
   await navigate(page, "settings", "Ayarlar");
   await page.getByRole("heading", { name: "Paket · Profesyonel" }).waitFor();
   await page.getByText(/bekleyen davet\./).waitFor();
+  await page.getByRole("link", { name: "Aboneliği yönet" }).click();
+  await page.getByText("Kartla 14 günlük deneme henüz açık değil.").waitFor();
+  assert.equal(await page.locator("#billingForm").isVisible(), false);
+  await page.goBack();
+  await page.getByRole("heading", { name: "Paket · Profesyonel" }).waitFor();
 
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await heading(page, "Kasa Bağlantıları");
