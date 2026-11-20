@@ -223,3 +223,21 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; }
 }
+
+.business-tools h2 { margin-bottom: 22px; }
+.business-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+.business-grid article { padding: 20px; border: 1px solid var(--hair); border-radius: 14px; background: linear-gradient(145deg, #211c36, #111b25); }
+.business-grid h3 { color: #d5caff; margin-bottom: 8px; }
+.business-grid p { color: var(--dim); line-height: 1.55; }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes olvex-signal {
+    from { opacity: .35; transform: scale(.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .hero .signal { animation: olvex-signal 550ms var(--ease-out) both; }
+}
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .business-grid article { transition: transform 160ms var(--ease-out); }
+  .business-grid article:hover { transform: translateY(-3px); }
+}
