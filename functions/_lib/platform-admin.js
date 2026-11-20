@@ -1,13 +1,13 @@
 import { HttpError } from "./http.js";
-import { requireUser } from "./session.js";
+import { platformAdminId, PLATFORM_ADMIN_SESSION_SECONDS, requireUser } from "./session.js";
 import { choice, date, identifier, integer, period, text, today, addDays } from "./validate.js";
 
 // Use a stable, private user ID, not an email address, tenant owner role, or
 // a client-side flag. Fail closed until an operator explicitly provisions it.
 export async function requirePlatformAdmin(request, env) {
-  const user = await requireUser(request, env.DB);
-  const allowedId = env.OLVEX_SUPER_ADMIN_USER_ID?.trim().toLowerCase();
-  if (!allowedId || !/^[0-9a-f-]{36}$/.test(allowedId)) {
+  const user = await requireUser(request, env.DB, PLATFORM_ADMIN_SESSION_SECONDS);
+  const allowedId = platformAdminId(env);
+  if (!allowedId) {
     throw new HttpError(503, "Yönetici erişimi henüz yapılandırılmadı.");
   }
   if (user.id.toLowerCase() !== allowedId) {
