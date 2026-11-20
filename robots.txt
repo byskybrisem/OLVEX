@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /api/
+Disallow: /login.html
+Disallow: /register.html
+Disallow: /setup.html
+Disallow: /app.html
+Disallow: /admin.html
+
+Sitemap: https://olvex.com.tr/sitemap.xml
