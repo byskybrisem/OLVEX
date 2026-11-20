@@ -1,4 +1,4 @@
-import { entitlement } from "./entitlements.js";
+import { entitlement, paidSql, requirePaidSubscription, subscriptionEnvironment } from "./entitlements.js";
 import { HttpError, isPreviewRequest } from "./http.js";
 import { cashInsert } from "./records.js";
 import { financials, insights } from "./reports.js";
@@ -19,6 +19,7 @@ export function mode(ctx) {
 export async function aiDashboard(ctx) {
   const full = ctx.paramsUrl?.get("summary") === "1";
   const day = today();
+  const plan = await entitlement(ctx);
   const [facts, pending, usage, daily, branches] = await Promise.all([
     insights(ctx),
     ctx.db.prepare(`SELECT id, kind, payload, expires_at FROM olvex_ai_proposals
@@ -29,10 +30,10 @@ export async function aiDashboard(ctx) {
       ORDER BY created_at DESC, id DESC LIMIT 20`).bind(ctx.businessId, ctx.actorId, new Date().toISOString()).all(),
     aiUsage(ctx),
     full ? financials(ctx, day, day) : null,
-    full ? entitlement(ctx).then(plan => plan.professional
-      ? factsForAI(ctx, [{ role: "user", content: "Son 7 gün hangi şube daha fazla satış yapıyor?" }], null, null) : null) : null
+    full && plan.professional
+      ? factsForAI(ctx, [{ role: "user", content: "Son 7 gün hangi şube daha fazla satış yapıyor?" }], null, null) : null
   ]);
-  return { mode: mode(ctx), facts, usage, daily: daily?.totals, branches: branches?.rows, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
+  return { mode: plan.paidUntil ? mode(ctx) : "off", facts, usage, daily: daily?.totals, branches: branches?.rows, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
 }
 
 function draftKind(message) {
@@ -110,6 +111,7 @@ async function proposedAction(ctx, proposal, branch) {
 }
 
 export async function ask(ctx, body, { deferProposal = false } = {}) {
+  await requirePaidSubscription(ctx);
   const activeMode = mode(ctx);
   if (activeMode === "off") throw new HttpError(503, "OLVEX AI şu anda kullanılamıyor.");
   if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 8 ||
@@ -139,6 +141,7 @@ export async function ask(ctx, body, { deferProposal = false } = {}) {
     const safeMessages = externalMessages(messages);
     const facts = await factsForAI(ctx, safeMessages, branch, allowedDraft);
     const id = await reserveAI(ctx, config.model);
+    await requirePaidSubscription(ctx);
     if (activeMode === "cloudflare") {
       const result = await requestWorkersAI(ctx.env.AI, facts, safeMessages, allowedDraft);
       await recordAIUsage(ctx, id, config.model, result.usage).catch(() => console.warn("OLVEX AI kullanım ölçümü kaydedilemedi."));
@@ -170,8 +173,9 @@ export async function ask(ctx, body, { deferProposal = false } = {}) {
     if (!deferProposal) {
       const result = await ctx.db.prepare(`INSERT INTO olvex_ai_proposals (business_id, id, user_id, kind, payload, expires_at)
         SELECT ?, ?, user_id, ?, ?, ? FROM business_members
-        WHERE business_id = ? AND user_id = ? AND role IN ('owner', 'admin')`)
-        .bind(ctx.businessId, id, proposal.kind, JSON.stringify(proposal), expiresAt, ctx.businessId, ctx.actorId).run();
+        WHERE business_id = ? AND user_id = ? AND role IN ('owner', 'admin') AND ${paidSql}`)
+        .bind(ctx.businessId, id, proposal.kind, JSON.stringify(proposal), expiresAt, ctx.businessId, ctx.actorId,
+          ctx.businessId, subscriptionEnvironment(ctx)).run();
       if (result.meta.changes !== 1) throw new HttpError(403, "İşlem yetkisi sona ermiş.");
     }
     proposal = { ...proposal, id, expires_at: expiresAt };

@@ -241,7 +241,7 @@ function reports(data, state) {
 function settingView(data, state) {
   const owner = state.business.role === "owner";
   const plan = data.packagePlan;
-  const labels = { free: "Ücretsiz", esnaf: "Esnaf", profesyonel: "Profesyonel" };
+  const labels = { esnaf: "Esnaf", profesyonel: "Profesyonel" };
   const { counts, limits } = plan ?? {};
   const packagePanel = limits ? panel(`Paket · ${labels[plan.tier]}`,
     stats(stat("İşletme sınırı", count(limits.businesses)) + stat("Şube", `${counts.branches} / ${limits.branches}`) +

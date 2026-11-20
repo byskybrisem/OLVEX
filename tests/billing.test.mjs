@@ -8,6 +8,8 @@ import { getPlatformProxy, unstable_splitSqlQuery } from "wrangler";
 import { onRequestPost as callback } from "../functions/api/billing/callback.js";
 import { onRequestPost as webhook } from "../functions/api/billing/webhook.js";
 import { onRequestGet, onRequestPost } from "../functions/api/workspace/[businessId]/[section].js";
+import { requirePaidSubscription } from "../functions/_lib/entitlements.js";
+import { transact } from "../functions/_lib/workspace.js";
 import { randomToken, sha256 } from "../functions/_lib/session.js";
 
 test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde", async (t) => {
@@ -153,7 +155,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await confirm("checkout-token", 303);
   assert.equal((await call(null, 200)).tier, "esnaf");
   assert.equal(await packageTier(), "esnaf");
-  assert.equal(await packageTier("https://olvex.com.tr"), "free");
+  assert.equal(await packageTier("https://olvex.com.tr"), "inactive");
 
   const notify = async (type, status, { valid = true, order = "order-next" } = {}) => {
     const event = { iyziEventType: "subscription.order." + type, subscriptionReferenceCode: "sub",
@@ -171,7 +173,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await notify("failure", 403, { valid: false });
   assert.equal((await call(null, 200)).tier, "esnaf");
   await notify("failure", 200);
-  assert.equal(await packageTier(), "free");
+  assert.equal(await packageTier(), "inactive");
   assert.equal((await call(null, 200)).subscription.state, "unpaid");
   assert.equal((await call(null, 200)).tier, "free");
 
@@ -186,10 +188,16 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   assert.equal(await packageTier(), "esnaf");
   assert.equal((await call(null, 200)).subscription.paidUntil, orders[0].endPeriod);
 
+  const queuedWrite = { db: DB, env, request: new Request(origin), businessId: "biz", actorId: "owner", roles: ["owner"] };
+  queuedWrite.packageGuard = await requirePaidSubscription(queuedWrite);
   const cancel = { action: "cancel", id: checkout.requestId };
   await call(cancel, 404, { user: "outsider", businessId: "other" });
   assert.equal((await call(cancel, 200)).state, "canceled");
   await call(cancel, 200);
   assert.equal(cancellations, 1);
+  await assert.rejects(transact(queuedWrite, "business-rename", { requestId: crypto.randomUUID() }, [
+    DB.prepare("UPDATE businesses SET name = 'Değişmemeli' WHERE id = 'biz'")
+  ]), { status: 403 });
+  assert.equal(await DB.prepare("SELECT name FROM businesses WHERE id = 'biz'").first("name"), "Örnek");
   assert.equal((await call(null, 200)).tier, "free");
 });

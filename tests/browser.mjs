@@ -669,6 +669,15 @@ try {
       await prepareScreenshot(phone, "ai-webkit-history.png");
     } finally { await safari.close(); }
   }
+  await local.query("UPDATE olvex_subscriptions SET paid_until = 1 WHERE business_id = '" + workspace + "'");
+  await navigate(page, "overview", "Genel Bakış");
+  await page.getByRole("heading", { name: "Aktif aboneliğiniz bulunmuyor" }).waitFor();
+  await page.getByText(/OLVEX abonelik sistemi hazırlanıyor/).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Paketleri ve fiyatları gör" }).getAttribute("href"), "/#fiyatlandirma");
+  assert.equal(await page.getByRole("link", { name: "Paket seçimine git" }).count(), 0);
+  await navigate(page, "products", "Ürünler ve Stok");
+  await page.getByText("Filtre kahve", { exact: true }).first().waitFor();
+
   await handset.setViewportSize({ width: 390, height: 844 });
   await handset.getByRole("button", { name: "Menüyü aç" }).click();
   await handset.getByRole("button", { name: "Çıkış yap" }).click();
