@@ -38,7 +38,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
 
   const origin = "https://billing.example.test";
   const env = { DB, OLVEX_BILLING_ORIGIN: origin, IYZICO_API_KEY: "fixture-key", IYZICO_SECRET_KEY: "fixture-secret",
-    IYZICO_MERCHANT_ID: "123", IYZICO_ESNAF_MONTHLY: "plan-em", IYZICO_ESNAF_YEARLY: "plan-pm",
+    IYZICO_MERCHANT_ID: "123", IYZICO_ESNAF_MONTHLY: "plan-em", IYZICO_ESNAF_YEARLY: "plan-ey",
     IYZICO_PROFESYONEL_MONTHLY: "plan-pm", IYZICO_PROFESYONEL_YEARLY: "plan-py" };
   const call = async (body, status, { user = "owner", businessId = "biz" } = {}) => {
     const request = new Request(`${origin}/api/workspace/${businessId}/billing`, {
