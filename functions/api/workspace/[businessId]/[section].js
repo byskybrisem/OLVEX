@@ -1,5 +1,6 @@
 
-import { packageStatus, professionalGuard, requireProfessional } from "../../../_lib/entitlements.js";
+import { billableGuard, entitlement, packageStatus, professionalGuard, requireProfessional, subscriptionEnvironment } from "../../../_lib/entitlements.js";
+import { billingConfig } from "../../../_lib/iyzico.js";
 import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { csvSources, importRegisterSale } from "../../../_lib/register.js";
@@ -154,6 +155,14 @@ export const onRequestPost = handle(async (context) => {
 
   const [roles, action] = WRITE[section][data.action];
   const ctx = await workspace(context, roles);
+
+  // In live billing mode, no free write access remains after the trial. Reads and billing stay available.
+  if (section !== "billing" && billingConfig(ctx.env)?.environment === "live") {
+    if ((await entitlement(ctx)).tier === "free") {
+      throw new HttpError(402, "Deneme veya ücretli abonelik etkin değil. Yeni işlem için abonelik başlatın.");
+    }
+    ctx.packageGuard = billableGuard(subscriptionEnvironment(ctx));
+  }
 
   if (
     Object.hasOwn(data, "businessId") &&
