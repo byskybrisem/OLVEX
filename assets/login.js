@@ -9,6 +9,7 @@ const submit = document.querySelector("#submitButton");
 const url = new URL(location.href);
 const offer = subscriptionOffer(url.searchParams.get("next"));
 const joining = url.searchParams.get("next") === "join";
+const rightsLogin = url.searchParams.get("next") === "rights";
 const adminLogin = url.searchParams.get("next") === "admin";
 
 function status(text, success = false) {
@@ -39,7 +40,7 @@ form.addEventListener("submit", async (event) => {
       password: password.value,
       remember: document.querySelector('input[name="remember"]').checked
     });
-    location.replace(offer ? subscriptionDestination(offer) : joining ? "/join.html" : (adminLogin || session.isPlatformAdmin === true) ? "/admin.html" : "/app.html");
+    location.replace(offer ? subscriptionDestination(offer) : joining ? "/join.html" : rightsLogin ? "/account-rights.html" : (adminLogin || session.isPlatformAdmin === true) ? "/admin.html" : "/app.html");
   } catch (error) {
     status(error.message || "Giriş yapılamadı.");
     submit.disabled = false;
