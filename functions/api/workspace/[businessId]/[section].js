@@ -1,6 +1,6 @@
 
 import { entitlement, packageStatus, requirePaidSubscription, requireProfessional, professionalMessage } from "../../../_lib/entitlements.js";
-import { polarCheckout, polarPortal, polarStatus } from "../../../_lib/polar-billing.js";
+import { polarCheckout, polarPortal, polarStatus, reconcilePolarCheckout } from "../../../_lib/polar-billing.js";
 import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { csvSources, importRegisterSale } from "../../../_lib/register.js";
@@ -52,7 +52,7 @@ const READ = {
 };
 
 const WRITE = {
-  polar: { checkout: [OWNER, polarCheckout], portal: [OWNER, polarPortal] },
+  polar: { checkout: [OWNER, polarCheckout], portal: [OWNER, polarPortal], reconcile: [OWNER, reconcilePolarCheckout] },
   billing: {
     checkout: [OWNER, beginCheckout],
     refresh: [OWNER, manageSubscription],

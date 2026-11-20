@@ -61,6 +61,7 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
   const now = Date.now();
   let payload;
   let creationCount = 0;
+  let portalBusiness = "biz";
   let checkoutId = newId();
   let subId = newId();
   let customerId = newId();
@@ -77,16 +78,19 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
     if (path === "/v1/checkouts/" && init.method === "POST") {
       creationCount++;
       payload = JSON.parse(init.body);
-      const launch = !payload.allow_trial;
+      const launch = Boolean(payload.discount_id);
+      const trial = payload.allow_trial;
       return Response.json({ id: checkoutId, external_customer_id: payload.external_customer_id,
         status: "open", metadata: payload.metadata, tax_behavior: "inclusive", product_id: payload.products[0], discount_id: payload.discount_id, currency: "try",
-        allow_trial: !launch, allow_discount_codes: false, is_payment_setup_required: !launch,
-        active_trial_interval: launch ? null : "day", active_trial_interval_count: launch ? null : 14,
-        total_amount: launch ? 70000 : 0, discount: launch ? { duration: "repeating", duration_in_months: 3 } : null,
+        allow_trial: trial, allow_discount_codes: false, is_payment_setup_required: trial,
+        active_trial_interval: trial ? "day" : null, active_trial_interval_count: trial ? 14 : null,
+        total_amount: launch ? 70000 : trial ? 0 : 99900, discount: launch ? { type: "fixed", amounts: { try: 29900 }, duration: "repeating", duration_in_months: 3 } : null,
         product_price: { price_amount: 99900 }, product: { recurring_interval: "month", recurring_interval_count: 1 },
         expires_at: iso(now + DAY), url: "https://sandbox.polar.sh/checkout/fixture" });
     }
     if (path === "/v1/checkouts/" + checkoutId) return Response.json({
+      id: checkoutId, metadata: payload.metadata, external_customer_id: payload.external_customer_id, product_id: payload.products[0],
+      allow_trial: payload.allow_trial, is_payment_setup_required: payload.allow_trial,
       status: "succeeded", subscription_id: subId, customer_id: customerId
     });
     if (path === "/v1/subscriptions/" + subId) return Response.json(subscription);
@@ -96,7 +100,7 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
     }
     if (path === "/v1/customer-sessions/") {
       assert.equal(JSON.parse(init.body).external_customer_id, "biz");
-      return Response.json({ customer_portal_url: "https://sandbox.polar.sh/portal/fixture" });
+      return Response.json({ customer_id: customerId, customer: { id: customerId, external_id: portalBusiness }, customer_portal_url: "https://sandbox.polar.sh/portal/fixture" });
     }
     throw new Error("Unexpected Polar request " + path);
   });
@@ -132,11 +136,21 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
   subscription = { ...account(), status: "trialing", trial_start: iso(now), trial_end: iso(now + 14 * DAY) };
   await send("subscription.created", subscription, { valid: false, expected: 403 });
   await send("subscription.created", subscription, { stale: true, expected: 403 });
+  await call({ action: "reconcile" }, 403, { user: "admin" });
+  await call({ action: "reconcile" }, 404, { businessId: "alien" });
+  const validProduct = subscription.product_id;
+  subscription.product_id = newId();
+  await call({ action: "reconcile" }, 502);
+  subscription.product_id = validProduct;
+  assert.equal((await call({ action: "reconcile" }, 200)).subscription.trialUntil, now + 14 * DAY);
   await send("subscription.created", subscription);
   const trial = await call(null, 200, { section: "package" });
   assert.equal(trial.paidUntil, null);
   assert.equal(trial.trialUntil, now + 14 * DAY);
   assert.equal(trial.tier, "profesyonel");
+  portalBusiness = "alien";
+  await call({ action: "portal" }, 502);
+  portalBusiness = "biz";
   await call({ action: "portal" }, 200);
 
   subscription = { ...account(), status: "active", current_period_start: iso(now), current_period_end: iso(now + 31 * DAY) };
@@ -152,18 +166,33 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
   assert.equal(await DB.prepare("SELECT COUNT(*) AS n FROM olvex_polar_events WHERE delivery_id = ?").bind(delivery).first("n"), 1);
   assert.equal((await call(null, 200, { section: "package" })).paidUntil, now + 31 * DAY);
 
-  subscription = { ...subscription, status: "past_due" };
+  subscription.cancel_at_period_end = true;
+  await send("subscription.canceled", subscription);
+  assert.equal((await call(null, 200)).subscription.state, "canceling");
+  assert.equal((await call(null, 200)).subscription.paidUntil, now + 31 * DAY);
+  subscription = { ...subscription, cancel_at_period_end: false, status: "past_due" };
   await send("subscription.past_due", subscription);
-  assert.equal((await call(null, 200, { section: "package" })).tier, "inactive");
+  assert.equal((await call(null, 200, { section: "package" })).paidUntil, now + 31 * DAY);
   subscription = { ...subscription, status: "active" };
   orders = [{ ...order, status: "refunded", refunded_amount: 99900 }];
   await send("order.refunded", orders[0]);
+  assert.equal((await call(null, 200)).subscription.state, "refunded");
   assert.equal((await call(null, 200, { section: "package" })).paidUntil, null);
   subscription = { ...subscription, status: "canceled" };
   await send("subscription.revoked", subscription);
+  assert.equal((await call(null, 200, { section: "package" })).tier, "inactive");
+  checkoutId = newId();
   await call(start, 409);
+  await call({ ...start, withoutTrial: true }, 200);
+  assert.equal(payload.allow_trial, false);
+  await send("checkout.updated", { id: checkoutId, status: "failed", product_id: payload.products[0],
+    metadata: payload.metadata, external_customer_id: "biz" });
+  assert.equal((await call(null, 200)).subscription.state, "failed");
+  assert.equal((await call(null, 200, { section: "package" })).tier, "inactive");
 
   env.OLVEX_LAUNCH_OFFER = "on";
+  env.OLVEX_LAUNCH_OFFER_STARTS_AT = iso(now - DAY).split(".")[0] + "Z";
+  env.OLVEX_LAUNCH_OFFER_ENDS_AT = iso(now + DAY).split(".")[0] + "Z";
   checkoutId = newId();
   subId = newId();
   customerId = newId();
@@ -202,6 +231,8 @@ test("Lansman yalnızca üç ödenmiş döneme indirim uygular ve doğrulanmamı
   }));
   const failed = { ...orders[0], id: "failed", paid: false, status: "pending" };
   assert.equal(polarAccess(row, sub, [...orders, failed], now).paidUntil, now + 29 * DAY);
+  assert.equal(polarAccess(row, { ...sub, ends_at: iso(now + DAY) }, orders, now).paidUntil, now + DAY);
+  assert.equal(polarAccess(row, sub, orders, now + 30 * DAY).paidUntil, null);
   const historicalRefund = { ...orders[0], status: "refunded", paid: false, refunded_amount: 70000 };
   assert.equal(polarAccess(row, sub, [historicalRefund, ...orders.slice(1)], now).paidUntil, now + 29 * DAY);
   assert.equal(polarAccess(row, sub, [...orders.slice(0, -1), { ...orders[3], total_amount: 70000 }], now).paidUntil, null);

@@ -26,7 +26,7 @@ function utcTimestamp(value) {
 }
 
 export function publicPricing(env, now = Date.now()) {
-  const starts = env.OLVEX_LAUNCH_OFFER_STARTS_AT ? utcTimestamp(env.OLVEX_LAUNCH_OFFER_STARTS_AT) : -Infinity;
-  const ends = env.OLVEX_LAUNCH_OFFER_ENDS_AT ? utcTimestamp(env.OLVEX_LAUNCH_OFFER_ENDS_AT) : Infinity;
+  const starts = utcTimestamp(env.OLVEX_LAUNCH_OFFER_STARTS_AT);
+  const ends = utcTimestamp(env.OLVEX_LAUNCH_OFFER_ENDS_AT);
   return { olvex: { standard, launch: env.OLVEX_LAUNCH_OFFER === "on" && starts <= now && now < ends ? launch : null } };
 }
