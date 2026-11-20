@@ -3,11 +3,17 @@ import { HttpError } from "./http.js";
 const encoder = new TextEncoder();
 export const reference = value => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 
+export const TRIAL_DAYS = 14;
+
+// Only these plans can be sold to new customers. Historical Esnaf records remain readable.
 export const plans = Object.freeze({
-  "esnaf-monthly": { tier: "esnaf", interval: "MONTHLY", amount: 49900, binding: "IYZICO_ESNAF_MONTHLY" },
-  "esnaf-yearly": { tier: "esnaf", interval: "YEARLY", amount: 479040, binding: "IYZICO_ESNAF_YEARLY" },
   "profesyonel-monthly": { tier: "profesyonel", interval: "MONTHLY", amount: 99900, binding: "IYZICO_PROFESYONEL_MONTHLY" },
   "profesyonel-yearly": { tier: "profesyonel", interval: "YEARLY", amount: 959040, binding: "IYZICO_PROFESYONEL_YEARLY" }
+});
+
+export const legacyPlans = Object.freeze({
+  "esnaf-monthly": { tier: "esnaf", interval: "MONTHLY", amount: 49900 },
+  "esnaf-yearly": { tier: "esnaf", interval: "YEARLY", amount: 479040 }
 });
 
 export function billingConfig(env) {
