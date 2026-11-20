@@ -11,7 +11,7 @@ import { landingChecks, widths } from "./landing.mjs";
 
 const desktopEngineName = process.env.OLVEX_DESKTOP_BROWSER || "chromium";
 assert.ok(["chromium", "firefox", "webkit"].includes(desktopEngineName), "Unknown desktop engine");
-const local = await localPages({ professionalFixtures: true, https: true, bindings: { OLVEX_LAUNCH_OFFER: "on" } });
+const local = await localPages({ professionalFixtures: true, https: true, bindings: { OLVEX_LAUNCH_OFFER: "on", OLVEX_LAUNCH_OFFER_STARTS_AT: "2020-01-01T00:00:00Z", OLVEX_LAUNCH_OFFER_ENDS_AT: "2099-01-01T00:00:00Z" } });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
 const snapshots = process.env.OLVEX_SCREENSHOT_DIR;
@@ -615,6 +615,10 @@ try {
         hasTouch: true, deviceScaleFactor: 3, storageState: await desktop.storageState() }, safari);
       const phone = await context.newPage();
       watch(phone);
+      await phone.goto(local.url + "/account.html");
+      await phone.getByRole("button", { name: "Adımı kaydet" }).waitFor();
+      await phone.locator("#memberships a").first().waitFor();
+      assert.equal(await fitsViewport(phone), true);
       await phone.goto(local.url + "/cookies.html");
       assert.equal(await fitsViewport(phone), true);
       await phone.getByRole("button", { name: "Tümünü reddet" }).tap();
@@ -698,10 +702,25 @@ try {
     json: { enabled: true, launch: true, subscription: { state: "open", offer: "standard" } }
   }));
   await page.reload();
-  await page.getByText(/Erişim, bildirim doğrulandıktan sonra açılır/).waitFor();
-  await page.getByRole("button", { name: "Standart aboneliği başlat" }).waitFor();
+  await page.getByText(/Ödemeniz doğrulanıyor/).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Standart aboneliği başlat" }).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Lansman aboneliğini başlat" }).count(), 0);
   assert.equal(await fitsViewport(page), true);
+  await page.route("**/api/workspace/*/polar", route => route.fulfill({ json: {
+    enabled: true, verified: true, subscription: { state: "active", paidUntil: Date.now() + 86400000 }
+  } }));
+  await page.waitForURL(url => url.pathname.includes("/app") && url.hash === "#overview");
+  await loaded(page);
+  assert.equal(await page.locator("#business").inputValue(), workspace);
+  await page.goto(local.url + "/account.html");
+  await page.getByLabel("Ad soyad").fill("Profil Testi");
+  await page.getByRole("button", { name: "Adımı kaydet" }).click();
+  await page.getByText("Adınız güncellendi.").waitFor();
+  await page.reload();
+  await page.locator("#profile-form:visible").waitFor();
+  assert.equal(await page.getByLabel("Ad soyad").inputValue(), "Profil Testi");
+  await page.locator("#memberships a").first().waitFor();
+  await page.goto(local.url + "/billing.html?business=" + workspace);
   await page.unroute("**/api/workspace/*/polar");
 
   await handset.setViewportSize({ width: 390, height: 844 });

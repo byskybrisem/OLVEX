@@ -12,6 +12,13 @@ const launch = document.querySelector("#billing-launch");
 const portal = document.querySelector("#billing-portal");
 const buttons = [...document.querySelectorAll("main button")];
 const path = "/api/workspace/" + encodeURIComponent(business) + "/polar";
+const returned = params.has("returned");
+const management = document.querySelector("#billing-management");
+management.href = subscriptionDestination(null, business);
+const delays = [2000, 4000, 8000, 12000, 20000];
+let standardWithoutTrial = false;
+let polls = 0;
+let timer;
 const day = new Intl.DateTimeFormat("tr-TR", { dateStyle: "long", timeZone: "Europe/Istanbul" });
 
 function showAuth() {
@@ -51,34 +58,72 @@ async function chooseBusiness() {
   businesses.hidden = false;
 }
 
-async function load() {
+function scheduleCheck() {
+  if (polls < delays.length) {
+    timer = setTimeout(() => load(++polls % 2 === 1), delays[polls]);
+  } else {
+    status.textContent += " Otomatik kontrol tamamlandı. Güncel durum için sayfayı yenileyebilirsiniz.";
+  }
+}
+
+async function load(reconcile = false) {
+  clearTimeout(timer);
   try {
     if (!business) return await chooseBusiness();
-    const { enabled, launch: offer, subscription } = await request(path);
+    const result = reconcile ? await request(path, "POST", { action: "reconcile" }) : await request(path);
+    const { enabled, launch: offer, subscription, verified, usedTrial, canManage } = result;
     if (!enabled) {
       status.textContent = "Polar ödemeleri bu ortamda kapalı.";
       return;
     }
-    actions.hidden = Boolean(subscription && !subscription.closed && subscription.state !== "open");
+    const state = subscription?.state;
+    const attempt = params.get("attempt");
+    const matchingReturn = returned && subscription && (!attempt || subscription.id === attempt);
+    const currentPeriod = subscription?.paidUntil || subscription?.trialUntil;
+    portal.hidden = !canManage;
+    management.hidden = !returned;
+    actions.hidden = returned || Boolean(subscription && !subscription.closed && state !== "open");
     for (const button of actions.querySelectorAll("[data-offer]")) {
-      button.hidden = Boolean(subscription?.state === "open" && subscription.offer !== button.dataset.offer);
+      button.hidden = Boolean(state === "open" && subscription.offer !== button.dataset.offer);
     }
     launch.hidden = !offer;
-    portal.hidden = !subscription?.canManage;
-    const now = Date.now();
-    if (subscription?.paidUntil > now) status.textContent = `Ödenmiş dönem ${day.format(subscription.paidUntil)} tarihinde sona erer.`;
-    else if (subscription?.trialUntil > now) status.textContent = `Doğrulanmış deneme ${day.format(subscription.trialUntil)} tarihinde sona erer.`;
-    else if (params.has("returned")) status.textContent = "Polar’dan döndünüz. Erişim, bildirim doğrulandıktan sonra açılır. Durumu görmek için sayfayı yenileyin.";
-    else if (subscription?.state === "past_due" || subscription?.state === "unpaid") status.textContent = "Ödeme doğrulanamadı. Ödeme yönteminizi Polar müşteri panelinde kontrol edin.";
-    else if (!actions.hidden && selectedOffer === "launch" && !offer) status.textContent = "Lansman teklifi sona erdi. İsterseniz standart aboneliği seçebilirsiniz.";
-    else if (!actions.hidden && selectedOffer) {
-      const selected = actions.querySelector('[data-offer="' + selectedOffer + '"]');
+    standardWithoutTrial = Boolean(usedTrial);
+    if (usedTrial) document.querySelector("#standard-terms").textContent =
+      "Standart abonelik 999 TL/ay. Bu işletme deneme hakkını kullandı; ücretli dönem hemen başlar.";
+    if (verified && matchingReturn && !["past_due", "unpaid"].includes(state)) {
+      location.replace("/app.html?business=" + encodeURIComponent(business) + "#overview");
+    } else if (state === "canceling" && verified) {
+      status.textContent = "Yenileme iptal edildi. Erişiminiz " + day.format(currentPeriod) + " tarihinde sona erer.";
+    } else if (["past_due", "unpaid", "failed"].includes(state)) {
+      status.textContent = "Ödeme doğrulanamadı. Ödeme yönteminizi kontrol edin." +
+        (verified ? " Önceki ödenmiş döneminiz " + day.format(currentPeriod) + " tarihine kadar geçerli." : "");
+    } else if (verified) {
+      status.textContent = (subscription.trialUntil ? "Kartlı deneme bitişi" : "Ödenmiş dönem sonu") +
+        " · " + day.format(currentPeriod) + ". Yenileme bilgilerini Polar panelinde görebilirsiniz.";
+    } else if (subscription?.closed) {
+      status.textContent = state === "canceled" ? "Abonelik sona erdi." : "Bu ödeme oturumu veya abonelik dönemi sona erdi.";
+    } else if (state === "refunded") {
+      status.textContent = "Bu dönemin ödemesi iade edildi. Ayrıntıları Polar müşteri panelinde görebilirsiniz.";
+    } else if (matchingReturn) {
+      status.textContent = "Ödemeniz doğrulanıyor. Bu işlem için tekrar ödeme başlatmayın.";
+      scheduleCheck();
+    } else if (returned) {
+      status.textContent = "Bu dönüş için doğrulanmış bir ödeme bulunamadı. Abonelik ekranından işletmenizin durumunu kontrol edin.";
+    } else if (state === "open") {
+      status.textContent = "Bu işletmede açık bir ödeme oturumu var. Aynı oturuma devam edebilirsiniz.";
+    } else if (!actions.hidden && selectedOffer === "launch" && !offer) {
+      status.textContent = "Lansman teklifi sona erdi. İsterseniz standart aboneliği seçebilirsiniz.";
+    } else if (!actions.hidden && selectedOffer) {
       status.textContent = "Seçtiğiniz teklifle devam etmek için ödeme ekranını açın.";
-      if (!selected.hidden) selected.focus();
-    } else status.textContent = "Doğrulanmış aktif dönem bulunamadı.";
+    } else {
+      status.textContent = "Doğrulanmış aktif dönem bulunamadı.";
+    }
   } catch (error) {
     if (error.status === 401) showAuth();
-    else status.textContent = error.message;
+    else {
+      status.textContent = error.message;
+      if (returned && ![403, 404].includes(error.status)) scheduleCheck();
+    }
   }
 }
 
@@ -86,7 +131,7 @@ for (const button of buttons) {
   button.addEventListener("click", async () => {
     for (const control of buttons) control.disabled = true;
     try {
-      const result = await request(path, "POST", button === portal ? { action: "portal" } : { action: "checkout", offer: button.dataset.offer });
+      const result = await request(path, "POST", button === portal ? { action: "portal" } : { action: "checkout", offer: button.dataset.offer, withoutTrial: button.dataset.offer === "standard" && standardWithoutTrial });
       location.assign(result.url);
     } catch (error) {
       if (error.status === 401) showAuth();
@@ -95,4 +140,8 @@ for (const button of buttons) {
     }
   });
 }
+window.addEventListener("pagehide", () => clearTimeout(timer));
+window.addEventListener("pageshow", event => {
+  if (event.persisted) location.reload();
+});
 load();
