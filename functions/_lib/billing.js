@@ -1,5 +1,5 @@
 import { HttpError } from "./http.js";
-import { billingConfig, iyzico, minorUnits, plans, reference } from "./iyzico.js";
+import { billingConfig, iyzico, minorUnits, plans, legacyPlans, reference, TRIAL_DAYS } from "./iyzico.js";
 import { sha256 } from "./session.js";
 import { identifier, text } from "./validate.js";
 
@@ -16,9 +16,13 @@ export function requireBilling(env) {
 }
 
 function present(row, now = Date.now()) {
+  const trial = row.plan?.startsWith("profesyonel-") &&
+    ["active", "canceling", "canceled"].includes(row.state) && row.trial_until > now;
+  const paid = ["active", "canceling"].includes(row.state) && row.paid_until > now;
   return {
     id: row.id, plan: row.plan, state: row.state, paidUntil: row.paid_until,
-    tier: ["active", "canceling"].includes(row.state) && row.paid_until > now ? plans[row.plan].tier : "free"
+    trialUntil: row.trial_until ?? null, trial: Boolean(trial && !paid),
+    tier: trial || paid ? (plans[row.plan] || legacyPlans[row.plan])?.tier ?? "free" : "free"
   };
 }
 
@@ -51,6 +55,7 @@ function customerPayload(body, email) {
 export async function beginCheckout(ctx, body) {
   const config = requireBilling(ctx.env);
   if (!Object.hasOwn(plans, body.plan)) throw new HttpError(400, "Geçerli bir plan seçin.");
+  if (body.acceptedBillingTerms !== true) throw new HttpError(400, "Deneme ve otomatik yenileme koşullarını onaylayın.");
   const id = identifier(body.requestId);
   const plan = plans[body.plan];
   const planRef = ctx.env[plan.binding];
@@ -63,18 +68,25 @@ export async function beginCheckout(ctx, body) {
   };
   const previous = await existing();
   if (previous) return repeat(previous);
+  // No second free trial on the same business, even after cancel/expiry.
+  const used = await ctx.db.prepare(`SELECT 1 FROM olvex_subscriptions
+    WHERE business_id = ? AND environment = ? AND provider_ref IS NOT NULL LIMIT 1`)
+    .bind(ctx.businessId, config.environment).first();
+  if (used) throw new HttpError(409, "Bu işletmede deneme hakkı kullanılmış. Yeniden abonelik için destekle iletişime geçin.");
 
   const checked = await iyzico(config, "/v2/subscription/pricing-plans/" + planRef);
   const remote = checked.data;
   if (checked.status !== "success" || remote?.referenceCode !== planRef || remote.status !== "ACTIVE" ||
       remote.currencyCode !== "TRY" || minorUnits(remote.price) !== plan.amount || remote.paymentInterval !== plan.interval ||
-      remote.paymentIntervalCount !== 1 || remote.planPaymentType !== "RECURRING" || (remote.trialPeriodDays ?? 0) !== 0 ||
+      remote.paymentIntervalCount !== 1 || remote.planPaymentType !== "RECURRING" || remote.trialPeriodDays !== TRIAL_DAYS ||
       (remote.recurrenceCount ?? 0) !== 0) {
     throw new HttpError(503, "iyzico planı yayımlanan ücret ve ödeme dönemiyle uyuşmuyor.");
   }
 
-  const reserve = await ctx.db.prepare(`INSERT INTO olvex_subscriptions (id, business_id, environment, plan, plan_ref, state)
-    SELECT ?, ?, ?, ?, ?, 'creating' FROM business_members WHERE business_id = ? AND user_id = ? AND role = 'owner'
+  const reserve = await ctx.db.prepare(`INSERT INTO olvex_subscriptions
+    (id, business_id, environment, plan, plan_ref, state, billing_terms_accepted_at)
+    SELECT ?, ?, ?, ?, ?, 'creating', CURRENT_TIMESTAMP FROM business_members
+    WHERE business_id = ? AND user_id = ? AND role = 'owner'
     ON CONFLICT DO NOTHING`).bind(id, ctx.businessId, config.environment, body.plan, planRef, ctx.businessId, ctx.actorId).run();
   if (!reserve.meta.changes) return repeat(await existing());
   const callback = new URL("/api/billing/callback", config.origin);
@@ -118,17 +130,29 @@ export async function refreshSubscription(db, config, row, event) {
   if (terminal.includes(row.state)) state = row.state;
   else if (row.state === "canceling" && state === "active") state = "canceling";
   const now = Date.now();
+  const price = plans[row.plan] || legacyPlans[row.plan];
+  if (!price) throw new HttpError(502, "Abonelik planı tanınmıyor.");
+  let trialUntil = row.trial_until ?? null;
+  if (Object.hasOwn(plans, row.plan) && sub.trialDays === TRIAL_DAYS) {
+    if (!Number.isSafeInteger(sub.trialStartDate) || !Number.isSafeInteger(sub.trialEndDate) ||
+        sub.trialStartDate + TRIAL_DAYS * 86_400_000 !== sub.trialEndDate ||
+        sub.trialStartDate > now + 300_000) {
+      throw new HttpError(502, "iyzico deneme tarihleri doğrulanamadı.");
+    }
+    trialUntil = sub.trialEndDate;
+  }
   const paidUntil = sub.orders.reduce((latest, order) => {
     if (order?.orderStatus !== "SUCCESS" || order.currencyCode !== "TRY" ||
-        minorUnits(order.price) !== plans[row.plan].amount || !Number.isSafeInteger(order.startPeriod) ||
+        minorUnits(order.price) !== price.amount || !Number.isSafeInteger(order.startPeriod) ||
         !Number.isSafeInteger(order.endPeriod) || order.startPeriod > now || order.endPeriod <= now) return latest;
     return Math.max(latest, order.endPeriod);
   }, 0) || null;
-  if (state === row.state && paidUntil === row.paid_until) return present(row, now);
-  const updated = await db.prepare(`UPDATE olvex_subscriptions SET state = ?, paid_until = ?, revision = revision + 1
-    WHERE id = ? AND revision = ?`).bind(state, paidUntil, row.id, row.revision).run();
+  if (state === row.state && paidUntil === row.paid_until && trialUntil === (row.trial_until ?? null)) return present(row, now);
+  const updated = await db.prepare(`UPDATE olvex_subscriptions
+    SET state = ?, paid_until = ?, trial_until = ?, revision = revision + 1
+    WHERE id = ? AND revision = ?`).bind(state, paidUntil, trialUntil, row.id, row.revision).run();
   if (!updated.meta.changes) throw new HttpError(503, "Abonelik paralel olarak güncellendi. Tekrar deneyin.");
-  return present({ ...row, state, paid_until: paidUntil }, now);
+  return present({ ...row, state, paid_until: paidUntil, trial_until: trialUntil }, now);
 }
 
 export async function confirmCheckout(db, config, id, token) {
