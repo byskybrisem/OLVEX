@@ -1,4 +1,4 @@
-import { HttpError } from "./http.js";
+import { HttpError, isPreviewRequest } from "./http.js";
 import { billingConfig, iyzico, minorUnits, plans, legacyPlans, reference, TRIAL_DAYS } from "./iyzico.js";
 import { sha256 } from "./session.js";
 import { identifier, text } from "./validate.js";
@@ -28,7 +28,11 @@ function present(row, now = Date.now()) {
 
 export async function billingStatus(ctx) {
   const config = billingConfig(ctx.env);
-  if (!config) return { enabled: false, tier: "free", subscription: null };
+  const preview = isPreviewRequest(ctx.env, ctx.request);
+  if (!config || (config.environment === "sandbox" && !preview) ||
+      (config.environment === "live" && preview)) {
+    return { enabled: false, tier: "free", subscription: null };
+  }
   const row = await ctx.db.prepare(`SELECT * FROM olvex_subscriptions WHERE environment = ? AND business_id = ?
     ORDER BY CASE WHEN state IN ('creating','checkout','pending','active','unpaid','canceling') THEN 0 ELSE 1 END,
       created_at DESC, rowid DESC LIMIT 1`).bind(config.environment, ctx.businessId).first();
@@ -54,6 +58,10 @@ function customerPayload(body, email) {
 
 export async function beginCheckout(ctx, body) {
   const config = requireBilling(ctx.env);
+  const preview = isPreviewRequest(ctx.env, ctx.request);
+  if ((config.environment === "sandbox" && !preview) || (config.environment === "live" && preview)) {
+    throw new HttpError(403, "Bu ortamda abonelik başlatılamaz.");
+  }
   if (!Object.hasOwn(plans, body.plan)) throw new HttpError(400, "Geçerli bir plan seçin.");
   if (body.acceptedBillingTerms !== true) throw new HttpError(400, "Deneme ve otomatik yenileme koşullarını onaylayın.");
   const id = identifier(body.requestId);
@@ -133,7 +141,10 @@ export async function refreshSubscription(db, config, row, event) {
   const price = plans[row.plan] || legacyPlans[row.plan];
   if (!price) throw new HttpError(502, "Abonelik planı tanınmıyor.");
   let trialUntil = row.trial_until ?? null;
-  if (Object.hasOwn(plans, row.plan) && sub.trialDays === TRIAL_DAYS) {
+  if (Object.hasOwn(plans, row.plan)) {
+    if (sub.trialDays !== TRIAL_DAYS) {
+      throw new HttpError(502, "iyzico abonelik deneme süresi beklenen değerle uyuşmuyor.");
+    }
     if (!Number.isSafeInteger(sub.trialStartDate) || !Number.isSafeInteger(sub.trialEndDate) ||
         sub.trialStartDate + TRIAL_DAYS * 86_400_000 !== sub.trialEndDate ||
         sub.trialStartDate > now + 300_000) {
