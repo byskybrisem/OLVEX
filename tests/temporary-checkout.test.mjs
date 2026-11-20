@@ -31,7 +31,7 @@ test("geçici canlı ödeme yönlendirmesine sadece yönetici oturumu erişebili
   assert.equal(guest.status, 401);
   assert.equal(guest.headers.get("Location"), null);
 
-  const absentAdminConfig = await invoke(adminId, undefined);
+  const absentAdminConfig = await invoke(adminId, null);
   assert.equal(absentAdminConfig.status, 404);
   assert.equal(absentAdminConfig.headers.get("Location"), null);
 
