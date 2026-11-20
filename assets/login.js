@@ -1,4 +1,5 @@
 import { request } from "./ui.js";
+import { subscriptionDestination, subscriptionOffer } from "./subscription-route.js";
 
 const password = document.querySelector("#password");
 const toggle = document.querySelector("#togglePassword");
@@ -6,6 +7,7 @@ const form = document.querySelector("#loginForm");
 const message = document.querySelector("#message");
 const submit = document.querySelector("#submitButton");
 const url = new URL(location.href);
+const offer = subscriptionOffer(url.searchParams.get("next"));
 const joining = url.searchParams.get("next") === "join";
 const adminLogin = url.searchParams.get("next") === "admin";
 
@@ -15,7 +17,7 @@ function status(text, success = false) {
   message.textContent = text;
 }
 
-if (joining) document.querySelector("#register-link").href = "/register.html?next=join";
+if (joining || offer) document.querySelector("#register-link").href = "/register.html?next=" + (offer ?? "join");
 if (url.searchParams.get("registered") === "1") status("Kayıt isteğiniz alındı. Hesabınıza ait e-posta ve şifreyle giriş yapabilirsiniz.", true);
 if (url.searchParams.get("reset") === "1") status("Şifreniz güncellendi. Yeni şifrenizle giriş yapın.", true);
 
@@ -37,7 +39,7 @@ form.addEventListener("submit", async (event) => {
       password: password.value,
       remember: document.querySelector('input[name="remember"]').checked
     });
-    location.replace(joining ? "/join.html" : (adminLogin || session.isPlatformAdmin === true) ? "/admin.html" : "/app.html");
+    location.replace(offer ? subscriptionDestination(offer) : joining ? "/join.html" : (adminLogin || session.isPlatformAdmin === true) ? "/admin.html" : "/app.html");
   } catch (error) {
     status(error.message || "Giriş yapılamadı.");
     submit.disabled = false;

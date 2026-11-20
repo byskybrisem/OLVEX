@@ -53,7 +53,8 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
     });
     const response = await (body ? post : get)({ env, request, params: { businessId, section } });
     const data = await response.json();
-    assert.equal(response.status, expected, JSON.stringify(data));
+    if (Array.isArray(expected)) assert.ok(expected.includes(response.status), JSON.stringify(data));
+    else assert.equal(response.status, expected, JSON.stringify(data));
     return data;
   };
 
@@ -116,8 +117,8 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
   await call(start, 404, { businessId: "alien" });
   await call(start, 403, { csrf: "https://other.example.test" });
   await call({ ...start, offer: "launch" }, 409);
-  const concurrent = await Promise.allSettled([call(start, 200), call(start, 409)]);
-  assert.ok(concurrent.some(x => x.status === "fulfilled"));
+  const concurrent = await Promise.all([call(start, [200, 409]), call(start, [200, 409])]);
+  assert.ok(concurrent.some(result => result.url));
   assert.equal(creationCount, 1);
   await call(start, 200);
   assert.equal(payload.external_customer_id, "biz");

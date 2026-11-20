@@ -110,7 +110,10 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await plan.getByText(/Sınırlı süreli teklif.*İlk 3 ücretli ay 700 TL\/ay, sonrasında 999 TL\/ay.*deneme yoktur/).waitFor();
     await plan.getByText("14 gün ücretsiz deneme", { exact: true }).waitFor();
     await plan.getByText(/Deneme için ödeme kartı gerekecek/).waitFor();
-    assert.equal(await plan.getByRole("button").count(), 0);
+    const action = plan.getByRole("link", { name: "Ücretsiz Hesap Oluştur" });
+    assert.equal(await action.getAttribute("href"), "/register.html");
+    await plan.getByText("Ücretli abonelik tahsilatı şu anda kapalıdır.").waitFor();
+    await plan.getByText(/OLVEX AI aboneliğe dahildir/).waitFor();
     for (const width of widths) {
       await page.setViewportSize({ width, height: 900 });
       const layout = await plan.evaluate(card => {
@@ -119,6 +122,8 @@ export async function landingChecks({ safeContext, url, snapshots }) {
         return {
           overflow: card.scrollWidth > card.clientWidth || document.documentElement.scrollWidth > document.documentElement.clientWidth,
           left: rect.left, right: rect.right, width: rect.width, sectionWidth: section.width,
+          actionWidth: card.querySelector("#pricing-cta").getBoundingClientRect().width,
+          contentWidth: card.clientWidth - parseFloat(getComputedStyle(card).paddingLeft) - parseFloat(getComputedStyle(card).paddingRight),
           background: getComputedStyle(card).backgroundImage
         };
       });
@@ -126,6 +131,7 @@ export async function landingChecks({ safeContext, url, snapshots }) {
       assert.ok(Math.abs(layout.left - (width - layout.right)) <= 1, `Card not centered at ${width}px`);
       assert.ok(Math.abs(layout.width - Math.min(layout.sectionWidth, 620)) <= 1, `Unexpected card width at ${width}px`);
       assert.notEqual(layout.background, "none");
+      assert.ok(Math.abs(layout.actionWidth - layout.contentWidth) <= 1, `CTA must fill the card at ${width}px`);
       if (snapshots && [390, 768, 1440].includes(width)) {
         await page.evaluate(() => document.fonts.ready);
         await plan.screenshot({ path: join(snapshots, `single-pricing-${width}.png`), animations: "disabled" });
@@ -224,6 +230,7 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     const scripts = [];
     const campaignClosed = await reduced.request.get(url + "/api/public-info");
     const info = await campaignClosed.json();
+    const launchOffer = info.pricing.olvex.launch;
     info.pricing.olvex.launch = null;
     await page.route("**/api/public-info", route => route.fulfill({ json: info }));
     page.on("request", request => scripts.push(new URL(request.url()).pathname));
@@ -238,6 +245,27 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     assert.equal(await page.locator(".plan-card:visible").count(), 1);
     assert.equal(await page.locator("#core-canvas").isVisible(), false);
     assert.equal(scripts.some(path => path.endsWith("/core-scene.js")), false);
+    info.polarCheckoutEnabled = true;
+    await page.reload();
+    const standard = page.getByRole("link", { name: "14 Gün Ücretsiz Dene", exact: true });
+    await standard.waitFor();
+    assert.equal(await standard.getAttribute("href"), "/billing.html?offer=standard");
+    info.pricing.olvex.launch = launchOffer;
+    await page.reload();
+    const launchAction = page.getByRole("link", { name: "700 TL/ay — Satın Al", exact: true });
+    await launchAction.waitFor();
+    assert.equal(await launchAction.getAttribute("href"), "/billing.html?offer=launch");
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await checkWidth(page, width);
+      assert.ok(await launchAction.isVisible());
+    }
+    info.polarCheckoutEnabled = false;
+    info.registrationOpen = false;
+    await page.reload();
+    const closedAction = page.locator("#pricing-cta");
+    await page.getByText(/Yeni hesap kaydı da kapalıdır/).waitFor();
+    assert.equal(await closedAction.getAttribute("href"), "/login.html");
   } finally { await reduced.close(); }
 
   if (process.env.OLVEX_WEBKIT) {

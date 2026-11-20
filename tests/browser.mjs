@@ -712,6 +712,41 @@ try {
   await handset.waitForURL(/\/login(?:\.html)?$/);
   await page.reload();
   await page.getByText(/Abonelik bilgileri için OLVEX hesabınıza giriş yapın/).waitFor();
+  await page.goto(`${local.url}/billing.html?offer=launch`);
+  await page.getByRole("link", { name: "Giriş Yap", exact: true }).click();
+  await page.waitForURL(/login(?:\.html)?\?next=launch$/);
+  assert.equal(await page.locator("#register-link").getAttribute("href"), "/register.html?next=launch");
+  await login(page);
+  await page.waitForURL(/billing(?:\.html)?\?offer=launch$/);
+  await page.getByText("Aboneliği başlatmak istediğiniz işletmeyi seçin.").waitFor();
+  await page.locator("#billing-businesses").getByRole("link").first().click();
+  await page.getByText("Polar ödemeleri bu ortamda kapalı.").waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("offer"), "launch");
+  assert.ok(new URL(page.url()).searchParams.has("business"));
+  const newAccount = await safeContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const newUser = await newAccount.newPage();
+    await newUser.goto(`${local.url}/billing.html?offer=standard`);
+    await newUser.getByRole("link", { name: "Ücretsiz Hesap Oluştur" }).click();
+    await newUser.locator("#name").fill("Abonelik testi");
+    await newUser.locator("#email").fill("pricing-browser@example.test");
+    await newUser.locator("#password").fill(credentials.password);
+    await newUser.locator("#confirmPassword").fill(credentials.password);
+    await newUser.locator("#terms").check();
+    await newUser.getByRole("button", { name: "Ücretsiz Hesap Oluştur" }).click();
+    await newUser.waitForURL(/login(?:\.html)?\?registered=1&next=standard$/);
+    await newUser.locator("#email").fill("pricing-browser@example.test");
+    await newUser.locator("#password").fill(credentials.password);
+    await newUser.locator("#submitButton").click();
+    await newUser.waitForURL(/setup(?:\.html)?\?offer=standard$/);
+    await newUser.locator("#businessName").fill("Abonelik test işletmesi");
+    await newUser.locator("#submitButton").click();
+    await newUser.getByText("Polar ödemeleri bu ortamda kapalı.").waitFor();
+    assert.equal(new URL(newUser.url()).searchParams.get("offer"), "standard");
+    assert.ok(new URL(newUser.url()).searchParams.has("business"));
+  } finally {
+    await newAccount.close();
+  }
   await landingChecks({ safeContext, url: local.url, snapshots });
   assert.deepEqual(browserErrors, []);
   console.log("Tarayıcı doğrulandı: masaüstü ve mobil akış, satış/CSV, AI onayı, rapor, kasa ve oturum.");

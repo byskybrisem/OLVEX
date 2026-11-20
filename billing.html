@@ -15,6 +15,11 @@
 <main class="card">
   <h1>Abonelik</h1>
   <p id="billing-status" role="status" aria-live="polite">Abonelik durumu yükleniyor.</p>
+  <nav id="billing-auth" class="preference-actions" aria-label="Hesap işlemleri" hidden>
+    <a id="billing-login" href="/login.html">Giriş Yap</a>
+    <a id="billing-register" href="/register.html">Ücretsiz Hesap Oluştur</a>
+  </nav>
+  <nav id="billing-businesses" class="preference-actions" aria-label="İşletme seçimi" hidden></nav>
   <div id="billing-actions" hidden>
     <p>Standart abonelik 999 TL/ay. İlk kullanımda ödeme kartıyla 14 günlük deneme sunulur.</p>
     <button type="button" data-offer="standard">Standart aboneliği başlat</button>

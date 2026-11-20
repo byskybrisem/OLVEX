@@ -6,12 +6,13 @@ import { newPassword, passwordHash } from "./password.js";
 import { text } from "./validate.js";
 import { TERMS_VERSION } from "./public-info.js";
 
-export async function sendSignupLink(env, address, joining) {
+export async function sendSignupLink(env, address, joining, offer) {
   const token = randomToken();
   const key = await sha256(token);
   const now = Date.now();
   const link = new URL("/register.html", recoveryOrigin(env));
   if (joining) link.searchParams.set("next", "join");
+  else if (offer === "standard" || offer === "launch") link.searchParams.set("next", offer);
   link.hash = token;
   const [, issued] = await env.DB.batch([
     env.DB.prepare("DELETE FROM olvex_signup_links WHERE expires_at <= ?").bind(new Date(now).toISOString()),
