@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { getPlatformProxy, unstable_splitSqlQuery } from "wrangler";
 import { onRequestPost as changePassword } from "../functions/api/auth/password-change.js";
-import { onRequestGet as currentUser } from "../functions/api/auth/me.js";
+import { onRequestGet as currentUser, onRequestPost as updateProfile } from "../functions/api/auth/me.js";
 import { passwordHash, verifyPassword } from "../functions/_lib/password.js";
 import { randomToken, sha256 } from "../functions/_lib/session.js";
 
@@ -53,6 +53,18 @@ test("şifre değiştirme oturum ve eski sıfırlama bağlantılarını geçersi
   });
   const me = async tokenValue => currentUser({ env: { DB: db },
     request: new Request(origin + "/api/auth/me", { headers: { Cookie: "olvex_session=" + tokenValue } }) });
+  const rename = (fullName, cookie = token, csrf = origin) => updateProfile({ env: { DB: db },
+    request: new Request(origin + "/api/auth/me", { method: "POST",
+      headers: { Origin: csrf, Cookie: "olvex_session=" + cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName, id: "u2", email: "unused@example.test" }) }) });
+  assert.equal((await rename(" A ")).status, 400);
+  assert.equal((await rename("Yeni Ad", randomToken())).status, 401);
+  assert.equal((await rename("Yeni Ad", token, "https://other.example.test")).status, 403);
+  assert.equal((await rename(" Yeni Ad ")).status, 200);
+  const renamed = (await (await me(token)).json()).user;
+  assert.equal(renamed.fullName, "Yeni Ad");
+  assert.equal(renamed.email, "owner@example.test");
+  assert.notEqual((await (await me(unrelatedToken)).json()).user.fullName, "Yeni Ad");
   const body = { currentPassword: old, newPassword: next };
   assert.equal((await invoke(body, token, "https://other.example.test")).status, 403);
   assert.equal((await invoke({ currentPassword: "yanlış ama uzun şifre", newPassword: next })).status, 400);

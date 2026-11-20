@@ -5,11 +5,11 @@
 | Standart | Ödeme kartıyla 14 gün | 999 TL/ay | 999 TL/ay |
 | Lansman | Yok | 700 TL/ay | 999 TL/ay |
 
-Her iki teklif aynı OLVEX yetkilerini verir. İndirim ayda 299 TL ve toplam 897 TL’dir. Checkout ve portal işletme sahibinin panelinde **Ayarlar → Aboneliği yönet** altında görünür. Başarı dönüşü yalnızca durumu gösterir. Standart deneme, doğrulanmış checkout ve sağlayıcıdaki 14 günlük deneme kaydıyla erişim açar. Ücretli erişim doğrulanmış sipariş ve dönem eşlemesiyle açılır.
+Her iki teklif aynı OLVEX yetkilerini verir. İndirim ayda 299 TL ve toplam 897 TL’dir. Checkout ve portal işletme sahibinin panelinde **Ayarlar → Aboneliği yönet** altında görünür. Ödeme dönüşünde işletme sahibinin ekranı durumu en çok beş kez yeniden sorgular. Gerektiğinde sunucu kayıtlı checkout’u Polar’dan uzlaştırır. Doğrulanmış dönem bulunduğunda ilgili işletmenin paneli açılır. Standart deneme, doğrulanmış checkout ve sağlayıcıdaki 14 günlük deneme kaydıyla erişim açar. Ücretli erişim doğrulanmış sipariş ve dönem eşlemesiyle açılır.
 
 ## İzole Cloudflare Pages önizlemesi
 
-- Üretimden ayrı bir D1 kullanın ve `0017_polar_billing.sql` dahil tüm ilgili migrasyonları yalnızca test D1’e uygulayın. Mevcut iyzico tabloları korunur. Bu migrasyon yeni tablo ve erişim görünümü ekler.
+- Üretimden ayrı bir D1 kullanın ve `0018_polar_verified_order.sql` dahil tüm ilgili migrasyonları yalnızca test D1’e uygulayın. Mevcut iyzico tabloları korunur. Bu migrasyon yeni tablo ve erişim görünümü ekler.
 - Polar Sandbox organizasyonunda iki TRY fiyat tanımlayın. Liste bedelleri 99900 kuruş, sıklık ayda bir, vergi davranışı **inclusive** olmalı. Standartta 14 günlük kartlı deneme ve deneme kötüye kullanım korumasını etkinleştirin. Lansmana deneme eklemeyin. Yalnız lansman ürününe bağlı, kod girişi kapalı, üç ay tekrarlayan sabit 29900 TRY kuruş indirim oluşturun.
 - Aşağıdaki ayarları yalnızca HTTPS önizleme ortamına girin. Dönüş ve webhook isteklerinde köken bu ayarla eşleşmelidir.
 
@@ -22,7 +22,7 @@ Her iki teklif aynı OLVEX yetkilerini verir. İndirim ayda 299 TL ve toplam 897
 | `POLAR_ACCESS_TOKEN` | Cloudflare Secret. Sandbox checkout ve müşteri oturumu yazma, checkout/abonelik/sipariş okuma yetkilerine sahip organizasyon anahtarı |
 | `POLAR_WEBHOOK_SECRET` | Cloudflare Secret. Sandbox webhook uç noktasında kullanılan imzalama sırrı |
 | `OLVEX_LAUNCH_OFFER` | `on` OLVEX lansman teklifine yeni başvuruları açar. |
-| `OLVEX_LAUNCH_OFFER_STARTS_AT`, `OLVEX_LAUNCH_OFFER_ENDS_AT` | İsteğe bağlı UTC `YYYY-MM-DDTHH:mm:ssZ`. Başlangıç dahil, bitiş hariç. Polar indirim penceresiyle eşleştirin. |
+| `OLVEX_LAUNCH_OFFER_STARTS_AT`, `OLVEX_LAUNCH_OFFER_ENDS_AT` | Kampanya için iki tarih de zorunlu, UTC `YYYY-MM-DDTHH:mm:ssZ`. Başlangıç dahil, bitiş hariç. Polar indirim penceresiyle eşleştirin. |
 
 - Polar webhook adresi `<önizleme kökeni>/api/polar/webhook` ve API sürümü `2026-10` olmalı. `checkout.updated`, `checkout.expired`, `subscription.created`, `subscription.updated`, `subscription.active`, `subscription.cycled`, `subscription.canceled`, `subscription.uncanceled`, `subscription.revoked`, `subscription.past_due`, `subscription.paused`, `subscription.resumed`, `order.created`, `order.updated`, `order.paid`, `order.refunded`, `refund.created` ve `refund.updated` olaylarını seçin.
 - Test hesabıyla işletme açın. İki teklifi ayrı test işletmelerinde Stripe test kartıyla yürütün. Standart akışta kart, doğrulanmış deneme, deneme sonu ve ilk 999 TL siparişi kontrol edin. Lansmanda 700 TL × 3 ve ardından 999 TL sıralamasını, başarısız ödeme ve yeniden denemeler dahil doğrulayın. Polar ay bazında indirim tanımlar. Hatalı veya beklenmeyen tutar OLVEX’te erişim açmaz. Geç ödeme ve ay sonu davranışı için gerçek sandbox kanıtı gerekir.

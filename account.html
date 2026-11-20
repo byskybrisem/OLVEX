@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#090b12">
-<title>Hesap ve Şifre Güvenliği | OLVEX</title>
+<title>Profilim | OLVEX</title>
 <link rel="stylesheet" href="/assets/tokens.css">
 <link rel="stylesheet" href="/assets/public.css">
 <script type="module" src="/assets/account-security.js"></script>
@@ -15,8 +15,18 @@
 <div class="shell compact">
 <header><a class="brand" href="/">OLVEX</a><a href="/app.html#settings">Panele dön</a></header>
 <main class="card">
-  <h1>Hesap güvenliği</h1>
+  <h1>Profilim</h1>
   <p id="account-email" role="status">Hesabınız yükleniyor…</p>
+  <form id="profile-form" method="post" hidden>
+    <label>Ad soyad<input name="fullName" autocomplete="name" required minlength="2" maxlength="100"></label>
+    <button type="submit">Adımı kaydet</button>
+    <p id="profile-message" role="status" class="message"></p>
+  </form>
+  <section aria-labelledby="business-title">
+    <h2 id="business-title">İşletmelerim ve aboneliklerim</h2>
+    <ul id="memberships"></ul>
+    <p id="membership-status" role="status">İşletmeler yükleniyor…</p>
+  </section>
   <section aria-labelledby="password-title">
     <h2 id="password-title">Şifre değiştir</h2>
     <p>Mevcut şifrenizi doğrulayın. Şifre değiştirildiğinde tüm cihazlardaki oturumlar kapatılır ve yeniden giriş gerekir.</p>
@@ -35,11 +45,11 @@
     <p id="password-message" class="message" role="status" hidden></p>
     <p><a href="/forgot-password.html">Mevcut şifreni unuttun mu?</a></p>
   </section>
-  <section aria-label="Abonelik hesabı">
-    <h2>Abonelik işlemleri</h2>
-    <p>Abonelik ve iptal işlemleri için işletme panelinden Ayarlar → Aboneliği yönet bölümüne gidin.</p>
-    <a href="/app.html#settings">İşletme ayarlarına git</a>
-    <p><a href="/account-rights.html">Hesap kapatma ve veri başvuruları</a></p>
+  <section aria-labelledby="rights-title">
+    <h2 id="rights-title">Hesap kapatma ve veri talepleri</h2>
+    <p>Hesabınızı kapatmak veya kişisel verileriniz hakkında başvurmak için talebinizi iletin. Talep, kimlik doğrulaması ve saklama yükümlülükleri değerlendirilerek işlenir.</p>
+    <p><a href="/account-rights.html">Talep oluştur veya takibini yap</a></p>
+    <p><a href="/contact.html#veri-basvurusu">Diğer başvuru yolları</a> · <a href="/privacy.html">KVKK kapsamındaki haklarınız</a></p>
   </section>
 </main>
 </div>

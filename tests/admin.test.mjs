@@ -66,7 +66,7 @@ test("super admin is strictly isolated; platform income/expenses are auditable a
   assert.deepEqual(ai.models,[]);
   const system=await call("system");
   assert.equal(system.db,"connected");
-  assert.match(system.migration.name,/0017_polar_billing/);
+  assert.match(system.migration.name,/0018_polar_verified_order/);
 
   const id=crypto.randomUUID();
   const income={action:"create",requestId:id,kind:"income",description:"Hizmet danışmanlığı",

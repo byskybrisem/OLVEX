@@ -43,7 +43,7 @@ test("temsili verili inceleme ekranı gerçek kayıt gibi gösterilmiyor", () =>
 
 
 test("OLVEX aylık teklifleri ve indirimli ücretli dönemler sunucuya ait", () => {
-  const { olvex } = publicPricing({ OLVEX_LAUNCH_OFFER: "on" });
+  const { olvex } = publicPricing({ OLVEX_LAUNCH_OFFER: "on", OLVEX_LAUNCH_OFFER_STARTS_AT: "2020-01-01T00:00:00Z", OLVEX_LAUNCH_OFFER_ENDS_AT: "2099-01-01T00:00:00Z" });
   assert.deepEqual(olvex.standard, { currency: "TRY", monthlyKurus: 99900, trialDays: 14 });
   assert.deepEqual(olvex.launch, {
     id: "olvex-monthly-launch-v1", currency: "TRY", monthlyKurus: 99900, trialDays: 0,
@@ -61,6 +61,7 @@ test("OLVEX aylık teklifleri ve indirimli ücretli dönemler sunucuya ait", () 
 });
 
 test("kampanya tarihleri yeni gösterimleri sınırlar, sürümlenmiş koşulları değiştirmez", () => {
+  assert.equal(publicPricing({ OLVEX_LAUNCH_OFFER: "on" }).olvex.launch, null);
   const start = "2031-07-01T09:00:00Z";
   const end = "2031-08-01T09:00:00Z";
   const env = { OLVEX_LAUNCH_OFFER: "on", OLVEX_LAUNCH_OFFER_STARTS_AT: start, OLVEX_LAUNCH_OFFER_ENDS_AT: end };
