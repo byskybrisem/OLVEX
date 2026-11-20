@@ -1,3 +1,4 @@
+import { inviteCapacity, requireProfessional } from "./entitlements.js";
 import { resolveBranch } from "./branches.js";
 import { HttpError } from "./http.js";
 import { sha256, TOKEN_PATTERN } from "./session.js";
@@ -34,12 +35,13 @@ export async function invite(ctx, body) {
     requestId: identifier(body.requestId), email: email(body.email),
     role: choice(body.role, ["admin", "member"], "Rol"), hash: await sha256(body.secret)
   };
+  if (data.role === "admin") await requireProfessional(ctx);
   const validUntil = new Date(Date.now() + 7 * 86400 * 1000).toISOString();
   return transact(ctx, "invite-create", data, [
     ctx.db.prepare(`INSERT INTO olvex_invitations (business_id, id, token_hash, email, role, created_by, expires_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .bind(ctx.businessId, data.requestId, data.hash, data.email, data.role, ctx.actorId, validUntil)
-  ]);
+  ], inviteCapacity(ctx, data.role));
 }
 
 export function revokeInvite(ctx, body) {

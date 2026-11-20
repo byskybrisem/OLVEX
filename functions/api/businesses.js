@@ -22,11 +22,16 @@ export const onRequestPost = handle(async ({ request, env }) => {
   const id = data.requestId ? identifier(data.requestId) : crypto.randomUUID();
 
   try {
-    await db.batch([
-      db.prepare("INSERT INTO businesses (id, name, created_by) VALUES (?, ?, ?)").bind(id, name, user.id),
-      db.prepare("INSERT INTO business_members (id, business_id, user_id, role) VALUES (?, ?, ?, 'owner')")
+    const [created] = await db.batch([
+      db.prepare(`INSERT INTO businesses (id, name, created_by) SELECT ?1, ?2, ?3
+        WHERE EXISTS (SELECT 1 FROM businesses WHERE id = ?1)
+          OR NOT EXISTS (SELECT 1 FROM business_members WHERE user_id = ?3 AND role = 'owner')`)
+        .bind(id, name, user.id),
+      db.prepare(`INSERT INTO business_members (id, business_id, user_id, role)
+        SELECT ?, id, created_by, 'owner' FROM businesses WHERE id = ? AND created_by = ?`)
         .bind(crypto.randomUUID(), id, user.id)
     ]);
+    if (!created.meta.changes) throw new HttpError(409, "Paketiniz bir işletme oluşturmanıza izin verir.");
   } catch (error) {
     if (!error.message?.includes("UNIQUE constraint failed: businesses.id")) throw error;
     const existing = await db.prepare(`SELECT b.name FROM businesses b JOIN business_members m ON m.business_id = b.id

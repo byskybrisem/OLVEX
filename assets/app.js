@@ -88,6 +88,7 @@ function commandContext() {
   const businessId = snapshot.business.id;
   return {
     ...snapshot,
+    packagePlan: data?.packagePlan,
     get: (section, params) => get(businessId, section, params),
     post: (section, action, body = {}) => request(basePath(businessId, section), "POST", { ...body, action }).catch((error) => {
       loginIfNeeded(error);
@@ -184,7 +185,7 @@ async function load() {
   const params = { page: selected.page, q: selected.q, archived: selected.archived ? "1" : "" };
   if (sectionsWithPeriod.has(tab)) Object.assign(params, { from, to });
   if (selected.unpaid) params.unpaid = "1";
-  if (tab === "products" || tab === "stock") params.branchId = selected.branchId;
+  if (tab === "products" || tab === "stock" || tab === "reports") params.branchId = selected.branchId;
   if (tab === "overview") params.detail = "dashboard";
   if (tab === "ai") params.chat = "1";
   if (tab === "stock") params.product = product;
@@ -197,13 +198,22 @@ async function load() {
   content.innerHTML = '<div class="loading-panel" role="status">Kayıtlar yükleniyor…<i></i><i></i><i></i></div>';
   data = null;
   try {
+    const packagePlan = ["settings", "locations", "reports"].includes(tab)
+      ? await get(businessId, "package") : null;
+    if (current !== revision) return;
+    if (tab === "reports" && !packagePlan.professional) {
+      params.branchId = "";
+      viewFilter().branchId = "";
+    }
     const [result, additional] = await Promise.all([
       get(businessId, tab, params),
       tab === "finance" ? get(businessId, "overview", { from, to }) :
-        tab === "tasks" ? get(businessId, "task-days", calendar) : null
+        tab === "tasks" ? get(businessId, "task-days", calendar) :
+          tab === "reports" && packagePlan.professional ? get(businessId, "locations") : null
     ]);
     if (current !== revision) return;
-    data = result;
+    data = { ...result, packagePlan };
+    if (tab === "reports") data.locations = additional?.rows ?? [];
     if (tab === "finance") data.summary = additional;
     if (tab === "tasks") data.calendar = additional;
     if (tab === "overview") {
@@ -277,6 +287,11 @@ $("#logout").addEventListener("click", async (event) => {
 
 bindSalesChart(content);
 content.addEventListener("change", event => {
+  if (event.target.matches("[data-report-branch]")) {
+    viewFilter().branchId = event.target.value;
+    load();
+    return;
+  }
   if (!event.target.matches("[data-period]")) return;
   if (event.target.value === "custom") {
     const form = content.querySelector(".custom-period");

@@ -46,7 +46,7 @@ test("yerel D1 üzerinde 2 şube, 5 kasa, 1.000 eşzamanlı satış ve yeniden g
   const other = uuid();
   const session = randomToken();
   const sessionHash = await sha256(session);
-  const pages = await localPages({ seed: `
+  const pages = await localPages({ professionalFixtures: true, seed: `
     INSERT INTO users (id, email) VALUES ('${owner}', 'pos-load@example.test');
     INSERT INTO businesses (id, name, created_by) VALUES
       ('${business}', 'Yük testi', '${owner}'), ('${other}', 'Ayrı işletme', '${owner}');

@@ -212,7 +212,10 @@ function branches(data, state) {
 }
 
 function locations(data, state) {
-  return businessTabs("locations") + filters(state, { query: "Şube adı" }) +
+  const { counts, limits } = data.packagePlan ?? {};
+  const usage = limits ? panel("Şube kullanımı", `<p>${h(counts.branches)} / ${h(limits.branches)} şube</p>
+    ${counts.branches >= limits.branches ? '<p class="muted">Paketinizin şube sınırı doldu.</p>' : ""}`) : "";
+  return businessTabs("locations") + usage + filters(state, { query: "Şube adı" }) +
     withPage(state.business.name, data, table(["Şube", "Stok"], data.rows.map((row) => [
       rowName(row.name, row.is_default ? "Varsayılan şube" : ""),
       button("Şube stoklarını göster", "branch-stock", { id: row.id, kind: "small" })
@@ -221,7 +224,11 @@ function locations(data, state) {
 
 function reports(data, state) {
   const { totals, days, topProducts } = data;
-  return filters(state, { range: true }) + stats(
+  const filter = data.packagePlan?.professional ? `<label class="field">Rapor şubesi
+    <select data-report-branch><option value="">Tüm şubeler</option>${data.locations.map(row =>
+      `<option value="${h(row.id)}"${row.id === data.branchId ? " selected" : ""}>${h(row.name)}</option>`).join("")}</select></label>` :
+    data.packagePlan ? '<p class="hint">Şube bazlı raporlar Profesyonel pakette sunulur.</p>' : "";
+  return filters(state, { range: true }) + filter + stats(
     stat("Net satış tutarı", money(totals.sales)) + stat("Satılan ürün maliyeti", money(totals.cost)) +
     stat("Brüt kâr", money(totals.sales - totals.cost), "teal") + stat("Satın alma tutarı", money(totals.purchases))) +
     panel("Net satış seyri", salesChart(days)) +
@@ -233,11 +240,20 @@ function reports(data, state) {
 
 function settingView(data, state) {
   const owner = state.business.role === "owner";
+  const plan = data.packagePlan;
+  const labels = { free: "Ücretsiz", esnaf: "Esnaf", profesyonel: "Profesyonel" };
+  const { counts, limits } = plan ?? {};
+  const packagePanel = limits ? panel(`Paket · ${labels[plan.tier]}`,
+    stats(stat("İşletme sınırı", count(limits.businesses)) + stat("Şube", `${counts.branches} / ${limits.branches}`) +
+      stat("Kullanıcı ve davet", `${counts.users + counts.invitations} / ${limits.users}`)) +
+    `<p class="muted">${h(counts.users)} kullanıcı ve ${h(counts.invitations)} bekleyen davet.
+    ${counts.users + counts.invitations >= limits.users ? "Paketinizin kullanıcı sınırı doldu." : ""}</p>` +
+    (plan.professional ? "" : '<p class="muted">Profesyonel pakette daha fazla şube ve kullanıcı, stok transferi, ekip yetkileri, personel ve vardiya, kasa API aktarımı ve şube bazlı rapor sunulur.</p>')) : "";
   const members = panel("Ekip üyeleri", table(["Kullanıcı", "Rol", "İşlemler"], data.members.map((row) => [
     rowName(row.name || row.email, row.name ? row.email : ""), badge(roles[row.role]),
-    owner && row.role !== "owner" ? button("Yetkiyi düzenle", "edit-member", { id: row.id, kind: "small" }) : "—"
+    owner && row.role !== "owner" ? button(plan?.professional === false ? "İşletmeden çıkar" : "Yetkiyi düzenle", "edit-member", { id: row.id, kind: "small" }) : "—"
   ])));
-  return settingsTabs("settings") + members + (owner ?
+  return settingsTabs("settings") + packagePanel + members + (owner ?
     panel("Bekleyen davetler", table(["E-posta", "Rol", "Geçerlilik", "İşlemler"], data.invites.map((row) => [
       h(row.email), h(roles[row.role]), h(day(row.expires_at)), button("İptal et", "revoke-invite", { id: row.id, kind: "small danger" })
     ]), "Bekleyen davet yok.")) : "");

@@ -177,6 +177,17 @@ export async function createOrder(ctx, body, kind, source = "manual") {
       message: "Birden çok şubeli işletmede işlem şubesini seçin ve müşteri kaydını kontrol edin."
     };
   }
+  if (source === "csv" && body.csvMode === "file") {
+    const customerGuard = guard;
+    guard = {
+      sql: `NOT EXISTS (SELECT 1 FROM olvex_orders WHERE business_id = ? AND kind = 'sale'
+          AND source = 'pos' AND reference = ?)
+        AND (? = 1 OR NOT EXISTS (SELECT 1 FROM olvex_branches WHERE business_id = ? AND id <> ?))
+        ${customerGuard ? "AND " + customerGuard.sql : ""}`,
+      values: id => [id, reference, Number(body.branchId != null), id, branchId, ...(customerGuard ? customerGuard.values(id) : [])],
+      message: "Dosya şubesini ve müşteri kaydını kontrol edin. Kasaya bağlı bir kayıt varsa aynı kaynak kasayı seçin."
+    };
+  }
   try {
     return await transact(ctx, `${kind}-create`, data, statements, guard);
   } catch (error) {

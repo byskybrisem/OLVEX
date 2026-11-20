@@ -34,6 +34,7 @@ test("AI anahtarsız güvenli kapanır ve sağlayıcıya yalnızca yetkili işle
     DB.prepare("INSERT INTO users(id,email) VALUES ('u','ai@example.test'),('other','other@example.test')"),
     DB.prepare("INSERT INTO businesses(id,name,created_by) VALUES ('our','Deneme','u'),('private','Ayrı','other')"),
     DB.prepare("INSERT INTO business_members(id,business_id,user_id,role) VALUES ('m','our','u','owner'),('m2','private','other','owner')"),
+    DB.prepare("INSERT INTO olvex_subscriptions (id,business_id,environment,plan,plan_ref,state,provider_ref,customer_ref,paid_until) VALUES ('pro','our','live','profesyonel-monthly','fixture-plan','active','fixture-subscription','fixture-customer',?)").bind(Date.now() + 86400000),
     DB.prepare("INSERT INTO user_sessions(id,user_id,token_hash,expires_at) VALUES ('s','u',?,'2099-01-01T00:00:00Z')")
       .bind(await sha256(session)),
     DB.prepare(`INSERT INTO olvex_cash_entries(business_id,id,kind,description,amount_minor,occurred_on,created_by)
@@ -128,7 +129,7 @@ test("AI anahtarsız güvenli kapanır ve sağlayıcıya yalnızca yetkili işle
     delta: 5, note: "Şube stoğu" }, 200, "stock");
   await call("our", { action: "create", requestId: crypto.randomUUID(), reference: "DIGER", date: today(),
     branchId: coast, lines: [{ sku: "TEST", quantity: 1, unit: 800 }], paid: true }, 200, "sales");
-  const context = { db: DB, businessId: "our" };
+  const context = { db: DB, businessId: "our", env, request: new Request(origin) };
   const prompt = [{ role: "user", content: "Geçen haftaya göre satışlarım arttı mı?" }];
   const comparison = await factsForAI(context, prompt, { id: main, name: "Merkez" }, null);
   assert.equal(comparison.sales.netSalesMinor, 1000);

@@ -1,7 +1,8 @@
 
+import { packageStatus, professionalGuard, requireProfessional } from "../../../_lib/entitlements.js";
 import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
-import { importRegisterSale } from "../../../_lib/register.js";
+import { csvSources, importRegisterSale } from "../../../_lib/register.js";
 import { importProducts } from "../../../_lib/product-bulk.js";
 import { createBranch, createTransfer, locations, transferHistory } from "../../../_lib/branches.js";
 import { reconcilePos } from "../../../_lib/pos-identity.js";
@@ -17,7 +18,10 @@ import { ask, resolveProposal } from "../../../_lib/ai.js";
 import { readAI, sendChat, renameChat, removeChat } from "../../../_lib/ai-conversations.js";
 import { editSale, saleEditHistory } from "../../../_lib/sale-edits.js";
 
+const premiumSections = new Set(["transfers", "employees", "shifts", "pos"]);
+
 const READ = {
+  package: [EVERY_ROLE, packageStatus],
   billing: [OWNER, billingStatus],
   "sale-edits": [MANAGERS, saleEditHistory],
   "stock-alerts": [EVERY_ROLE, stockAlerts],
@@ -26,6 +30,7 @@ const READ = {
   products: [EVERY_ROLE, products],
   stock: [EVERY_ROLE, stockHistory],
   catalog: [EVERY_ROLE, catalog],
+  "csv-sources": [MANAGERS, csvSources],
   sales: [EVERY_ROLE, (ctx) => orders(ctx, "sale")],
   purchases: [MANAGERS, (ctx) => orders(ctx, "purchase")],
   customers: [EVERY_ROLE, customers],
@@ -126,6 +131,7 @@ export const onRequestGet = handle(async (context) => {
   const ctx = await workspace(context, roles);
   ctx.paramsUrl = new URL(context.request.url).searchParams;
 
+  if (premiumSections.has(section) || (section === "reports" && ctx.paramsUrl.has("branchId"))) await requireProfessional(ctx);
   return json(await action(ctx));
 });
 
@@ -159,5 +165,8 @@ export const onRequestPost = handle(async (context) => {
     );
   }
 
+  if (premiumSections.has(section) || (section === "settings" && data.action === "member" && data.role !== "remove")) {
+    ctx.packageGuard = professionalGuard(await requireProfessional(ctx));
+  }
   return json(await action(ctx, data));
 });

@@ -4,7 +4,7 @@
 
 Kesinleştirilen iki paket, aylık/yıllık fiyatlar, müşteri sınırları ve **satış açılmadan tamamlanacak teknik denetimler** için [Paketler ve lansman kararı](docs/PAKETLER-VE-LANSMAN-KARARI-20261119.md) belgesine bakın.
 
-Önemli: Pazarlama tablosundaki şube/kullanıcı limitleri henüz sunucu tarafında uygulanmıyor. İyzico canlı ödeme ve abonelik yetkilendirmesi tamamlanmadan ücretli satış açılmamalıdır.
+Şube ve kullanıcı limitleri ile Profesyonel özellik erişimi sunucuda doğrulanır. Ücretli satış için canlı iyzico onayı, izole ödeme sayfası ve uçtan uca ödeme doğrulaması gerekir.
 
 Cloudflare Pages Functions ve D1 üzerinde çalışan Türkçe işletme paneli. Mevcut kullanıcılar, işletmeler, oturumlar ve parola özetleri korunur.
 

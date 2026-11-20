@@ -18,10 +18,11 @@ Bu belge pazarlama/fiyat kararı ile **gerçekte etkin teknik yetkileri** ayır�
 | Personel/vardiya, ekip yetkileri | Hayır | Evet |
 | Kasa API aktarım altyapısı | Hayır | Evet, **desteklenen bağlayıcı şartıyla** |
 | Şube bazlı rapor | Hayır | Evet |
+| OLVEX AI (mevcut kota ve sağlayıcı) | Evet | Evet |
 
-**Uygulama notu:** Bu tablo ilan edilen ticari kapsamdır; kayıt/şube/üye limitlerini ve modül farklarını uygulayan sunucu tarafı abonelik yetkilendirmesi henüz yoktur. **İyzico aktif edilip ödeme alınmadan önce bu eksik kapatılmalıdır.** Şimdilik herhangi bir satın alma/ücretli aktivasyon yapılmamalıdır.
+**Sunucu yetkileri:** Yalnızca doğrulanmış iyzico kaydındaki etkin veya iptal sürerken ödemesi geçerli abonelik, ödenmiş dönem sonuna kadar paket yetkilerini verir. Başarısız yenileme, iptal, sona erme veya geçerli kayıt bulunmamasında ücretsiz erişim Esnaf sınırlarını kullanır. Her kullanıcı en fazla bir işletmenin sahibi olarak yeni işletme açabilir. Üye olunan ve geçmişten kalan işletmeler korunur. Üye ve süresi dolmamış bekleyen davet birlikte sayılır. Paket düşüşünde şubeler, üyeler ve geçmiş iş kayıtları saklanır. Kota aşıldıysa yeni şube veya davet oluşturulamaz. Sandbox abonelikleri yalnızca sandbox yapılandırılmış önizlemede geçerlidir.
 
-**AI kararı:** Mevcut veriye dayalı analizler ayrı değerlendirilir. Canlı OpenAI sohbeti üretim ortamında doğrulanana, kullanım başına maliyet ve bütçe sınırı tanımlanana kadar ücretli paketin çalışan bir özelliği gibi taahhüt edilmez. Etkinleşirse her iki paketin kullanım kotaları ayrıca kod ve sözleşmede duyurulmalıdır.
+**AI kararı:** Her iki paket mevcut sağlayıcı ve kota ayarlarını kullanır. Şube bazlı performans verisi Profesyonel yetkisine bağlıdır. Canlı sağlayıcı ve kota, lansmandan önce ayrıca doğrulanır.
 
 **POS kararı:** YN ÖKC / AKINSOFT markası seçmek tek başına donanım veya program entegrasyonu sağlamaz. OLVEX API, CSV, manuel kaydı destekler. Sağlayıcıya göre API/CSV izinleri ve uçtan uca fiş, iade, iptal, çok kasa/şube testleri tamamlanmadan otomatik senkronizasyon garantisi verilmez.
 

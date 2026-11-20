@@ -53,6 +53,15 @@ export async function transact(ctx, action, data, statements, guard) {
   const { db, businessId, actorId, pos, roles } = ctx;
   const requestId = identifier(data.requestId, "İstek kimliği");
   const fingerprint = await sha256(JSON.stringify({ ...data, requestId }));
+  const premium = ctx.packageGuard;
+  if (premium) {
+    const operation = guard;
+    guard = operation ? {
+      sql: `(${premium.sql}) AND (${operation.sql})`,
+      values: id => [...premium.values(id), ...operation.values(id)],
+      message: operation.message || premium.message
+    } : premium;
+  }
   const conditions = guard ? guard.values(businessId) : [];
   const checks = [];
   const actorValues = [actorId];

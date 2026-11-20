@@ -17,7 +17,7 @@ const profiles = {
 };
 const names = (process.env.OLVEX_BROWSER_PROFILES || "chromium").split(",");
 for (const name of names) assert.ok(Object.hasOwn(profiles, name), `Bilinmeyen tarayıcı profili ${name}`);
-const local = await localPages({ https: true });
+const local = await localPages({ professionalFixtures: true, https: true });
 const api = await request.newContext({ baseURL: local.url, ignoreHTTPSErrors: true, extraHTTPHeaders: { Origin: local.url } });
 
 async function read(response) {
@@ -117,6 +117,11 @@ async function runProfile(name, profile, storageState) {
     const entry = page.getByRole("row").filter({ hasText: "Şubeler arası sevkiyat" });
     for (const text of ["Merkez", "Sahil", "30", "Tarayıcı Testi"]) await entry.getByText(text, { exact: true }).waitFor();
     assert.deepEqual(await balances("KUTU"), [70, 50, 120]);
+    await page.goto(local.url + "/app.html#reports");
+    const reportBranch = page.getByLabel("Rapor şubesi");
+    await reportBranch.selectOption(coast);
+    await page.waitForFunction(id => document.querySelector("[data-report-branch]")?.value === id &&
+      document.querySelector("#content")?.getAttribute("aria-busy") === "false", coast);
     assert.deepEqual(errors, []);
     console.log(`${name} ${browser.version()} (${page.viewportSize().width}px): satış 100/47, iptal 100/50, alış 100/54, transfer 70/50; toplam 120.`);
   } finally {
@@ -125,14 +130,15 @@ async function runProfile(name, profile, storageState) {
 }
 
 try {
-  const credentials = { email: "branch-browser@example.test", password: "Branch-fixture-2026!" };
   const { termsVersion } = await read(await api.get("/api/public-info"));
-  await read(await api.post("/api/auth/register", { data: {
-    ...credentials, termsVersion, fullName: "Tarayıcı Testi", acceptedTerms: true
-  } }));
-  await read(await api.post("/api/auth/login", { data: credentials }));
-  const storageState = await api.storageState();
-  for (const name of names) await runProfile(name, profiles[name], storageState);
+  for (const name of names) {
+    const credentials = { email: "branch-browser-" + name + "@example.test", password: "Branch-fixture-2026!" };
+    await read(await api.post("/api/auth/register", { data: {
+      ...credentials, termsVersion, fullName: "Tarayıcı Testi", acceptedTerms: true
+    } }));
+    await read(await api.post("/api/auth/login", { data: credentials }));
+    await runProfile(name, profiles[name], await api.storageState());
+  }
 } finally {
   await api.dispose();
   await local.close();
