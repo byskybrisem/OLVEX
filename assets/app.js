@@ -234,7 +234,9 @@ async function load() {
             : '<p>OLVEX abonelik sistemi hazırlanıyor. İşletme verileriniz güvende. Ücretli erişim açıldığında buradan devam edebilirsiniz.</p>',
           link("Abonelik ve fiyatı gör", "/#fiyatlandirma", "small"))
         : "";
-      content.innerHTML = subscription + renderers[tab](data, state());
+      const manageBilling = tab === "settings" && selected.business.role === "owner" && packagePlan?.polarAvailable
+        ? panel("Abonelik", link("Aboneliği yönet", "/billing.html?business=" + encodeURIComponent(businessId), "small")) : "";
+      content.innerHTML = subscription + manageBilling + renderers[tab](data, state());
     }
     content.scrollTop = 0;
   } catch (error) {

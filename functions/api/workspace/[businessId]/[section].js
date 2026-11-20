@@ -1,5 +1,6 @@
 
 import { entitlement, packageStatus, requirePaidSubscription, requireProfessional, professionalMessage } from "../../../_lib/entitlements.js";
+import { polarCheckout, polarPortal, polarStatus } from "../../../_lib/polar-billing.js";
 import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { csvSources, importRegisterSale } from "../../../_lib/register.js";
@@ -23,6 +24,7 @@ const premiumSections = new Set(["transfers", "employees", "shifts", "pos"]);
 const READ = {
   package: [EVERY_ROLE, packageStatus],
   billing: [OWNER, billingStatus],
+  polar: [OWNER, polarStatus],
   "sale-edits": [MANAGERS, saleEditHistory],
   "stock-alerts": [EVERY_ROLE, stockAlerts],
   transfers: [EVERY_ROLE, transferHistory],
@@ -50,6 +52,7 @@ const READ = {
 };
 
 const WRITE = {
+  polar: { checkout: [OWNER, polarCheckout], portal: [OWNER, polarPortal] },
   billing: {
     checkout: [OWNER, beginCheckout],
     refresh: [OWNER, manageSubscription],
@@ -168,7 +171,7 @@ export const onRequestPost = handle(async (context) => {
     );
   }
 
-  if (section !== "billing") {
+  if (section !== "billing" && section !== "polar") {
     const professional = premiumSections.has(section) ||
       (section === "settings" && data.action === "member" && data.role !== "remove");
     ctx.packageGuard = await requirePaidSubscription(ctx, { professional });

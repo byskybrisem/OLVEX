@@ -10,7 +10,7 @@
 <meta property="og:description" content="Satıştan stoğa, günlük işlerinizi aynı panelden yönetin.">
 <link rel="stylesheet" href="/assets/tokens.css?v=20261119-launch">
 <link rel="stylesheet" href="/assets/landing.css?v=20261120-tek-abonelik">
-<script src="/assets/landing.js?v=20261120-tek-abonelik" type="module"></script>
+<script src="/assets/landing.js?v=20261120-polar" type="module"></script>
 <script src="/assets/core.js" type="module"></script>
 <link rel="stylesheet" href="/assets/site-cookie-banner.css">
 <script type="module" src="/assets/site-cookie-banner.js"></script>
@@ -151,7 +151,9 @@
         <li>Kasa satış API’si, uyumlu bağlayıcı gerektirir</li>
       </ul>
       <footer class="plan-footer">
-        <p>Ücretli abonelik tahsilatı şu anda kapalıdır. Canlı AI sohbeti aboneliğe dahil değildir.</p>
+        <p id="billing-unavailable">Ücretli abonelik tahsilatı şu anda kapalıdır.</p>
+        <a class="text-link" id="billing-open" href="/app.html#settings" hidden>Panelden aboneliği yönet</a>
+        <p>Canlı AI sohbeti aboneliğe dahil değildir.</p>
         <a class="text-link" href="/subscription-terms.html">Abonelik koşullarını incele <svg class="icon" aria-hidden="true"><use href="#diagonal"/></svg></a>
       </footer>
     </article>

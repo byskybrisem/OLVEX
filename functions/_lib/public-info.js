@@ -1,5 +1,6 @@
 import { accountMailReady } from "./account-mail.js";
 import { isPreviewRequest } from "./http.js";
+import { polarConfig } from "./polar-config.js";
 import { publicPricing } from "./pricing.js";
 import { recoveryOrigin } from "./recovery.js";
 
@@ -20,6 +21,7 @@ export function publicInfo(env, request) {
     serviceAddress: configured ? serviceAddress : null,
     email: configured ? email : null,
     passwordResetEnabled: mailEnabled,
-    pricing: publicPricing(env)
+    pricing: publicPricing(env),
+    polarCheckoutEnabled: Boolean(polarConfig({ env, request }))
   };
 }

@@ -697,6 +697,17 @@ try {
   await handset.waitForURL(/\/login(?:\.html)?$/);
   await handset.goto(`${local.url}/app.html`);
   await handset.waitForURL(/\/login(?:\.html)?$/);
+  await page.goto(`${local.url}/billing.html?business=${encodeURIComponent(workspace)}&returned=1`);
+  await page.getByText("Polar ödemeleri bu ortamda kapalı.").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Standart aboneliği başlat" }).count(), 0);
+  await page.route("**/api/workspace/*/polar", route => route.fulfill({
+    json: { enabled: true, launch: true, subscription: { state: "open", offer: "standard" } }
+  }));
+  await page.reload();
+  await page.getByText(/Erişim, bildirim doğrulandıktan sonra açılır/).waitFor();
+  await page.getByRole("button", { name: "Standart aboneliği başlat" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Lansman aboneliğini başlat" }).count(), 0);
+  assert.equal(await fitsViewport(page), true);
   await landingChecks({ safeContext, url: local.url, snapshots });
   assert.deepEqual(browserErrors, []);
   console.log("Tarayıcı doğrulandı: masaüstü ve mobil akış, satış/CSV, AI onayı, rapor, kasa ve oturum.");

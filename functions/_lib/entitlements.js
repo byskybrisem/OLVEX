@@ -1,3 +1,4 @@
+import { polarConfig } from "./polar-config.js";
 import { billingConfig } from "./iyzico.js";
 import { HttpError, isPreviewRequest } from "./http.js";
 
@@ -6,15 +7,15 @@ export const billingUnavailable = "OLVEX abonelik sistemi hazırlanıyor. İşle
 export const professionalMessage = "Bu özellik mevcut aboneliğinizin kapsamı dışında.";
 
 export function subscriptionEnvironment({ env, request }) {
-  return env.OLVEX_BILLING === "sandbox" && isPreviewRequest(env, request) ? "sandbox" : "live";
+  return (env.OLVEX_BILLING === "sandbox" || env.OLVEX_POLAR === "sandbox") && isPreviewRequest(env, request) ? "sandbox" : "live";
 }
 
 function paidSubscription(professionalOnly = false, business = "?", environment = "?") {
-  return `SELECT ${professionalOnly ? "1" : "plan, paid_until"} FROM olvex_subscriptions
-    WHERE business_id = ${business} AND environment = ${environment} AND state IN ('active','canceling')
-      AND paid_until > CAST(strftime('%s','now') AS INTEGER) * 1000 + CAST(substr(strftime('%f','now'),4) AS INTEGER)
-      AND provider_ref IS NOT NULL AND customer_ref IS NOT NULL
-      ${professionalOnly ? "AND plan IN ('profesyonel-monthly','profesyonel-yearly')" : ""}`;
+  return `SELECT ${professionalOnly ? "1" : "plan, paid_until, trial_until"} FROM olvex_subscription_access
+    WHERE business_id = ${business} AND environment = ${environment}
+      AND MAX(COALESCE(paid_until, 0), COALESCE(trial_until, 0)) >
+        CAST(strftime('%s','now') AS INTEGER) * 1000 + CAST(substr(strftime('%f','now'),4) AS INTEGER)
+      ${professionalOnly ? "AND plan IN ('profesyonel-monthly','profesyonel-yearly')" : ""}`
 }
 
 export const paidAt = (business, environment) => `EXISTS (${paidSubscription(false, business, environment)})`;
@@ -29,7 +30,7 @@ export async function entitlement(ctx) {
   const row = await ctx.db.prepare(paidSubscription()).bind(ctx.businessId, environment).first();
   const professional = row?.plan.startsWith("profesyonel-") === true;
   const tier = row ? (professional ? "profesyonel" : "esnaf") : "inactive";
-  return { professional, tier, paidUntil: row?.paid_until ?? null,
+  return { professional, tier, paidUntil: row?.paid_until ?? null, trialUntil: row?.trial_until ?? null,
     limits: row ? { businesses: 1, branches: professional ? 5 : 1, users: professional ? 10 : 2 } : null };
 }
 
@@ -42,7 +43,7 @@ export async function requireProfessional(ctx) {
 export async function requirePaidSubscription(ctx, { professional = false } = {}) {
   const environment = subscriptionEnvironment(ctx);
   const plan = await entitlement(ctx);
-  if (!plan.paidUntil) {
+  if (!plan.paidUntil && !plan.trialUntil) {
     throw new HttpError(403, billingAvailable(ctx) ? paidMessage : paidMessage + " " + billingUnavailable);
   }
   if (professional && !plan.professional) throw new HttpError(403, professionalMessage);
@@ -51,7 +52,7 @@ export async function requirePaidSubscription(ctx, { professional = false } = {}
 
 export function billingAvailable(ctx) {
   const config = billingConfig(ctx.env);
-  return Boolean(config && config.environment === subscriptionEnvironment(ctx));
+  return Boolean(polarConfig(ctx) || config && config.environment === subscriptionEnvironment(ctx));
 }
 
 export function branchCapacity(ctx) {
@@ -80,5 +81,5 @@ export async function packageStatus(ctx) {
     (SELECT COUNT(*) FROM business_members WHERE business_id = ?1) AS users,
     (SELECT COUNT(*) FROM olvex_invitations WHERE business_id = ?1 AND ${pendingInvitesSql}) AS invitations
   `).bind(ctx.businessId).first()]);
-  return { ...plan, counts, billingAvailable: billingAvailable(ctx) };
+  return { ...plan, counts, billingAvailable: billingAvailable(ctx), polarAvailable: Boolean(polarConfig(ctx)) };
 }
