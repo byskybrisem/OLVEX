@@ -61,7 +61,7 @@ test("şifre değiştirme oturum ve eski sıfırlama bağlantılarını geçersi
   assert.equal((await me(token)).status, 200);
 
   const response = await invoke(body);
-  assert.equal(response.status, 200, await response.text());
+  assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { success: true, reloginRequired: true });
   assert.match(response.headers.get("Set-Cookie"), /Max-Age=0/);
   const updated = await db.prepare("SELECT password_hash FROM users WHERE id = 'u1'").first();
