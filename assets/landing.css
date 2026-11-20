@@ -155,7 +155,7 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
 .plan-name { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .plan-name .icon { color: #bdb0ed; width: 20px; height: 20px; }
 .plan-name h3 { font-size: clamp(18px, 1.45vw, 22px); font-weight: 630; letter-spacing: -.045em; }
-.plan-audience { color: var(--dim); font-size: 14px; line-height: 1.5; margin-top: 12px; flex: 1; }
+.plan-audience { color: var(--dim); font-size: 14px; line-height: 1.5; margin-top: 12px; }
 .plan-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; padding-top: 33px; color: var(--dim); font-size: 14px; }
 .plan-price strong { font-size: clamp(30px, 2.7vw, 43px); line-height: 1.12; font-weight: 550; letter-spacing: -.063em; color: var(--text); }
 .plan-period, .plan-price { font-variant-numeric: tabular-nums; }
@@ -188,9 +188,10 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
   text-transform: uppercase;
 }
 .launch-card h3 { margin-top: 13px; font-size: clamp(19px, 1.65vw, 24px); letter-spacing: -.035em; }
-.launch-card .plan-audience { flex: 0; margin-top: 7px; }
+.launch-card .plan-audience { margin-top: 7px; }
 .launch-price { margin-top: 20px; color: var(--dim); font-size: 15px; font-variant-numeric: tabular-nums; }
 .launch-price del { color: #c7bddc; font-size: 17px; text-decoration-thickness: 1px; }
+.launch-price > span:last-child { margin-inline-start: 4px; }
 .launch-price strong { color: var(--text); font-size: clamp(34px, 4vw, 50px); line-height: 1.2; font-weight: 750; letter-spacing: -.06em; }
 .launch-savings { display: grid; gap: 4px; margin-top: 12px; color: #a3f3e5; font-size: 13px; line-height: 1.45; }
 .launch-terms { border-top: 1px solid var(--hair); margin-top: 18px; padding-top: 14px; font-size: 14px; color: var(--soft); line-height: 1.55; }

@@ -128,6 +128,12 @@ export async function landingChecks({ safeContext, url, snapshots }) {
         assert.ok(card.left >= 0 && card.right <= width, `Card clipped at ${width}px`);
         assert.notEqual(card.background, "none");
       }
+      if (width === 1440) {
+        const [esnaf, professional] = await pricing.locator(".plan-price").evaluateAll(
+          prices => prices.map(price => price.getBoundingClientRect().top)
+        );
+        assert.equal(esnaf, professional, "Standard monthly price rows should align");
+      }
       if (snapshots && (width === 390 || width === 1440)) {
         await page.evaluate(() => document.fonts.ready);
         await launch.screenshot({ path: join(snapshots, `launch-offer-${width}.png`), animations: "disabled" });
