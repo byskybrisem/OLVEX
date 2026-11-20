@@ -71,7 +71,7 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
     assert.equal(response.status, expectedStatus, path);
     return response;
   };
-  const signup = (data, status) => invoke(register, "/api/auth/register", data, status);
+  const signup = (data, status, headers) => invoke(register, "/api/auth/register", data, status, headers);
   const signIn = (password, status) => invoke(login, "/api/auth/login", { email: address, password }, status);
   const reset = (data, status) => invoke(recover, "/api/auth/password-reset", data, status);
   const token = () => mail.at(-1).link.hash.slice(1);
@@ -203,6 +203,11 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   }
   await DB.prepare("UPDATE auth_rate_limits SET window_started_at = ? WHERE key_hash = ?").bind(epoch - 901, accountKey).run();
   await signIn(newPassword, 200);
+
+  await signup({ email: "launch@example.test", offer: "launch" }, 202, { "CF-Connecting-IP": "198.51.100.7" });
+  assert.equal(mail.at(-1).link.search, "?next=launch");
+  await signup({ email: "unknown-route@example.test", offer: "https://example.test" }, 202, { "CF-Connecting-IP": "198.51.100.7" });
+  assert.equal(mail.at(-1).link.search, "");
 });
 
 test("e-posta sağlayıcısı seçimi ve başarısız teslim durumları", async (t) => {

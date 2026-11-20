@@ -1,4 +1,5 @@
 import { request } from "./ui.js";
+import { subscriptionOffer } from "./subscription-route.js";
 
 const form = document.querySelector("#registerForm");
 const name = form.querySelector("#name");
@@ -12,12 +13,15 @@ const subtitle = document.querySelector(".subtitle");
 const title = document.querySelector("#form-title");
 const message = document.querySelector("#message");
 const restart = document.querySelector("#restart");
-const joining = new URLSearchParams(location.search).get("next") === "join";
+const requestedNext = new URLSearchParams(location.search).get("next");
+const offer = subscriptionOffer(requestedNext);
+const joining = requestedNext === "join";
+const next = offer ?? (joining ? "join" : null);
 const token = location.hash.slice(1);
 if (location.hash) history.replaceState(null, "", location.pathname + location.search);
-if (joining) {
-  document.querySelector("#login-link").href = "/login.html?next=join";
-  restart.querySelector("a").href = "/register.html?next=join";
+if (next) {
+  document.querySelector("#login-link").href = "/login.html?next=" + next;
+  restart.querySelector("a").href = "/register.html?next=" + next;
 }
 
 let termsVersion;
@@ -93,14 +97,14 @@ form.addEventListener("submit", async (event) => {
   message.hidden = true;
   try {
     if (requestingEmail) {
-      await request("/api/auth/register", "POST", { email: email.value.trim(), joining });
+      await request("/api/auth/register", "POST", { email: email.value.trim(), joining, offer });
       status("Bu adresle yeni hesap kaydı yapılabiliyorsa doğrulama bağlantısı gönderilir. Gelen kutunuzu ve spam klasörünü kontrol edin. Bağlantı 30 dakika geçerlidir. Mevcut bir hesabınız varsa giriş yapabilir veya şifrenizi sıfırlayabilirsiniz.", false);
       submitLabel = "Bağlantıyı yeniden gönder";
     } else {
       const details = { fullName: name.value.trim(), password: password.value, acceptedTerms: terms.checked, termsVersion };
       await request("/api/auth/register", "POST", token ? { ...details, action: "confirm", token } : { ...details, email: email.value.trim() });
       form.reset();
-      location.replace(joining ? "/login.html?registered=1&next=join" : "/login.html?registered=1");
+      location.replace("/login.html?registered=1" + (next ? "&next=" + next : ""));
     }
   } catch (error) {
     status(error.message || "Kayıt tamamlanamadı.");

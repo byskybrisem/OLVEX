@@ -9,8 +9,8 @@
 <meta property="og:title" content="OLVEX · İşletmenizin tüm gücü, tek merkezde.">
 <meta property="og:description" content="Satıştan stoğa, günlük işlerinizi aynı panelden yönetin.">
 <link rel="stylesheet" href="/assets/tokens.css?v=20261119-launch">
-<link rel="stylesheet" href="/assets/landing.css?v=20261120-tek-abonelik">
-<script src="/assets/landing.js?v=20261120-polar" type="module"></script>
+<link rel="stylesheet" href="/assets/landing.css?v=20261120-pricing-cta">
+<script src="/assets/landing.js?v=20261120-pricing-cta" type="module"></script>
 <script src="/assets/core.js" type="module"></script>
 <link rel="stylesheet" href="/assets/site-cookie-banner.css">
 <script type="module" src="/assets/site-cookie-banner.js"></script>
@@ -136,10 +136,12 @@
         <span id="regular-price" hidden><span class="sr-only">Standart fiyat </span><del></del></span>
         <strong id="monthly-price">999 TL</strong><span> / ay</span>
       </p>
+      <a class="pricing-cta" id="pricing-cta" href="/register.html" aria-describedby="billing-availability">Ücretsiz Hesap Oluştur</a>
+      <p class="billing-availability" id="billing-availability">Ücretli abonelik tahsilatı şu anda kapalıdır.</p>
       <p class="launch-terms" id="launch-terms" hidden></p>
       <div class="plan-trial">
         <strong id="trial-title">14 gün ücretsiz deneme</strong>
-        <p>Standart abonelikte tahsilat açıldığında sunulacak. Deneme için ödeme kartı gerekecek.</p>
+        <p id="trial-details">Standart abonelikte tahsilat açıldığında sunulacak. Deneme için ödeme kartı gerekecek.</p>
       </div>
       <ul class="plan-features">
         <li>1 işletme, 5 şubeye kadar</li>
@@ -151,9 +153,8 @@
         <li>Kasa satış API’si, uyumlu bağlayıcı gerektirir</li>
       </ul>
       <footer class="plan-footer">
-        <p id="billing-unavailable">Ücretli abonelik tahsilatı şu anda kapalıdır.</p>
-        <a class="text-link" id="billing-open" href="/app.html#settings" hidden>Panelden aboneliği yönet</a>
-        <p>Canlı AI sohbeti aboneliğe dahil değildir.</p>
+        <p>OLVEX AI aboneliğe dahildir. Sohbet, Cloudflare Workers AI veya OpenAI sağlayıcısı yapılandırılmış ve etkin olduğunda işletme sahibi ve yöneticiler tarafından kullanılabilir.</p>
+        <p>Günlük sınır işletme başına 20, kullanıcı başına 12 istektir. Sistem ve sağlayıcı kotaları da geçerlidir.</p>
         <a class="text-link" href="/subscription-terms.html">Abonelik koşullarını incele <svg class="icon" aria-hidden="true"><use href="#diagonal"/></svg></a>
       </footer>
     </article>

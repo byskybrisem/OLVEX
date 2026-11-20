@@ -27,7 +27,7 @@ export const onRequestPost = handle(async (context) => {
       if (await isRateLimited(env.DB, `signup-mail:${address}`, 3, 1800)) {
         console.info("OLVEX_ACCOUNT_MAIL", { flow: "signup", outcome: "address_rate_limit" });
       } else {
-        context.waitUntil(sendSignupLink(env, address, data.joining === true)
+        context.waitUntil(sendSignupLink(env, address, data.joining === true, data.offer)
           .catch(() => console.error("OLVEX_ACCOUNT_MAIL", { flow: "signup", outcome: "storage_error" })));
       }
       return json({ verificationRequested: true }, 202);

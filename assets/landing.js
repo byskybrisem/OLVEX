@@ -1,3 +1,5 @@
+import { subscriptionDestination } from "./subscription-route.js";
+
 // Each preview remains a normal anchor and section when JavaScript is unavailable.
 const tour = document.querySelector(".tour-tabs");
 const tabs = [...tour.querySelectorAll("a")];
@@ -108,6 +110,28 @@ function showPricing(pricing) {
   launchTerms.textContent = `Sınırlı süreli teklif. İlk ${launch.discountedPeriods} ücretli ay ${launchPrice}/ay, sonrasında ${renewalPrice}/ay. Bu teklifte deneme yoktur.`;
 }
 
+function showPricingAction(info) {
+  const action = document.querySelector("#pricing-cta");
+  const availability = document.querySelector("#billing-availability");
+  const trialDetails = document.querySelector("#trial-details");
+  const launch = info?.pricing?.olvex?.launch;
+  const enabled = info?.polarCheckoutEnabled === true;
+  const registrationClosed = info?.registrationOpen === false;
+
+  action.href = enabled ? subscriptionDestination(launch ? "launch" : "standard") :
+    registrationClosed ? "/login.html" : "/register.html";
+  action.textContent = enabled
+    ? (launch ? moneyLabel(launch.discountedKurus) + "/ay — Satın Al" : "14 Gün Ücretsiz Dene")
+    : (registrationClosed ? "Giriş Yap" : "Ücretsiz Hesap Oluştur");
+  availability.hidden = enabled;
+  if (enabled) action.removeAttribute("aria-describedby");
+  else action.setAttribute("aria-describedby", availability.id);
+  availability.textContent = "Ücretli abonelik tahsilatı şu anda kapalıdır." +
+    (registrationClosed ? " Yeni hesap kaydı da kapalıdır." : "");
+  trialDetails.textContent = enabled ? "Standart abonelikte deneme için ödeme kartı gerekir." :
+    "Standart abonelikte tahsilat açıldığında sunulacak. Deneme için ödeme kartı gerekecek.";
+}
+
 // The registration page checks the same server setting again before submission.
 async function showPublicInfo() {
   try {
@@ -115,8 +139,7 @@ async function showPublicInfo() {
     if (!response.ok) throw new Error("Public information is unavailable.");
     const info = await response.json();
     showPricing(info.pricing?.olvex);
-    document.querySelector("#billing-unavailable").hidden = info.polarCheckoutEnabled === true;
-    document.querySelector("#billing-open").hidden = info.polarCheckoutEnabled !== true;
+    showPricingAction(info);
     if (info.registrationOpen !== false) return;
     for (const label of document.querySelectorAll("[data-signup-label]")) label.textContent = "Kayıt durumu";
     document.querySelector(".hero [data-signup-label]").textContent = "Yeni kayıtlar kapalı";
@@ -127,6 +150,7 @@ async function showPublicInfo() {
     action.querySelector("[data-signup-label]").textContent = "Paneli incele";
   } catch {
     showPricing();
+    showPricingAction();
   }
 }
 showPublicInfo();

@@ -171,6 +171,24 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
 .plan-price #regular-price { display: block; margin-bottom: 2px; }
 .plan-price del { color: #c7bddc; text-decoration-thickness: 1px; }
 .plan-price strong { color: var(--text); font-size: clamp(40px, 6vw, 60px); line-height: 1.14; font-weight: 750; letter-spacing: -.055em; }
+.pricing-cta {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #9b8cff;
+  border-radius: 10px;
+  background: #5944d6;
+  color: #fff;
+  text-align: center;
+  line-height: 1.35;
+  font-weight: 750;
+}
+.pricing-cta:hover { background: #624be5; }
+.billing-availability { margin-top: 8px; color: var(--dim); font-size: 13px; line-height: 1.55; }
+.plan-footer p + p { margin-top: 5px; }
 .launch-terms { margin-top: 8px; color: #a3f3e5; font-size: 14px; line-height: 1.55; }
 .plan-trial {
   margin-top: 18px;
