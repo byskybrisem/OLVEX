@@ -57,7 +57,9 @@ Büyük kataloglarda ürün ve hareket sorgularını işletmeye ve ürün kimli�
 ```sh
 drill=$(mktemp -d "$backup_root/olvex-prova-XXXXXXXX")
 (cd "$out" && sha256sum -c pre.sql.sha256)
-"$w" d1 execute DB --local --config "$recovery_cfg" --persist-to "$drill" --file "$out/pre.sql"
+node scripts/prepare-d1-restore.mjs "$out/pre.sql" "$out/restore.sql"
+(cd "$out" && sha256sum restore.sql > restore.sql.sha256 && sha256sum -c restore.sql.sha256)
+"$w" d1 execute DB --local --config "$recovery_cfg" --persist-to "$drill" --file "$out/restore.sql"
 "$w" d1 execute DB --local --config "$recovery_cfg" --persist-to "$drill" --command "$(cat "$out/temel.sql")" --json > "$out/prova.json"
 jq -S 'map(.results)' "$out/prova.json" > "$out/prova.sonuclar"
 diff -u "$out/oncesi.sonuclar" "$out/prova.sonuclar"
@@ -65,6 +67,8 @@ diff -u "$out/oncesi.sonuclar" "$out/prova.sonuclar"
 "$w" d1 migrations apply DB --local --config "$recovery_cfg" --persist-to "$drill"
 "$w" d1 migrations list DB --local --config "$recovery_cfg" --persist-to "$drill"
 ```
+
+Ham yedeği ve sağlama toplamını sakla. Hazırlık betiği şemayı veriden önce kurar, stok ve ödeme tetikleyicilerini veri yüklendikten sonra ekler. Hazırlanan kopyanın sağlama toplamını da kaydet. Betik standart ve belleğe sığan D1 SQL dışa aktarımlarını işler. Betik veya prova hata verirse devam etme.
 
 İlk uygulama yalnız bekleyen dosyaları, ikincisi sıfır dosyayı işlemelidir. İkinci adımdaki karşılaştırmayı yükseltilmiş kopyada tekrarla. Yerel uygulamadan bir mevcut kullanıcının girişini, bir eski POS fişinin tekrarlı yanıtını ve bir kasa/şube stok sorgusunu sınamak için sentetik veri kullan. Gerçek müşteri kopyasını cihazlara veya canlı entegrasyonlara bağlama.
 
@@ -107,5 +111,11 @@ Geçiş öncesi ödenmiş siparişler için kalemlerin miktar × birim fiyat top
 "$w" d1 migrations list "$db" --config "$cfg" --remote
 ```
 
-4. Bookmark kullanılamıyorsa doğrulanmış SQL dışa aktarımını **yeni, boş ve erişimi sınırlandırılmış** bir D1 veritabanına aktar. Kurtarma yapılandırmasının bağını ve UUID’sini kontrol et. `"$w" d1 execute DB --remote --config "$fresh_recovery_cfg" --file "$out/pre.sql"` komutundan sonra temel SQL ile kesim anındaki çıktıyı yeniden karşılaştır. Başarılı kontrollerin ardından eski Pages sürümünün Production `DB` bağını kurtarılan UUID’ye yönlendir.
+4. Bookmark kullanılamıyorsa doğrulanmış SQL dışa aktarımını **yeni, boş ve erişimi sınırlandırılmış** bir D1 veritabanına aktar. Hazırlanan `restore.sql` kopyasını ve sağlama toplamını doğrula. Kurtarma yapılandırmasının bağını ve UUID’sini kontrol et. `"$w" d1 execute DB --remote --config "$fresh_recovery_cfg" --file "$out/restore.sql"` komutundan sonra temel SQL ile kesim anındaki çıktıyı yeniden karşılaştır. Başarılı kontrollerin ardından eski Pages sürümünün Production `DB` bağını kurtarılan UUID’ye yönlendir.
 5. Kesim öncesindeki uyumlu Pages dağıtımını ve D1 bağını birlikte geri getir. Oturum, üyelik, POS kimliği, stok ve ödeme kontrollerini tekrarla. Kesimden sonraki cihaz kuyruğunu ve diğer değişiklikleri kontrollü uzlaştırdıktan sonra yazımı aç. Geri yüklenen eski sürümün desteklemediği şube, transfer veya kısmi iade işlemleri için kaynak günlüklerini koru.
+
+## Lansman öncesi yerel prova ve güvenlik olayı
+
+Sentetik veriyle tekrarlanabilir prova için `node --test tests/d1-recovery.test.mjs` çalıştır. Prova güncel migrasyonları yerel kaynağa uygular, SQL dışa aktarımını boş bir hedefe yükler ve üyelik, şube stoku, ödeme tutarı, migrasyon kaydı ve yabancı anahtar bütünlüğünü karşılaştırır. Kesimden sonraki örnek yazım kaynakta kalır. Yerel prova, üretimdeki Time Travel bookmark’ını veya Pages bağ değişimini doğrulamaz.
+
+Bir güvenlik olayı sonrası geri dönüşten önce kesimden bu yana yapılan parola değişikliklerini, oturum iptallerini ve kullanılmış kurtarma bağlantılarını belirle. Eski bir görüntü bunları eski durumuna döndürebilir. Yazımı kapalı tut ve erişimi yeniden açmadan önce geri gelen oturumların ve kurtarma bağlantılarının iptalini olay müdahalesinin parçası olarak onaylatıp uygula. Şüpheli parola özetleri için etkilenen hesapların güvenli kurtarma akışını işlet. Satış ve stok kayıtlarına ait kesim sonrası yazımları ayrı bir kaynakta uzlaştır.

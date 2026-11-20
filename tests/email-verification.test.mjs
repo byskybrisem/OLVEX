@@ -58,10 +58,10 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
     mail.push({ link, body });
     return Response.json({ id: "local" });
   });
-  const invoke = async (handler, path, data, expectedStatus) => {
+  const invoke = async (handler, path, data, expectedStatus, headers = {}) => {
     const pending = [];
     const request = new Request(origin + path, { method: "POST",
-      headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      headers: { Origin: origin, "Content-Type": "application/json", ...headers }, body: JSON.stringify(data) });
     const response = await handler({ env, request, waitUntil: promise => pending.push(promise) });
     await Promise.all(pending);
     assert.equal(response.status, expectedStatus, path);
@@ -153,6 +153,17 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   await reset({ action: "reset", token: recoveryToken, password: newPassword }, 200);
   assert.equal(await count("user_sessions"), 0);
   await reset({ action: "reset", token: recoveryToken, password: newPassword }, 400);
+  await signIn(newPassword, 200);
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const accountKey = await sha256("login-account:" + address);
+  await DB.prepare("INSERT INTO auth_rate_limits (key_hash, attempts, window_started_at, updated_at) VALUES (?, 20, ?, ?)")
+    .bind(accountKey, epoch, epoch).run();
+  for (const addressIp of ["192.0.2.1", "192.0.2.2"]) {
+    const rejected = await invoke(login, "/api/auth/login", { email: address, password: newPassword }, 429, { "CF-Connecting-IP": addressIp });
+    assert.equal(rejected.headers.get("Set-Cookie"), null);
+  }
+  await DB.prepare("UPDATE auth_rate_limits SET window_started_at = ? WHERE key_hash = ?").bind(epoch - 901, accountKey).run();
   await signIn(newPassword, 200);
 });
 

@@ -1,5 +1,12 @@
 import { HttpError } from "./http.js";
 
+export const PLATFORM_ADMIN_SESSION_SECONDS = 3600;
+
+export function platformAdminId(env) {
+  const id = env.OLVEX_SUPER_ADMIN_USER_ID?.trim().toLowerCase();
+  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id ?? "") ? id : null;
+}
+
 const COOKIE = "olvex_session";
 export const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const encoder = new TextEncoder();
@@ -26,13 +33,14 @@ export async function sessionHash(request) {
   return TOKEN_PATTERN.test(token) ? sha256(token) : null;
 }
 
-export async function requireUser(request, db) {
+export async function requireUser(request, db, maxAgeSeconds = 0) {
   const hash = await sessionHash(request);
   const user = hash && await db.prepare(`
     SELECT u.id, u.email, u.full_name
     FROM user_sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token_hash = ? AND s.expires_at > ?
-  `).bind(hash, new Date().toISOString()).first();
+    WHERE s.token_hash = ?1 AND s.expires_at > ?2
+      AND (?3 = 0 OR unixepoch(s.created_at) > unixepoch(?2) - ?3)
+  `).bind(hash, new Date().toISOString(), maxAgeSeconds).first();
 
   if (!user) throw new HttpError(401, "Oturumunuz sona erdi. Tekrar giriş yapın.");
   return user;
