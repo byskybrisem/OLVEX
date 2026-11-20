@@ -48,12 +48,12 @@ export const onRequestPost = handle(async ({ request, env }) => {
     throw new HttpError(409, "Mevcut abonelik işlemi bulundu. İşletme ayarlarından durumu kontrol edin.");
   }
   const content = started.checkoutFormContent;
-  if (content.length > 400_000 || !/<script(?:\\s|>)/i.test(content)) {
+  if (content.length > 400_000 || !/<script(?:\s|>)/i.test(content)) {
     throw new HttpError(502, "iyzico kart formu beklenen biçimde değil.");
   }
   const nonce = crypto.randomUUID().replace(/-/g, "");
   // iyzico returns its official bootstrap script. Permit that script only on this dedicated checkout response.
-  const trusted = content.replace(/<script(?=\\s|>)/gi, '<script nonce="' + nonce + '"');
+  const trusted = content.replace(/<script(?=\s|>)/gi, '<script nonce="' + nonce + '"');
   const policy = [
     "default-src 'self'",
     "script-src 'self' 'nonce-" + nonce + "' https://*.iyzipay.com",
