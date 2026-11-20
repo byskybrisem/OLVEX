@@ -153,12 +153,6 @@ async function showPublicInfo() {
     showPricingAction();
   }
 }
-// TEMP QA: do not expose the 30 TL payment test to ordinary visitors.
-const privatePaymentTest = document.querySelector("#private-payment-test");
-if (privatePaymentTest && new URLSearchParams(location.search).get("odeme_testi") === "30") {
-  privatePaymentTest.hidden = false;
-}
-
 showPublicInfo();
 window.addEventListener("pageshow", event => {
   if (event.persisted) showPublicInfo();

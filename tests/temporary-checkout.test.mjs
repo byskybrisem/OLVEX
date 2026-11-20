@@ -47,15 +47,20 @@ test("geçici canlı ödeme yönlendirmesine sadece yönetici oturumu erişebili
   assert.equal(admin.headers.get("Cache-Control"), "no-store");
 });
 
-test("30 TL test CTA yalnızca özel bağlantıyla görünür, normal fiyat ve abonelik korunur", async () => {
+test("30 TL testi herkes için görünür, satın alma sayfası dağıtıma eklenir", async () => {
   const page = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const js = await readFile(new URL("../assets/landing.js", import.meta.url), "utf8");
   const testPage = await readFile(new URL("../odeme-testi.html", import.meta.url), "utf8");
-  assert.match(page, /id="private-payment-test" hidden/);
-  assert.match(js, /get\("odeme_testi"\) === "30"/);
+  const build = await readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8");
+  assert.match(page, /id="payment-test-buy" href="\/odeme-testi.html">30 TL Satın Al/);
+  assert.doesNotMatch(page, /id="private-payment-test" hidden/);
+  assert.doesNotMatch(js, /get\("odeme_testi"\) === "30"/);
   assert.match(page, /id="monthly-price">999 TL/);
   assert.match(page, /id="pricing-cta"/);
   assert.match(testPage, /30 TL/);
   assert.match(testPage, /Tek seferlik|tek seferlik/);
-  assert.match(testPage, /href="\/api\/qa\/one-time-checkout"/);
+  assert.match(testPage, /href="https:\/\/buy\.polar\.sh\/polar_cl_/);
+  for (const filename of ["odeme-testi.html", "odeme-testi-sonuc.html", "account.html"]) {
+    assert.ok(build.includes('"' + filename + '"'), filename + " must be deployed");
+  }
 });
