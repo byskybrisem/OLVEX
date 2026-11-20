@@ -112,6 +112,7 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await plan.getByText(/Deneme için ödeme kartı gerekecek/).waitFor();
     const action = plan.getByRole("link", { name: "Ücretsiz Hesap Oluştur" });
     assert.equal(await action.getAttribute("href"), "/register.html");
+    assert.equal(await plan.locator(".plan-footer > :last-child").getAttribute("id"), "pricing-cta");
     await plan.getByText("Ücretli abonelik tahsilatı şu anda kapalıdır.").waitFor();
     await plan.getByText(/OLVEX AI aboneliğe dahildir/).waitFor();
     for (const width of widths) {
@@ -137,6 +138,9 @@ export async function landingChecks({ safeContext, url, snapshots }) {
         await plan.screenshot({ path: join(snapshots, `single-pricing-${width}.png`), animations: "disabled" });
       }
     }
+    const actionColor = await action.evaluate(element => getComputedStyle(element).color);
+    await action.hover();
+    assert.equal(await action.evaluate(element => getComputedStyle(element).color), actionColor);
     const termsLink = plan.getByRole("link", { name: "Abonelik koşullarını incele" });
     assert.equal(await termsLink.getAttribute("href"), "/subscription-terms.html");
     const terms = await desktop.request.get(new URL(await termsLink.getAttribute("href"), url).href);
