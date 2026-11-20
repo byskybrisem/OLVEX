@@ -20,6 +20,9 @@ Kasa Bağlantıları sayfasında müşterinin önce **kasa türünü**, sonra va
 2. Üreticinin izinli API veya satışları dışa aktarma desteğini doğrulayın; olmayabilir.
 3. Varsa veriyi OLVEX CSV şablonuna dönüştürün veya onaylanmış bağlayıcı kurun. Yoksa OLVEX manuel satış özelliği kullanılabilir.
 
+## Posnic
+Posnic satışları, iadeleri ve iptalleri için yerel bağlayıcının [kurulum ve test kapsamına](POSNIC-ENTEGRASYONU.md) bakın.
+
 ## API anahtarı
 - Sadece doğrulanmış bağlayıcı veya teknik ekip varsa oluşturun.
 - Anahtarı tarayıcı JavaScript'inde, cihazın herkese açık ekranlarında veya destekte paylaşmayın; sunucu tarafı gizli ayara yazın.
