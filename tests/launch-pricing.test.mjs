@@ -16,11 +16,11 @@ test("tek Profesyonel paketin iki faturalama dönemi ve kartlı 14 günlük dene
   assert.equal(plans["profesyonel-yearly"].amount, 959040);
   assert.match(home, /14 gün/);
   assert.match(home, /data-price="999"/);
-  assert.doesNotMatch(home, /data-price="499"|<h3>Esnaf<\\/h3>/);
+  assert.doesNotMatch(home, /data-price="499"|<h3>Esnaf/);
   assert.match(home, /1 işletme, 5 şubeye kadar/);
   assert.match(home, /İşletme sahibi dahil 10 kullanıcı/);
   assert.match(terms, /999 TL/);
-  assert.match(terms, /9\\.590,40 TL/);
+  assert.ok(terms.includes("9.590,40 TL"));
   assert.match(terms, /14 günlük deneme/);
   assert.match(checkout, /acceptedBillingTerms/);
   assert.match(checkout, /iyzico/);
