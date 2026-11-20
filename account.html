@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#090b12">
+<title>Hesap ve Şifre Güvenliği | OLVEX</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/public.css">
+<script type="module" src="/assets/account-security.js"></script>
+</head>
+<body>
+<div class="shell compact">
+<header><a class="brand" href="/">OLVEX</a><a href="/app.html#settings">Panele dön</a></header>
+<main class="card">
+  <h1>Hesap güvenliği</h1>
+  <p id="account-email" role="status">Hesabınız yükleniyor…</p>
+  <section aria-labelledby="password-title">
+    <h2 id="password-title">Şifre değiştir</h2>
+    <p>Mevcut şifrenizi doğrulayın. Şifre değiştirildiğinde tüm cihazlardaki oturumlar kapatılır ve yeniden giriş gerekir.</p>
+    <form id="password-change-form" method="post" hidden>
+      <label>Mevcut şifre
+        <input name="currentPassword" type="password" autocomplete="current-password" maxlength="128" required>
+      </label>
+      <label>Yeni şifre
+        <input name="newPassword" type="password" autocomplete="new-password" minlength="15" maxlength="128" required>
+      </label>
+      <label>Yeni şifre tekrar
+        <input name="confirmation" type="password" autocomplete="new-password" minlength="15" maxlength="128" required>
+      </label>
+      <button type="submit">Şifremi değiştir</button>
+    </form>
+    <p id="password-message" class="message" role="status" hidden></p>
+    <p><a href="/forgot-password.html">Mevcut şifreni unuttun mu?</a></p>
+  </section>
+  <section aria-label="Abonelik hesabı">
+    <h2>Abonelik işlemleri</h2>
+    <p>Abonelik ve iptal işlemleri için işletme panelinden Ayarlar → Aboneliği yönet bölümüne gidin.</p>
+    <a href="/app.html#settings">İşletme ayarlarına git</a>
+  </section>
+</main>
+</div>
+</body>
+</html>
