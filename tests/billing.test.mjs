@@ -7,6 +7,7 @@ import test from "node:test";
 import { getPlatformProxy, unstable_splitSqlQuery } from "wrangler";
 import { onRequestPost as callback } from "../functions/api/billing/callback.js";
 import { onRequestPost as webhook } from "../functions/api/billing/webhook.js";
+import { onRequestPost as hostedCheckout } from "../functions/api/billing/start.js";
 import { onRequestGet, onRequestPost } from "../functions/api/workspace/[businessId]/[section].js";
 import { randomToken, sha256 } from "../functions/_lib/session.js";
 
@@ -93,11 +94,11 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
         initialized++;
         const body = JSON.parse(options.body);
         assert.deepEqual(Object.keys(body.customer).sort(), ["billingAddress", "email", "gsmNumber", "identityNumber", "name", "surname"]);
-        assert.equal(body.customer.email, "owner@example.test");
+        assert.ok(["owner@example.test", "outsider@example.test"].includes(body.customer.email));
         assert.equal(body.pricingPlanReferenceCode, "plan-pm");
         assert.equal(body.callbackUrl, origin + "/api/billing/callback?id=" + body.conversationId);
         conversationId = body.conversationId;
-        return Response.json({ status: "success", conversationId, token: "checkout-token", checkoutFormContent: "<div>fixture</div>" });
+        return Response.json({ status: "success", conversationId, token: "checkout-token", checkoutFormContent: "<script>window.iyzicoFixture = true;</script>" });
       }
       case "/v2/subscription/checkoutform/checkout-token":
         assert.equal(options.method, "GET");
@@ -199,4 +200,39 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   assert.equal(cancellations, 1);
   assert.equal((await call(null, 200)).tier, "profesyonel");
   await call({ ...checkout, requestId: crypto.randomUUID() }, 409);
+
+  // Hosted checkout must render the iyzico bootstrap safely, not collect card data locally.
+  const fields = { ...checkout, businessId: "other", requestId: crypto.randomUUID() };
+  const form = new URLSearchParams(Object.entries(fields).map(([key,value])=>[key,String(value)]));
+  const postForm = (originUrl, cookie, headers = {}) => hostedCheckout({ env,
+    request: new Request(originUrl + "/api/billing/start", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: "olvex_session=" + cookie, ...headers }, body: form
+    })
+  });
+  const noOrigin = await postForm(origin, sessions.outsider);
+  assert.equal(noOrigin.status, 403);
+  const wrongHost = await postForm("https://olvex.com.tr", sessions.outsider,
+    { Origin: "https://olvex.com.tr" });
+  assert.equal(wrongHost.status, 403);
+  const forbidden = await postForm(origin, sessions.admin, { Origin: origin });
+  assert.equal(forbidden.status, 404);
+  const hosted = await postForm(origin, sessions.outsider, { Origin: origin });
+  assert.equal(hosted.status, 200);
+  assert.match(hosted.headers.get("Content-Security-Policy"), /script-src.*nonce-/);
+  assert.equal(hosted.headers.get("Cache-Control"), "no-store");
+  const content = await hosted.text();
+  assert.match(content, /<script nonce="[a-f0-9]+">window\\.iyzicoFixture/);
+  assert.doesNotMatch(content, /fixture-secret|fixture-key/);
+
+  // When live billing is switched on, unpaid businesses cannot create new records.
+  env.OLVEX_BILLING = "live";
+  const blocked = await onRequestPost({ env,
+    request: new Request(origin + "/api/workspace/biz/products", {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json",
+        Cookie: "olvex_session=" + sessions.owner },
+      body: JSON.stringify({ action: "save", requestId: crypto.randomUUID() })
+    }), params: { businessId: "biz", section: "products" }
+  });
+  assert.equal(blocked.status, 402);
 });
