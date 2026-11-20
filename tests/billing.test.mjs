@@ -9,7 +9,7 @@ import { onRequestPost as callback } from "../functions/api/billing/callback.js"
 import { onRequestPost as webhook } from "../functions/api/billing/webhook.js";
 import { onRequestPost as hostedCheckout } from "../functions/api/billing/start.js";
 import { onRequestGet, onRequestPost } from "../functions/api/workspace/[businessId]/[section].js";
-import { requirePaidSubscription } from "../functions/_lib/entitlements.js";
+import { entitlement, requirePaidSubscription } from "../functions/_lib/entitlements.js";
 import { transact } from "../functions/_lib/workspace.js";
 import { randomToken, sha256 } from "../functions/_lib/session.js";
 
@@ -26,7 +26,22 @@ for (const duringTrial of [true, false]) test(duringTrial ? "Doğrulanmış dene
   const { DB } = runtime.env;
   const migrations = new URL("../migrations/", import.meta.url);
   for (const name of (await readdir(migrations)).filter(name => name.endsWith(".sql")).sort()) {
+    if (duringTrial && name === "0015_professional_trial.sql") {
+      await DB.batch([
+        DB.prepare("INSERT INTO users(id,email) VALUES ('legacy-owner','legacy@example.test')"),
+        DB.prepare("INSERT INTO businesses(id,name,created_by) VALUES ('legacy','Esnaf','legacy-owner')"),
+        DB.prepare(`INSERT INTO olvex_subscriptions
+          (id,business_id,environment,plan,plan_ref,state,provider_ref,customer_ref,paid_until)
+          VALUES ('old','legacy','live','esnaf-monthly','old-plan','active','old-sub','old-customer',4070908800000)`)
+      ]);
+    }
     await DB.batch(unstable_splitSqlQuery(await readFile(new URL(name, migrations), "utf8")).map(sql => DB.prepare(sql)));
+  }
+  if (duringTrial) {
+    const legacy = await entitlement({ db: DB, env: {}, request: new Request("https://olvex.com.tr"), businessId: "legacy" });
+    assert.equal(legacy.tier, "esnaf");
+    assert.equal(legacy.paidUntil, 4070908800000);
+    assert.equal(legacy.trialUntil, null);
   }
   const sessions = { owner: randomToken(), admin: randomToken(), outsider: randomToken() };
   await DB.batch([

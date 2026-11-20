@@ -6,7 +6,10 @@ const current = document.querySelector("#activeSubscription");
 const stateText = document.querySelector("#statusText");
 const cancel = document.querySelector("#cancelSubscription");
 const businessId = new URLSearchParams(location.search).get("businessId");
-const amount = { "profesyonel-monthly": "999 TL/ay", "profesyonel-yearly": "9.590,40 TL/yıl" };
+const amount = {
+  "profesyonel-monthly": "999 TL/ay", "profesyonel-yearly": "9.590,40 TL/yıl",
+  "esnaf-monthly": "499 TL/ay", "esnaf-yearly": "4.790,40 TL/yıl"
+};
 
 function notify(value, error = false) {
   message.textContent = value;
@@ -44,6 +47,8 @@ async function load() {
       stateText.textContent = [state, subscription.trialStartedAt ? "Deneme başlangıcı: " + pretty(subscription.trialStartedAt) : "",
         subscription.trialUntil ? "Deneme bitişi: " + pretty(subscription.trialUntil) : "",
         subscription.trial && subscription.state === "active" ? "İlk tahsilat: " + amount[subscription.plan] + ", " + pretty(subscription.trialUntil) + " (Türkiye saati)" : "",
+        subscription.state === "active" && !subscription.trial && subscription.tier !== "inactive" && subscription.paidUntil
+          ? "Sonraki tahsilat: " + amount[subscription.plan] + ", " + pretty(subscription.paidUntil) + " (Türkiye saati)" : "",
         subscription.state === "canceled" ? "Otomatik yenileme kapalı." : "",
         ["creating", "checkout", "pending"].includes(subscription.state) ? "Kart işlemi henüz doğrulanmadı. İşlemi tamamlayamadıysanız destekle iletişime geçin." : "",
         subscription.paidUntil ? "Ödenmiş dönem bitişi: " + pretty(subscription.paidUntil) : ""].filter(Boolean).join(" · ");
