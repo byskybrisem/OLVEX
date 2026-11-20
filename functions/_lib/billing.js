@@ -141,7 +141,9 @@ export async function refreshSubscription(db, config, row, event) {
   const price = plans[row.plan] || legacyPlans[row.plan];
   if (!price) throw new HttpError(502, "Abonelik planı tanınmıyor.");
   let trialUntil = row.trial_until ?? null;
-  if (Object.hasOwn(plans, row.plan)) {
+  if (Object.hasOwn(plans, row.plan) && (sub.trialDays === TRIAL_DAYS || row.billing_terms_accepted_at)) {
+    // Existing subscriptions created before this policy can still renew without a trial.
+    // New card-verified trials require the provider to confirm all 14 days.
     if (sub.trialDays !== TRIAL_DAYS) {
       throw new HttpError(502, "iyzico abonelik deneme süresi beklenen değerle uyuşmuyor.");
     }
