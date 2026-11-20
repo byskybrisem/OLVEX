@@ -101,9 +101,17 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await overviewTab.press("ArrowRight");
     assert.equal(await page.locator("#tour-products-tab").getAttribute("aria-selected"), "true");
     const pricing = page.getByRole("region", { name: "Paketler ve fiyatlar" });
+    const launch = page.locator("#professional-launch");
+    await launch.waitFor();
     assert.deepEqual(await pricing.getByRole("heading", {level: 3}).allTextContents(),
-      ["Esnaf", "Profesyonel"]);
-    for (const width of [375, 390, 430, 768, 1440]) {
+      ["Esnaf", "Profesyonel", "Profesyonel · Lansman Fırsatı"]);
+    assert.equal(await launch.locator("del").textContent(), "999 TL/ay");
+    assert.equal(await launch.locator("[data-launch-price]").textContent(), "699 TL");
+    assert.equal(await launch.locator("[data-launch-savings]").textContent(), "Toplam 900 TL tasarruf");
+    await launch.getByText("İlk 3 ay boyunca yaklaşık %30 indirim!", { exact: true }).waitFor();
+    await launch.getByText("Bu teklifte ücretsiz deneme yoktur.").waitFor();
+    await page.getByText(/14 gün ücretsiz deneme/).waitFor();
+    for (const width of [320, 375, 390, 430, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const layout = await pricing.evaluate(section => {
         const cards = [...section.querySelectorAll(".plan-card")];
@@ -120,6 +128,13 @@ export async function landingChecks({ safeContext, url, snapshots }) {
         assert.ok(card.left >= 0 && card.right <= width, `Card clipped at ${width}px`);
         assert.notEqual(card.background, "none");
       }
+      if (snapshots && (width === 390 || width === 1440)) {
+        await page.evaluate(() => document.fonts.ready);
+        await launch.screenshot({ path: join(snapshots, `launch-offer-${width}.png`), animations: "disabled" });
+        if (width === 1440) {
+          await pricing.locator(".plan-grid").screenshot({ path: join(snapshots, "launch-pricing-desktop.png"), animations: "disabled" });
+        }
+      }
     }
     const prices = pricing.locator("[data-price]");
     const totals = pricing.locator("[data-period-note]");
@@ -130,8 +145,11 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     assert.equal(await pricing.locator("#annual").getAttribute("aria-pressed"), "true");
     assert.deepEqual(await prices.allTextContents(), ["₺399,20", "₺799,20"]);
     assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺4.790,40", "Yıllık toplam ₺9.590,40"]);
-    assert.equal(await pricing.locator(".plan-card").count(), 2);
+    assert.equal(await pricing.locator(".plan-card:visible").count(), 2);
+    assert.equal(await launch.isVisible(), false);
+    assert.equal(await page.locator("#professional-trial").isVisible(), false);
     await pricing.locator("#monthly").click();
+    await launch.waitFor();
     assert.deepEqual(await prices.allTextContents(), monthly);
     assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺5.988", "12 ayda ₺11.988"]);
     assert.equal(requests.some(path => path.endsWith("/core-scene.js")), false,
@@ -217,11 +235,18 @@ export async function landingChecks({ safeContext, url, snapshots }) {
   try {
     const page = await reduced.newPage();
     const scripts = [];
+    const campaignClosed = await reduced.request.get(url + "/api/public-info");
+    const info = await campaignClosed.json();
+    info.pricing.professional.launch = null;
+    await page.route("**/api/public-info", route => route.fulfill({ json: info }));
     page.on("request", request => scripts.push(new URL(request.url()).pathname));
     await checkStaticPage(page, url);
     await page.locator('#core-stage[data-core-state="reduced"]').waitFor();
     assert.ok(await page.locator("#core-toggle").isDisabled());
     await page.locator("#baslayin").scrollIntoViewIfNeeded();
+    await page.locator("#professional-trial").waitFor();
+    assert.equal(await page.locator("#professional-launch").isVisible(), false);
+    assert.equal(await page.locator(".plan-card:visible").count(), 2);
     assert.equal(await page.locator("#core-canvas").isVisible(), false);
     assert.equal(scripts.some(path => path.endsWith("/core-scene.js")), false);
   } finally { await reduced.close(); }
@@ -236,6 +261,17 @@ export async function landingChecks({ safeContext, url, snapshots }) {
       await checkStaticPage(page, url);
       await checkWidth(page, 440);
       await snapshot(page, snapshots, "landing-webkit.png");
+      const launch = page.locator("#professional-launch");
+      await launch.waitFor();
+      assert.equal(await launch.locator("[data-launch-price]").textContent(), "699 TL");
+      if (snapshots) {
+        await page.evaluate(() => document.fonts.ready);
+        await launch.screenshot({ path: join(snapshots, "launch-offer-webkit.png"), animations: "disabled" });
+      }
+      await page.locator("#annual").tap();
+      await launch.waitFor({ state: "hidden" });
+      await page.locator("#monthly").tap();
+      await launch.waitFor();
       await page.locator("#site-menu summary").tap();
       await page.locator('#site-menu a[href="#moduller"]').tap();
       await page.locator("#tour-products-tab").tap();
@@ -244,5 +280,5 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     } finally { await engine.close(); }
   }
   assert.deepEqual(errors, []);
-  console.log("Açılış sayfası doğrulandı: dokuz genişlik, mobil menü, ürün turu, planlar, JavaScript kapalı, 3B ve statik görsel.");
+  console.log("Açılış sayfası doğrulandı: dokuz genişlik, mobil menü, ürün turu, planlar ve lansman teklifi, JavaScript kapalı, 3B ve statik görsel.");
 }

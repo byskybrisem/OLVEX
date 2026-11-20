@@ -50,6 +50,7 @@ function customerPayload(body, email) {
 
 export async function beginCheckout(ctx, body) {
   const config = requireBilling(ctx.env);
+  if (Object.hasOwn(body, "offerId")) throw new HttpError(503, "Bu teklif için Polar üzerinden ödeme henüz açık değil.");
   if (!Object.hasOwn(plans, body.plan)) throw new HttpError(400, "Geçerli bir plan seçin.");
   const id = identifier(body.requestId);
   const plan = plans[body.plan];

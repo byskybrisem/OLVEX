@@ -127,6 +127,11 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   env.OLVEX_ENVIRONMENT = "preview";
   await call(checkout, 403, { user: "admin" });
   await call(checkout, 404, { user: "outsider" });
+  env.OLVEX_LAUNCH_OFFER = "on";
+  for (const offerId of ["professional-standard-v1", "professional-launch-v1"]) {
+    await call({ ...checkout, plan: "profesyonel-monthly", offerId }, 503);
+  }
+  await call({ ...checkout, plan: "professional-launch-v1" }, 400);
   await call(checkout, 503);
   assert.equal(initialized, 0);
   planPrice = "4790.40";

@@ -11,7 +11,7 @@ import { landingChecks, widths } from "./landing.mjs";
 
 const desktopEngineName = process.env.OLVEX_DESKTOP_BROWSER || "chromium";
 assert.ok(["chromium", "firefox", "webkit"].includes(desktopEngineName), "Unknown desktop engine");
-const local = await localPages({ professionalFixtures: true, https: true });
+const local = await localPages({ professionalFixtures: true, https: true, bindings: { OLVEX_LAUNCH_OFFER: "on" } });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
 const snapshots = process.env.OLVEX_SCREENSHOT_DIR;
