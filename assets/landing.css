@@ -225,7 +225,7 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
 }
 
 /* One commercial package, with a single focused trial offer. */
-.pricing .plan-grid { grid-template-columns: minmax(0, 690px); justify-content: center; }
+.pricing .plan-grid { grid-template-columns: minmax(0, 1fr); max-width: 690px; margin-inline: auto; }
 .pricing .plan-card { border-color: #a99aff52; background: linear-gradient(145deg, #28283d, #171c2b 78%); }
 .pricing .plan-card > .button { align-self: flex-start; margin-top: 23px; }
 .pricing .plan-footer a:not(.text-link) { text-decoration: underline; text-underline-offset: 3px; }
