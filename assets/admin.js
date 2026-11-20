@@ -8,6 +8,7 @@ const sections = {
   finance: ["Gelir / Gider", "OLVEX şirketine ait gelir ve giderleri kaydet ve izle."],
   subscriptions: ["Abonelikler", "İyzico abonelik durumlarını izle; tahsilat olarak sayma."],
   ai: ["AI Kullanımı", "Platform genelindeki model ve kullanım sayılarını incele."],
+  rights: ["Hesap ve veri talepleri", "Bekleyen talepleri incele ve yanıtın iletildiğini kaydet."],
   system: ["Sistem & İşlem Geçmişi", "Veritabanı durumu ve yönetici işlem kayıtları."]
 };
 const state = { section: "overview", page: 0, busy: false, sequence: 0, from: offsetDay(today(), -29), to: today() };
@@ -155,7 +156,16 @@ function system(data) {
   ) + panel("Yönetici işlem geçmişi", table(["Tarih","Yönetici","İşlem","Kayıt"],rows) +
      info("Platform yönetim hareketleri sunucuda kaydedilir. Yönetici sayfası tek başına ikinci faktör doğrulaması değildir."));
 }
-const renderers = { overview, businesses, users, finance, subscriptions, ai, system };
+function rights(data) {
+  const labels = { close: "Hesap kapatma", access: "Veri erişimi", correction: "Veri düzeltme", erasure: "Veri silme", other: "Diğer KVKK talebi" };
+  const rows = data.rows.map(row => `<tr><td><code>${escaped(row.id)}</code></td><td>${escaped(row.email)}</td>
+    <td>${escaped(labels[row.kind])}</td><td>${dateLabel(row.created_at.slice(0, 10))}</td>
+    <td>${row.processed_at ? "Yanıt kaydedildi" : `<button type="button" class="admin-back" data-rights-respond="${escaped(row.id)}">Yanıtı kaydet</button>`}</td></tr>`).join("");
+  return panel("Gelen talepler", info("Kimliği, işletme yetkisini ve saklama yükümlülüğünü doğrulayın. Bu işlem yalnızca yanıt durumunu kaydeder.") +
+    table(["Referans", "Hesap", "Talep", "Tarih", "Durum"], rows, pagination(data)));
+}
+
+const renderers = { overview, businesses, users, finance, subscriptions, ai, rights, system };
 
 function updateNavigation() {
   document.querySelectorAll("[data-admin-view]").forEach(link => {
@@ -260,6 +270,14 @@ async function start() {
     if(add){$("#admin-ledger-form").reset();$("#admin-ledger-form").elements.occurredOn.value=today();$("#admin-ledger-dialog").showModal();return;}
     const page=event.target.closest("[data-page]");
     if(page && !page.disabled){state.page+=Number(page.dataset.page);void load();return;}
+    const response = event.target.closest("[data-rights-respond]");
+    if (response && !response.disabled) {
+      if (!confirm("Başvuru sahibine güvenli kanaldan yanıt iletildi mi?")) return;
+      response.disabled = true;
+      api("rights", "POST", { action: "responded", id: response.dataset.rightsRespond, confirmed: true })
+        .then(() => load()).catch(error => notice(error.message)).finally(() => { response.disabled = false; });
+      return;
+    }
     const remove=event.target.closest("[data-void-id]");
     if(remove && !remove.disabled)void voidLedger(remove.dataset.voidId);
   });
