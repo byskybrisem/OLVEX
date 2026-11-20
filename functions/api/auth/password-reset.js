@@ -3,30 +3,38 @@ import { newPassword, passwordHash } from "../../_lib/password.js";
 import { randomToken, sha256, TOKEN_PATTERN } from "../../_lib/session.js";
 import { email, choice } from "../../_lib/validate.js";
 import { isRateLimited } from "./rate-limit.js";
-import { accountMailReady, sendAccountMail } from "../../_lib/account-mail.js";
+import { accountLinkMessage, accountMailReady, sendAccountMail } from "../../_lib/account-mail.js";
 import { recoveryOrigin } from "../../_lib/recovery.js";
 
 async function sendReset(env, user, origin) {
   const token = randomToken();
   const hash = await sha256(token);
   const now = new Date();
-  await env.DB.batch([
+  const [, issued] = await env.DB.batch([
     env.DB.prepare("DELETE FROM olvex_password_resets WHERE expires_at <= ?").bind(now.toISOString()),
-    env.DB.prepare("INSERT INTO olvex_password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
-      .bind(hash, user.id, new Date(+now + 30 * 60 * 1000).toISOString())
+    env.DB.prepare(`INSERT INTO olvex_password_resets (token_hash, user_id, expires_at)
+      SELECT ?, id, ? FROM users WHERE id = ? AND password_hash IS ?`)
+      .bind(hash, new Date(+now + 30 * 60 * 1000).toISOString(), user.id, user.password_hash)
   ]);
 
+  if (!issued.meta.changes) return;
   const url = new URL("/forgot-password.html", origin);
   url.hash = token;
+  const mail = accountLinkMessage({
+    heading: "OLVEX şifre sıfırlama",
+    instructions: "Bağlantıyı açarak hesabınız için yeni bir şifre belirleyin.",
+    label: "Yeni şifre belirle",
+    url: url.href
+  });
   try {
-    await sendAccountMail(env, user.email, "OLVEX şifre sıfırlama",
-      `OLVEX şifrenizi sıfırlama bağlantısı (30 dakika geçerli):\n${url.href}\n\nBu isteği siz göndermediyseniz e-postayı yok sayabilirsiniz.`, "password_reset");
+    await sendAccountMail(env, user.email, mail.subject, mail.text, "password_reset", mail.html);
   } catch {
     await env.DB.prepare("DELETE FROM olvex_password_resets WHERE token_hash = ?").bind(hash).run();
   }
 }
 
-export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
+export const onRequestPost = handle(async (context) => {
+  const { request, env } = context;
   sameOrigin(request);
   const db = env.DB;
   const data = await readJson(request, 4096);
@@ -46,8 +54,8 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
     if (await isRateLimited(db, `password-address:${address}`, 3, 1800)) {
       console.info("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "address_rate_limit" });
     } else {
-      waitUntil((async () => {
-        const user = await db.prepare("SELECT id, email FROM users WHERE email = ? COLLATE NOCASE").bind(address).first();
+      context.waitUntil((async () => {
+        const user = await db.prepare("SELECT id, email, password_hash FROM users WHERE email = ? COLLATE NOCASE").bind(address).first();
         if (user) await sendReset(env, user, origin);
         else console.info("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "no_matching_account" });
       })().catch(() => console.error("OLVEX_ACCOUNT_MAIL", { flow: "password_reset", outcome: "storage_error" })));

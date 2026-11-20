@@ -22,6 +22,6 @@ Başlangıç sürümü `01c1ac1` ve PR #26 sonrası erişim kuralları. Kontroll
 
 ## Kayıt ve üretime geçiş
 
-- Lansmana kadar Pages Production ortamında `OLVEX_SIGNUPS=closed` kullanın. Ayar eksik veya tanınmayan bir değerdeyse kayıt kapalı kalır. `preview` yalnızca izole önizlemede kullanılmalı. Bu mod önizlemede e-posta doğrulaması aramaz.
-- Onaylı lansmanda `open` için yayımlanabilir işletmeci, hizmet adresi ve iletişim e-postası, geçerli HTTPS kökeni ve çalışan posta sağlayıcısı gerekir. Yayına geçmeden önce kayıt kapalıyken hem `GET /api/public-info` hem kayıt POST davranışını izole dağıtımda doğrulayın.
+- Pages Production ortamında mevcut `OLVEX_SIGNUPS=open` kararını koruyun. Ayar eksik veya tanınmayan bir değerdeyse kayıt kapalı kalır. `preview` yalnızca izole önizlemede kullanılmalı. Bu mod önizlemede e-posta doğrulaması aramaz.
+- Kayıt akışının `open` ile çalışabilmesi için yayımlanabilir işletmeci, hizmet adresi ve iletişim e-postası, geçerli HTTPS kökeni ve çalışan posta sağlayıcısı gerekir. İzole dağıtımda `open` ve `closed` senaryoları için hem `GET /api/public-info` hem kayıt POST davranışını doğrulayın.
 - [D1 prosedürünü](D1-GECIS-VE-GERI-DONUS.md) prova edin. Canlı Access kapsamı, MFA, yedek saklama süresi, Pages–D1 bağı ve üretim kayıt ayarı bu denetimde yerel kanıtla doğrulanamaz.

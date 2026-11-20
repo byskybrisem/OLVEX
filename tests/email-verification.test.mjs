@@ -10,7 +10,7 @@ import { onRequestPost as login } from "../functions/api/auth/login.js";
 import { onRequestPost as recover } from "../functions/api/auth/password-reset.js";
 import { accountMailReady, sendAccountMail } from "../functions/_lib/account-mail.js";
 import { TERMS_VERSION } from "../functions/_lib/public-info.js";
-import { sha256 } from "../functions/_lib/session.js";
+import { randomToken, sha256 } from "../functions/_lib/session.js";
 
 const address = "owner@example.test";
 const origin = "https://panel.example.test";
@@ -55,6 +55,10 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
     const link = new URL(body.text.match(/https:\/\/\S+/)[0]);
     assert.equal(link.origin, origin);
     assert.match(link.hash, /^#[A-Za-z0-9_-]{43}$/);
+    assert.match(body.text, /30 dakika geçerlidir/);
+    assert.match(body.html, /<html lang="tr">/);
+    assert.match(body.html, /width=device-width/);
+    assert.ok(body.html.includes('href="' + link.href + '"'));
     mail.push({ link, body });
     return Response.json({ id: "local" });
   });
@@ -82,16 +86,20 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   await signup({ email: "geçersiz" }, 400);
 
   deliveryAvailable = false;
-  await signup({ email: address }, 503);
+  const failed = await signup({ email: address }, 202);
   assert.equal(await count("olvex_signup_links"), 0);
   deliveryAvailable = true;
   const requested = await signup({ email: address, joining: true, password: "request-only password" }, 202);
   assert.deepEqual(await requested.json(), { verificationRequested: true });
+  assert.deepEqual(await failed.json(), { verificationRequested: true });
   assert.deepEqual(mail[0].body.to, [address]);
   assert.equal(mail[0].link.search, "?next=join");
   assert.equal(mail[0].link.pathname, "/register.html");
   assert.equal(await count("users"), 0);
-  assert.equal(await DB.prepare("SELECT token_hash FROM olvex_signup_links").first("token_hash"), await sha256(token()));
+  const signupLink = await DB.prepare("SELECT token_hash, expires_at FROM olvex_signup_links").first();
+  assert.equal(signupLink.token_hash, await sha256(token()));
+  const lifetime = Date.parse(signupLink.expires_at) - Date.now();
+  assert.ok(lifetime <= 1800000 && lifetime > 1790000);
   await signIn(details.password, 401);
   const first = token();
   await signup(confirm(first, { acceptedTerms: false }), 400);
@@ -118,14 +126,25 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   const unauthenticated = await businesses({ env, request: new Request(origin + "/api/businesses") });
   assert.equal(unauthenticated.status, 401);
   assert.equal(await count("user_sessions"), 1);
-  const existing = await signup({ email: address }, 202);
-  assert.deepEqual(await existing.json(), { verificationRequested: true });
-  await signup(confirm(token(), { password: "farklı örnek şifre" }), 202);
+  const sentBeforeExisting = providerCalls;
+  const existing = await signup({ email: address.toUpperCase() }, 202);
+  const throttled = await signup({ email: address }, 202);
+  for (const response of [existing, throttled]) {
+    assert.deepEqual(await response.json(), { verificationRequested: true });
+  }
+  assert.equal(providerCalls, sentBeforeExisting);
+  assert.equal(await count("olvex_signup_links"), 0);
+  await signup(confirm(first, { password: "farklı örnek şifre" }), 400);
+  const olderSignup = randomToken();
+  await DB.prepare("INSERT INTO olvex_signup_links (token_hash,email,expires_at) VALUES (?,?,?)")
+    .bind(await sha256(olderSignup), address, new Date(Date.now() + 60_000).toISOString()).run();
+  await signup(confirm(olderSignup, { password: "farklı örnek şifre" }), 202);
+  await signup(confirm(olderSignup), 400);
   assert.equal(await count("user_sessions"), 1);
   await signIn("farklı örnek şifre", 401);
-  await signup({ email: address }, 429);
-  assert.equal(mail.length, 2);
+  assert.equal(mail.length, 1);
   await signup({ email: "second@example.test" }, 202);
+  assert.equal(mail.length, 2);
   await DB.prepare("UPDATE olvex_signup_links SET expires_at = ?").bind(new Date(0).toISOString()).run();
   env.OLVEX_SIGNUPS = "closed";
   await signup(confirm(token()), 403);
@@ -136,6 +155,10 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
   await reset({ action: "request", email: address }, 200);
   assert.equal(mail.at(-1).link.pathname, "/forgot-password.html");
   const recoveryToken = token();
+  const resetLink = await DB.prepare("SELECT token_hash, expires_at FROM olvex_password_resets").first();
+  assert.equal(resetLink.token_hash, await sha256(recoveryToken));
+  const resetLifetime = Date.parse(resetLink.expires_at) - Date.now();
+  assert.ok(resetLifetime <= 1800000 && resetLifetime > 1790000);
   deliveryAvailable = false;
   const previousCalls = providerCalls;
   await reset({ action: "request", email: address }, 200);
@@ -150,10 +173,25 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
     assert.ok(infoLog.mock.calls.some(call => call.arguments[1]?.outcome === outcome));
   }
   const newPassword = "yenilenmiş örnek şifre";
+  const expiredToken = randomToken();
+  await DB.prepare("INSERT INTO olvex_password_resets (token_hash,user_id,expires_at) VALUES (?,?,?)")
+    .bind(await sha256(expiredToken), await DB.prepare("SELECT id FROM users WHERE email = ?").bind(address).first("id"), new Date(0).toISOString()).run();
+  await reset({ action: "reset", token: expiredToken, password: newPassword }, 400);
+  assert.equal(await count("user_sessions"), 1);
   await reset({ action: "reset", token: recoveryToken, password: newPassword }, 200);
   assert.equal(await count("user_sessions"), 0);
   await reset({ action: "reset", token: recoveryToken, password: newPassword }, 400);
+  await reset({ action: "reset", token: token(), password: newPassword }, 400);
+  const old = await businesses({ env, request: new Request(origin + "/api/businesses", { headers: { Cookie: cookie } }) });
+  assert.equal(old.status, 401);
+  await signIn(details.password, 401);
   await signIn(newPassword, 200);
+
+  const beforeQuota = providerCalls;
+  await Promise.all([1, 2, 3, 4].map(index => invoke(register, "/api/auth/register",
+    { email: "repeat@example.test" }, 202, { "CF-Connecting-IP": "192.0.2." + index })));
+  assert.equal(providerCalls, beforeQuota + 3);
+  assert.equal(await count("olvex_signup_links"), 3);
 
   const epoch = Math.floor(Date.now() / 1000);
   const accountKey = await sha256("login-account:" + address);

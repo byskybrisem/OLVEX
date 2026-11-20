@@ -4,7 +4,8 @@ import { createSignup, sendSignupLink, signupDetails } from "../../_lib/signup.j
 import { email } from "../../_lib/validate.js";
 import { isRateLimited } from "./rate-limit.js";
 
-export const onRequestPost = handle(async ({ request, env }) => {
+export const onRequestPost = handle(async (context) => {
+  const { request, env } = context;
   sameOrigin(request);
   const info = publicInfo(env, request);
   if (!info.registrationOpen) throw new HttpError(403, "Yeni hesap kaydı şu anda kapalı.");
@@ -25,9 +26,10 @@ export const onRequestPost = handle(async ({ request, env }) => {
     if (info.emailVerificationRequired) {
       if (await isRateLimited(env.DB, `signup-mail:${address}`, 3, 1800)) {
         console.info("OLVEX_ACCOUNT_MAIL", { flow: "signup", outcome: "address_rate_limit" });
-        throw new HttpError(429, "Doğrulama bağlantısı istemek için lütfen daha sonra tekrar deneyin.", { "Retry-After": "1800" });
+      } else {
+        context.waitUntil(sendSignupLink(env, address, data.joining === true)
+          .catch(() => console.error("OLVEX_ACCOUNT_MAIL", { flow: "signup", outcome: "storage_error" })));
       }
-      await sendSignupLink(env, address, data.joining === true);
       return json({ verificationRequested: true }, 202);
     }
     await createSignup(env.DB, details, address);

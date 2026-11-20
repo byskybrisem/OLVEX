@@ -49,7 +49,28 @@ function rejection(provider, status, payload) {
   return { outcome, code };
 }
 
-export async function sendAccountMail(env, to, subject, text, flow) {
+const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const escapeHtml = value => value.replace(/[&<>"']/g, char => entities[char]);
+
+export function accountLinkMessage({ heading, instructions, label, url }) {
+  const expiry = "Bağlantı 30 dakika geçerlidir ve yalnızca bir kez kullanılabilir.";
+  const ignore = "Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz.";
+  const text = [heading, instructions, expiry, url, ignore].join("\n\n");
+  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(heading)}</title></head>
+    <body style="margin:0;padding:20px;background:#f3f4fa;color:#161b2c;font-family:Arial,sans-serif;font-size:16px;line-height:1.5">
+      <div style="max-width:480px;margin:0 auto;padding:20px;background:#fff">
+        <h1 style="font-size:24px;line-height:1.2">${escapeHtml(heading)}</h1>
+        <p>${escapeHtml(instructions)}</p>
+        <p><a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 16px;background:#43289a;color:#fff;text-decoration:underline">${escapeHtml(label)}</a></p>
+        <p>${expiry}</p><p>${ignore}</p>
+      </div>
+    </body></html>`;
+  return { subject: heading, text, html };
+}
+
+export async function sendAccountMail(env, to, subject, text, flow, html) {
   const { provider, from, key, endpoint, issue } = mailConfig(env);
   const context = { provider, flow };
   const fail = (outcome, status, code) => {
@@ -65,7 +86,7 @@ export async function sendAccountMail(env, to, subject, text, flow) {
     response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: cloudflare ? to : [to], subject, text }),
+      body: JSON.stringify({ from, to: cloudflare ? to : [to], subject, text, ...(!cloudflare && html ? { html } : {}) }),
       signal,
       redirect: "manual"
     });
