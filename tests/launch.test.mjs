@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { publicInfo } from "../functions/_lib/public-info.js";
+import { paidLegalReady, publicInfo } from "../functions/_lib/public-info.js";
 import { onRequestPost as register } from "../functions/api/auth/register.js";
 
 const contact = { OLVEX_OPERATOR_NAME: "Örnek işletme", OLVEX_SERVICE_ADDRESS: "Yerel test adresi",
@@ -38,4 +38,18 @@ test("e-posta kurtarma durumu güvenli bağlantı yapılandırmasıyla tutarlıd
   assert.equal(info({}).passwordResetEnabled, false);
   assert.equal(info(mail).passwordResetEnabled, true);
   assert.equal(info({ ...mail, OLVEX_PUBLIC_ORIGIN: "http://example.test" }).passwordResetEnabled, false);
+});
+
+test("ücretli lansman onay ve doğrulanabilir işletmeci alanları gerektirir", () => {
+  const base = { ...contact, OLVEX_CONTACT_PHONE: "+905550000000", OLVEX_KVKK_EMAIL: "rights@example.test",
+    OLVEX_PAID_LEGAL_REVIEW: "approved", OLVEX_OPERATOR_KIND: "person" };
+  assert.equal(paidLegalReady(base), true);
+  assert.equal(info(base).company, null);
+  for (const key of Object.keys(base)) assert.equal(paidLegalReady({ ...base, [key]: "" }), false);
+  const company = { ...base, OLVEX_OPERATOR_KIND: "company", OLVEX_COMPANY_TAX_OFFICE: "Test",
+    OLVEX_COMPANY_TAX_ID: "0000000000", OLVEX_TRADE_REGISTRY: "Test sicil" };
+  assert.equal(paidLegalReady(company), true);
+  assert.equal(info(company).company.tradeRegistry, "Test sicil");
+  assert.equal(paidLegalReady({ ...company, OLVEX_COMPANY_TAX_ID: "00000000000" }), false);
+  assert.equal(info({ ...company, OLVEX_COMPANY_TAX_ID: "" }).company, null);
 });

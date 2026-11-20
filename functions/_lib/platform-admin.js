@@ -132,6 +132,23 @@ async function system(db) {
   return { db: "connected", migration, recent: recent.results };
 }
 
+async function rightsRequests(db, params) {
+  const page = pagination(params);
+  const { results } = await db.prepare(`SELECT r.id, r.kind, r.created_at, r.processed_at, u.email
+    FROM olvex_account_rights_requests r JOIN users u ON u.id = r.user_id
+    ORDER BY r.processed_at IS NOT NULL, r.created_at DESC, r.id DESC LIMIT 51 OFFSET ?`).bind(page * 50).all();
+  return { rows: results.slice(0, 50), page, hasMore: results.length > 50 };
+}
+
+export async function markRightsResponded(db, body, admin) {
+  if (body.action !== "responded" || body.confirmed !== true) throw new HttpError(400, "Yanıtın iletildiğini doğrulayın.");
+  const id = identifier(body.id, "Talep");
+  const record = await db.prepare(`UPDATE olvex_account_rights_requests SET processed_at = CURRENT_TIMESTAMP, processed_by = ?
+    WHERE id = ? AND processed_at IS NULL RETURNING id`).bind(admin.id, id).first();
+  if (!record) throw new HttpError(409, "Bekleyen talep bulunamadı.");
+  return { success: true };
+}
+
 export async function adminData(db, section, params, user) {
   if (section === "me") return { user: { name: user.full_name, email: user.email } };
   if (section === "overview") return overview(db, params);
@@ -140,6 +157,7 @@ export async function adminData(db, section, params, user) {
   if (section === "subscriptions") return subscriptions(db, params);
   if (section === "ai") return ai(db, params);
   if (section === "finance") return finance(db, params);
+  if (section === "rights") return rightsRequests(db, params);
   if (section === "system") return system(db);
   throw new HttpError(404, "Bölüm bulunamadı.");
 }

@@ -43,7 +43,7 @@ test("super admin is strictly isolated; platform income/expenses are auditable a
   assert.equal(adminHtml.status, 200);
   assert.match(await adminHtml.text(),/CONTROL CENTER/);
   await call("overview",{token:null,status:401});
-  for (const section of ["me", "overview", "businesses", "users", "subscriptions", "ai", "finance", "system"]) {
+  for (const section of ["me", "overview", "businesses", "users", "subscriptions", "ai", "finance", "rights", "system"]) {
     await call(section, { token: customerToken, status: 403 });
   }
   await call("finance",{method:"POST", token:customerToken, status:403,body:{action:"create"}});
@@ -66,7 +66,7 @@ test("super admin is strictly isolated; platform income/expenses are auditable a
   assert.deepEqual(ai.models,[]);
   const system=await call("system");
   assert.equal(system.db,"connected");
-  assert.match(system.migration.name,/0014_platform_admin/);
+  assert.match(system.migration.name,/0015_account_rights_requests/);
 
   const id=crypto.randomUUID();
   const income={action:"create",requestId:id,kind:"income",description:"Hizmet danışmanlığı",
@@ -96,6 +96,30 @@ test("super admin is strictly isolated; platform income/expenses are auditable a
   assert.equal(ledger.totals.income,102550);
   assert.equal(ledger.totals.expense,0);
   assert.equal(ledger.rows.find(row=>row.id===expenseId).voided_at!==null,true);
+  const rights = async ({ token = customerToken, body, origin = srv.url } = {}) => fetch(srv.url + "/api/account-rights", {
+    method: body ? "POST" : "GET",
+    headers: { ...(token ? { Cookie: "olvex_session=" + token } : {}),
+      ...(body ? { Origin: origin, "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  assert.equal((await rights({ token: null })).status, 401);
+  assert.equal((await rights({ body: { kind: "close" } })).status, 400);
+  assert.equal((await rights({ body: { kind: "access" }, origin: "https://other.example.test" })).status, 403);
+  const body = { kind: "close", confirmed: true, userId: adminId };
+  const created = await Promise.all([rights({ body }), rights({ body })]);
+  assert.deepEqual(created.map(response => response.status).sort(), [200, 201]);
+  const [first, duplicate] = await Promise.all(created.map(response => response.json()));
+  assert.equal(first.item.id, duplicate.item.id);
+  assert.deepEqual((await (await rights({ token: adminToken })).json()).rows, []);
+  assert.equal((await call("rights")).rows[0].email, "tenant@example.test");
+  const answer = { action: "responded", id: first.item.id, confirmed: true };
+  await call("rights", { method: "POST", token: customerToken, body: answer, status: 403 });
+  await call("rights", { method: "POST", body: { ...answer, confirmed: false }, status: 400 });
+  await call("rights", { method: "POST", body: answer });
+  assert.ok((await (await rights()).json()).rows[0].processed_at);
+  assert.equal((await call("overview")).counts.users, 2);
+  assert.equal((await call("overview")).counts.businesses, 1);
+  assert.equal((await call("overview")).counts.loggedInUsers, 2);
   const audits=await call("system");
   assert.equal(audits.recent.length,3);
   assert.equal(audits.recent.filter(row=>row.action==="ledger_create").length,2);
