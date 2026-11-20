@@ -217,7 +217,8 @@ dialog {
 dialog::backdrop { background: #020610ba; backdrop-filter: blur(4px); }
 #editor-form { display: flex; flex-direction: column; max-height: min(89dvh, 805px); }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; border-bottom: 1px solid var(--line); }
-.editor-content { display: grid; gap: 12px; overflow: auto; padding: 15px 17px; }
+.dialog-head h2 { min-width: 0; overflow-wrap: anywhere; }
+.editor-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; overflow: auto; padding: 15px 17px; overflow-wrap: anywhere; }
 .editor-content .hint { margin: 0; }
 .editor-content .field, .ai-form label { display: grid; align-content: start; gap: 4px; font-size: .86rem; font-weight: 650; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

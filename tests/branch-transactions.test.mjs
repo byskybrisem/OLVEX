@@ -159,6 +159,23 @@ test("transferin iki hareketi, tarihi, açıklaması ve aktörü korunur", async
   assert.deepEqual(await balances(id), [70, 50, 120]);
 });
 
+test("aynı işletmede iki kullanıcı eşzamanlı satıştan sonra tek bakiyeyi görür", async () => {
+  const id = await product("EKIP", 100, 12);
+  const orders = [manual("EKIP", 3), manual("EKIP", 4)];
+  const responses = await Promise.all([
+    api(people.owner, "sales", orders[0]), api(people.member, "sales", orders[1])
+  ]);
+  const [ownerSale, memberSale] = responses.map(response => ok(response));
+  assert.notEqual(ownerSale.id, memberSale.id);
+  assert.deepEqual(await balances(id), [100, 5, 105]);
+  const histories = await Promise.all([people.owner, people.member].map(async person =>
+    ok(await api(person, "sales?q=EKIP")).rows.map(row => row.id).sort()));
+  for (const history of histories) assert.deepEqual(history, [ownerSale.id, memberSale.id].sort());
+  const [payments] = await pages.query(`SELECT COUNT(*) AS n, SUM(amount_minor) AS total
+    FROM olvex_order_payments WHERE business_id='${business}' AND order_id IN ('${ownerSale.id}','${memberSale.id}')`);
+  assert.deepEqual(payments, [{ n: 2, total: 3500 }]);
+});
+
 test("aynı şubedeki manuel ve kasalı satış birlikte işlenir", async () => {
   const id = await product("ORTAK", 30, 10);
   const manualSale = manual("ORTAK", 2);
