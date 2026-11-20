@@ -94,7 +94,7 @@ form.addEventListener("submit", async (event) => {
   try {
     if (requestingEmail) {
       await request("/api/auth/register", "POST", { email: email.value.trim(), joining });
-      status("Doğrulama isteğiniz e-posta hizmetine iletildi. Gelen kutunuzu ve spam klasörünü kontrol edin. Bağlantı 30 dakika geçerlidir.", false);
+      status("Bu adresle yeni hesap kaydı yapılabiliyorsa doğrulama bağlantısı gönderilir. Gelen kutunuzu ve spam klasörünü kontrol edin. Bağlantı 30 dakika geçerlidir. Mevcut bir hesabınız varsa giriş yapabilir veya şifrenizi sıfırlayabilirsiniz.", false);
       submitLabel = "Bağlantıyı yeniden gönder";
     } else {
       const details = { fullName: name.value.trim(), password: password.value, acceptedTerms: terms.checked, termsVersion };

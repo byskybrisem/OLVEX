@@ -1,4 +1,4 @@
-import { sendAccountMail } from "./account-mail.js";
+import { accountLinkMessage, sendAccountMail } from "./account-mail.js";
 import { HttpError } from "./http.js";
 import { recoveryOrigin } from "./recovery.js";
 import { randomToken, sha256, TOKEN_PATTERN } from "./session.js";
@@ -13,17 +13,23 @@ export async function sendSignupLink(env, address, joining) {
   const link = new URL("/register.html", recoveryOrigin(env));
   if (joining) link.searchParams.set("next", "join");
   link.hash = token;
-  await env.DB.batch([
+  const [, issued] = await env.DB.batch([
     env.DB.prepare("DELETE FROM olvex_signup_links WHERE expires_at <= ?").bind(new Date(now).toISOString()),
-    env.DB.prepare("INSERT INTO olvex_signup_links(token_hash,email,expires_at) VALUES (?,?,?)")
-      .bind(key, address, new Date(now + 30 * 60 * 1000).toISOString())
+    env.DB.prepare(`INSERT INTO olvex_signup_links(token_hash,email,expires_at)
+      SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = ? COLLATE NOCASE)`)
+      .bind(key, address, new Date(now + 30 * 60 * 1000).toISOString(), address)
   ]);
+  if (!issued.meta.changes) return;
+  const mail = accountLinkMessage({
+    heading: "OLVEX hesap kaydını doğrulayın",
+    instructions: "Kaydı tamamlamak için bağlantıyı açın ve hesabınızın şifresini belirleyin.",
+    label: "Hesabı doğrula",
+    url: link.href
+  });
   try {
-    await sendAccountMail(env, address, "OLVEX hesap kaydını doğrulayın",
-      `Yeni hesabınızı oluşturmak için 30 dakika içinde bağlantıyı açıp kayıt formunu tamamlayın.\n${link.href}\n\nBu isteği siz yapmadıysanız e-postayı yok sayabilirsiniz. Mevcut bir hesabın parolası bu bağlantıyla değişmez.`, "signup");
+    await sendAccountMail(env, address, mail.subject, mail.text, "signup", mail.html);
   } catch {
     await env.DB.prepare("DELETE FROM olvex_signup_links WHERE token_hash = ?").bind(key).run();
-    throw new HttpError(503, "Doğrulama e-postası gönderilemedi. Daha sonra yeniden deneyin.");
   }
 }
 

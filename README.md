@@ -58,7 +58,7 @@ Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_d
 | `OLVEX_OPENAI_DAILY_LIMIT` | İstanbul gününe göre tüm kurulum için varsayılan 100. Ayrıca işletme başına 20, kullanıcı başına 12 |
 | `OLVEX_AI_MODE` | `off` canlı sohbeti kapatır. `mock` yalnızca yerel/önizleme ortamında çalışır |
 
-OpenAI ve e-posta sağlayıcısı anahtarları yalnızca sunucudan kullanılır. Kayıt doğrulama ve şifre sıfırlama bağlantı özetleri 30 dakika geçerlidir ve şifre değiştirilince ilgili oturumlar kapatılır. [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) · [Resend e-posta API’si](https://resend.com/docs/api-reference/emails/send-email)
+OpenAI ve e-posta sağlayıcısı anahtarları yalnızca sunucudan kullanılır. Kayıt doğrulama ve şifre sıfırlama bağlantı özetleri 30 dakika geçerlidir ve şifre değiştirilince ilgili oturumlar kapatılır. [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) · [Resend e-posta API’si](https://resend.com/docs/api-reference/emails/send-email) · [Hesap e-postası ve gerçek teslimat provası](docs/HESAP-EPOSTASI-DOGRULAMA.md)
 
 ## Yetkiler
 
