@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#090b12">
+<title>Abonelik ve 14 Günlük Deneme | OLVEX</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/public.css">
+<link rel="stylesheet" href="/assets/site-cookie-banner.css">
+<script type="module" src="/assets/billing.js"></script>
+<script type="module" src="/assets/site-cookie-banner.js"></script>
+</head>
+<body class="auth">
+<header class="top"><a class="brand" href="/">OLVEX</a><a href="/app.html#settings">Panele dön</a></header>
+<main>
+  <div class="layout">
+    <aside class="intro">
+      <p class="statement">Tüm işletmeniz, <span>tek pakette.</span></p>
+      <p>OLVEX Profesyonel: 1 işletme, 5 şube, 10 kullanıcı. 14 gün boyunca abonelik ücreti ödemeden deneyin.</p>
+      <div class="features">
+        <div class="feature"><span class="check" aria-hidden="true">✓</span> Kart doğrulaması güvenli iyzico ödeme ekranında</div>
+        <div class="feature"><span class="check" aria-hidden="true">✓</span> Deneme boyunca 999 TL abonelik bedeli alınmaz</div>
+        <div class="feature"><span class="check" aria-hidden="true">✓</span> Deneme bitmeden iptal edebilirsiniz</div>
+      </div>
+    </aside>
+    <section class="panel" aria-labelledby="form-title">
+      <h1 id="form-title">14 günlük deneme</h1>
+      <p class="subtitle">Abonelik durumunuz denetleniyor…</p>
+      <div id="message" class="message" role="status" aria-live="polite"></div>
+      <form id="billingForm" method="post" action="/api/billing/start" hidden>
+        <input type="hidden" name="requestId" id="requestId">
+        <input type="hidden" name="businessId" id="businessId">
+        <div class="field"><label for="plan">Abonelik dönemi</label>
+          <select id="plan" name="plan" required>
+            <option value="profesyonel-monthly">Aylık · 14 gün sonra 999 TL / ay</option>
+            <option value="profesyonel-yearly">Yıllık · 14 gün sonra 9.590,40 TL / yıl (%20 indirim)</option>
+          </select>
+        </div>
+        <div class="field"><label for="name">Fatura adı</label><input id="name" name="name" autocomplete="given-name" maxlength="100" required></div>
+        <div class="field"><label for="surname">Fatura soyadı</label><input id="surname" name="surname" autocomplete="family-name" maxlength="100" required></div>
+        <div class="field"><label for="identityNumber">T.C. kimlik numarası</label><input id="identityNumber" name="identityNumber" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" required></div>
+        <div class="field"><label for="gsmNumber">Telefon (+905xxxxxxxxx)</label><input id="gsmNumber" name="gsmNumber" type="tel" autocomplete="tel" pattern="\\+905[0-9]{9}" placeholder="+905XXXXXXXXX" required></div>
+        <div class="field"><label for="city">İl</label><input id="city" name="city" autocomplete="address-level1" maxlength="80" required></div>
+        <div class="field"><label for="address">Fatura adresi</label><input id="address" name="address" autocomplete="street-address" maxlength="300" required></div>
+        <p class="hint">Kart numarası ve güvenlik kodu bu sayfada istenmez. Devam edince iyzico kart formu açılır. Kart doğrulaması sırasında geçici 1 TL çekilip iade edilebilir.</p>
+        <label class="agreement"><input type="checkbox" name="acceptedBillingTerms" value="true" required>
+          <span>14 gün sonunda iptal etmezsem seçtiğim aylık 999 TL veya yıllık 9.590,40 TL tutarın kartımdan otomatik tahsil edilmesini ve aboneliğimin dönemsel yenilenmesini kabul ediyorum. <a href="/subscription-terms.html" target="_blank" rel="noopener">Abonelik ve iptal koşulları</a>.</span>
+        </label>
+        <button class="submit" id="submit" type="submit">iyzico ile 14 günlük denemeyi başlat</button>
+      </form>
+      <section id="activeSubscription" hidden aria-label="Mevcut abonelik">
+        <h2>Abonelik durumu</h2>
+        <p id="statusText"></p>
+        <button type="button" class="submit" id="cancelSubscription" hidden>Aboneliği iptal et</button>
+      </section>
+      <div class="bottom"><a href="/app.html#settings">İşletme ayarlarına dön</a></div>
+    </section>
+  </div>
+</main>
+<footer>© 2026 OLVEX · <a href="/subscription-terms.html">Abonelik ve iade</a> · <a href="/privacy.html">KVKK</a> · <a href="/contact.html">İletişim</a></footer>
+</body>
+</html>
