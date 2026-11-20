@@ -51,7 +51,8 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
   try {
     const assets = ["_headers", "_routes.json", "sitemap.xml", "favicon.ico", "assets", "index.html", "demo.html", "app.html", "admin.html", "login.html", "register.html", "setup.html",
       "join.html", "forgot-password.html", "terms.html", "privacy.html", "contact.html",
-  "pre-information.html", "distance-service-agreement.html", "subscription-terms.html", "cookies.html", "billing.html", "scripts", "scene"];
+  "pre-information.html", "distance-service-agreement.html", "subscription-terms.html", "cookies.html", "billing.html",
+      "account.html", "odeme-testi.html", "odeme-testi-sonuc.html", "scripts", "scene"];
     await Promise.all([...assets, "functions", "migrations"].map((name) =>
       cp(join(root, name), join(dir, name), { recursive: true })));
     if (legacyWorkspaceSeed) await appendFile(join(dir, "migrations", "0002_workspace.sql"), "\n" + legacyWorkspaceSeed);
