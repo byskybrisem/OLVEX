@@ -48,7 +48,7 @@ form.addEventListener("submit", async event => {
   try {
     await request("/api/auth/password-change", "POST", { currentPassword, newPassword });
     form.reset();
-    location.replace("/login.html?password-changed=1");
+    location.replace("/login.html?reset=1");
   } catch (error) {
     showMessage(error.message, true);
     if (error.status === 401) location.replace("/login.html");
