@@ -153,21 +153,23 @@ export function polarAccess(row, subscription, orders, now = Date.now()) {
   const validOrders = orders.filter(o => (o.paid === true || ["refunded", "partially_refunded"].includes(o.status)) && o.total_amount > 0 &&
     ["subscription_create", "subscription_cycle"].includes(o.billing_reason))
     .sort((a, b) => date(a.created_at) - date(b.created_at) || a.id.localeCompare(b.id));
-  const matches = validOrders.every((order, index) => {
+  function matchesTerms(order, index) {
     const expected = row.offer === "launch" ?
       launchCharge("olvex-monthly-launch-v1", index + 1).amountKurus : monthlyPriceKurus;
     return order.subscription_id === subscription.id && order.customer_id === subscription.customer_id &&
       order.product_id === row.product_id && order.currency === "try" && order.total_amount === expected &&
       Number.isFinite(date(order.created_at)) && order.applied_balance_amount === 0;
-  });
+  }
+  const matches = validOrders.every(matchesTerms);
   const latest = validOrders.at(-1);
   const paid = subscription.status === "active" && start <= now && end > now && matches && latest?.status === "paid" &&
     latest.refunded_amount === 0 && latest.refunded_tax_amount === 0 && date(latest.created_at) >= start - 300000 &&
     date(latest.created_at) < end;
   // A failed renewal can arrive before the previous, already paid period ends.
-  const prior = row.paid_order_id && validOrders.find(order => order.id === row.paid_order_id);
-  const retain = ["past_due", "unpaid"].includes(subscription.status) && row.paid_until > now &&
-    matches && prior?.status === "paid" && prior.refunded_amount === 0 && prior.refunded_tax_amount === 0;
+  const priorIndex = validOrders.findIndex(order => order.id === row.paid_order_id);
+  const prior = validOrders[priorIndex];
+  const retain = ["active", "past_due", "unpaid"].includes(subscription.status) && row.paid_until > now &&
+    prior && matchesTerms(prior, priorIndex) && prior.status === "paid" && prior.refunded_amount === 0 && prior.refunded_tax_amount === 0;
   const cutoff = subscription.ends_at ? date(subscription.ends_at) : Infinity;
   function bounded(until) {
     const endAt = Math.min(until ?? 0, cutoff);
@@ -205,6 +207,7 @@ export async function processPolarEvent(ctx, config, event, delivery, client = p
   if (!row.checkout_id && !terminalCheckout) throw new HttpError(503, "Polar oturumu henüz işlenmedi.");
 
   let values;
+  let refundOrder = null;
   if (checkoutEvent && !uuid(subscriptionId)) {
     if (!terminalCheckout || (row.checkout_id && data.id !== row.checkout_id) || !["open", "creating"].includes(row.state)) return;
     values = [data.status, 1, null, null, null, 0, null];
@@ -229,8 +232,19 @@ export async function processPolarEvent(ctx, config, event, delivery, client = p
     if (new Set(orders.map(order => order.id)).size !== orders.length) throw new HttpError(503, "Polar sipariş listesi değişti.");
     const refundedId = event.type === "order.refunded" ? data.id :
       event.type.startsWith("refund.") && data.status === "succeeded" ? data.order_id : null;
-    const access = polarAccess(row, subscription, refundedId ?
-      orders.map(order => order.id === refundedId ? { ...order, status: "refunded" } : order) : orders);
+    const previousRefunds = await db.prepare("SELECT order_id FROM olvex_polar_refunded_orders WHERE checkout_id = ?")
+      .bind(row.id).all();
+    const refundedOrders = new Set(previousRefunds.results.map(record => record.order_id));
+    if (refundedId) {
+      if (!orders.some(order => order.id === refundedId && order.subscription_id === subscription.id &&
+          order.customer_id === subscription.customer_id && order.product_id === row.product_id)) {
+        throw new HttpError(503, "İade edilen siparişin doğrulanması bekleniyor.");
+      }
+      refundedOrders.add(refundedId);
+      refundOrder = refundedId;
+    }
+    const access = polarAccess(row, subscription, orders.map(order =>
+      refundedOrders.has(order.id) ? { ...order, status: "refunded" } : order));
     // For trialing, confirm the original hosted checkout succeeded before enabling the bounded trial.
     if (access.trialUntil) {
       const receipt = await client.checkouts.get(row.checkout_id);
@@ -249,7 +263,7 @@ export async function processPolarEvent(ctx, config, event, delivery, client = p
       Number(Boolean(access.trialUntil)), access.paidOrderId];
   }
 
-  const [updated] = await db.batch([
+  const updates = [
     db.prepare(`UPDATE olvex_polar_checkouts SET state = ?, closed = ?, paid_until = ?, trial_until = ?, subscription_id = ?,
       used_trial = MAX(used_trial, ?), paid_order_id = ?, last_event = ?, revision = revision + 1 WHERE id = ? AND revision = ?
       AND NOT EXISTS (SELECT 1 FROM olvex_polar_events WHERE environment = ? AND delivery_id = ?)`)
@@ -257,7 +271,13 @@ export async function processPolarEvent(ctx, config, event, delivery, client = p
     db.prepare(`INSERT INTO olvex_polar_events
       SELECT ?, ?, id, ?, ?, ?, state, paid_until, trial_until FROM olvex_polar_checkouts WHERE id = ? AND revision = ? AND last_event = ?
       ON CONFLICT DO NOTHING`).bind(config.mode, delivery, event.type, data.id, Date.now(), row.id, row.revision + 1, delivery)
-  ]);
+  ];
+  if (refundOrder) {
+    updates.push(db.prepare(`INSERT INTO olvex_polar_refunded_orders(checkout_id, order_id)
+      SELECT id, ? FROM olvex_polar_checkouts WHERE id = ? AND last_event = ?
+      ON CONFLICT DO NOTHING`).bind(refundOrder, row.id, delivery));
+  }
+  const [updated] = await db.batch(updates);
   if (!updated.meta.changes && !await db.prepare("SELECT 1 FROM olvex_polar_events WHERE environment = ? AND delivery_id = ?")
     .bind(config.mode, delivery).first()) throw new HttpError(503, "Abonelik durumu değişti. Bildirim yeniden denenmeli.");
 }

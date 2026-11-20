@@ -121,7 +121,7 @@ async function load(reconcile = false) {
   } catch (error) {
     if (error.status === 401) showAuth();
     else {
-      status.textContent = error.message;
+      status.textContent = error.status ? error.message : "Bağlantı kesildi. Ödeme durumu şu anda doğrulanamıyor.";
       if (returned && ![403, 404].includes(error.status)) scheduleCheck();
     }
   }
@@ -131,11 +131,14 @@ for (const button of buttons) {
   button.addEventListener("click", async () => {
     for (const control of buttons) control.disabled = true;
     try {
-      const result = await request(path, "POST", button === portal ? { action: "portal" } : { action: "checkout", offer: button.dataset.offer, withoutTrial: button.dataset.offer === "standard" && standardWithoutTrial });
+      const offer = button.dataset.offer;
+      const body = button === portal ? { action: "portal" } :
+        { action: "checkout", offer, withoutTrial: offer === "standard" && standardWithoutTrial };
+      const result = await request(path, "POST", body);
       location.assign(result.url);
     } catch (error) {
       if (error.status === 401) showAuth();
-      else status.textContent = error.message;
+      else status.textContent = error.status ? error.message : "Bağlantı kesildi. Abonelik durumunu kontrol edip tekrar deneyin.";
       for (const control of buttons) control.disabled = false;
     }
   });

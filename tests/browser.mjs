@@ -619,6 +619,18 @@ try {
       await phone.getByRole("button", { name: "Adımı kaydet" }).waitFor();
       await phone.locator("#memberships a").first().waitFor();
       assert.equal(await fitsViewport(phone), true);
+      let checks = 0;
+      await phone.route("**/api/workspace/*/polar", route => {
+        checks++;
+        if (checks === 1) return route.abort();
+        assert.equal(route.request().postDataJSON().action, "reconcile");
+        return route.fulfill({ json: { enabled: true, verified: false, subscription: { state: "failed", closed: 1 } } });
+      });
+      await phone.goto(local.url + "/billing.html?business=" + workspace + "&returned=1");
+      await phone.getByText(/Bağlantı kesildi/).waitFor();
+      await phone.getByText(/Ödeme doğrulanamadı/).waitFor();
+      assert.equal(await phone.locator("#billing-actions").isVisible(), false);
+      assert.equal(await fitsViewport(phone), true);
       await phone.goto(local.url + "/cookies.html");
       assert.equal(await fitsViewport(phone), true);
       await phone.getByRole("button", { name: "Tümünü reddet" }).tap();

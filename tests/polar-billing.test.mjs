@@ -178,6 +178,9 @@ test("Polar checkout, kartlı deneme, imzalı olaylar ve işletme yetkileri izol
   await send("order.refunded", orders[0]);
   assert.equal((await call(null, 200)).subscription.state, "refunded");
   assert.equal((await call(null, 200, { section: "package" })).paidUntil, null);
+  orders = [order]; // Older order snapshot after confirmed refund.
+  await send("order.updated", order);
+  assert.equal((await call(null, 200)).verified, false);
   subscription = { ...subscription, status: "canceled" };
   await send("subscription.revoked", subscription);
   assert.equal((await call(null, 200, { section: "package" })).tier, "inactive");
