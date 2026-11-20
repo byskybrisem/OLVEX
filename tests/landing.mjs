@@ -100,40 +100,42 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await overviewTab.focus();
     await overviewTab.press("ArrowRight");
     assert.equal(await page.locator("#tour-products-tab").getAttribute("aria-selected"), "true");
-    const pricing = page.getByRole("region", { name: "Paketler ve fiyatlar" });
-    assert.deepEqual(await pricing.getByRole("heading", {level: 3}).allTextContents(),
-      ["Esnaf", "Profesyonel"]);
-    for (const width of [375, 390, 430, 768, 1440]) {
+    const pricing = page.getByRole("region", { name: "Fiyatlandırma" });
+    const plan = pricing.getByRole("article", { name: "OLVEX" });
+    const launch = plan.locator("#launch-badge");
+    await launch.waitFor();
+    assert.equal(await pricing.getByRole("article").count(), 1);
+    assert.equal(await plan.locator("del").textContent(), "999 TL/ay");
+    assert.equal(await plan.locator("#monthly-price").textContent(), "700 TL");
+    await plan.getByText(/Sınırlı süreli teklif.*İlk 3 ücretli ay 700 TL\/ay, sonrasında 999 TL\/ay.*deneme yoktur/).waitFor();
+    await plan.getByText("14 gün ücretsiz deneme", { exact: true }).waitFor();
+    await plan.getByText(/Deneme için ödeme kartı gerekecek/).waitFor();
+    assert.equal(await plan.getByRole("button").count(), 0);
+    for (const width of widths) {
       await page.setViewportSize({ width, height: 900 });
-      const layout = await pricing.evaluate(section => {
-        const cards = [...section.querySelectorAll(".plan-card")];
+      const layout = await plan.evaluate(card => {
+        const rect = card.getBoundingClientRect();
+        const section = card.parentElement.getBoundingClientRect();
         return {
-          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-          cards: cards.map(card => {
-            const rect = card.getBoundingClientRect();
-            return { left: rect.left, right: rect.right, background: getComputedStyle(card).backgroundImage };
-          })
+          overflow: card.scrollWidth > card.clientWidth || document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          left: rect.left, right: rect.right, width: rect.width, sectionWidth: section.width,
+          background: getComputedStyle(card).backgroundImage
         };
       });
       assert.equal(layout.overflow, false, `Horizontal overflow at ${width}px`);
-      for (const card of layout.cards) {
-        assert.ok(card.left >= 0 && card.right <= width, `Card clipped at ${width}px`);
-        assert.notEqual(card.background, "none");
+      assert.ok(Math.abs(layout.left - (width - layout.right)) <= 1, `Card not centered at ${width}px`);
+      assert.ok(Math.abs(layout.width - Math.min(layout.sectionWidth, 620)) <= 1, `Unexpected card width at ${width}px`);
+      assert.notEqual(layout.background, "none");
+      if (snapshots && [390, 768, 1440].includes(width)) {
+        await page.evaluate(() => document.fonts.ready);
+        await plan.screenshot({ path: join(snapshots, `single-pricing-${width}.png`), animations: "disabled" });
       }
     }
-    const prices = pricing.locator("[data-price]");
-    const totals = pricing.locator("[data-period-note]");
-    const monthly = ["₺499", "₺999"];
-    assert.deepEqual(await prices.allTextContents(), monthly);
-    await pricing.locator("#annual").focus();
-    await page.keyboard.press("Enter");
-    assert.equal(await pricing.locator("#annual").getAttribute("aria-pressed"), "true");
-    assert.deepEqual(await prices.allTextContents(), ["₺399,20", "₺799,20"]);
-    assert.deepEqual(await totals.allTextContents(), ["Yıllık toplam ₺4.790,40", "Yıllık toplam ₺9.590,40"]);
-    assert.equal(await pricing.locator(".plan-card").count(), 2);
-    await pricing.locator("#monthly").click();
-    assert.deepEqual(await prices.allTextContents(), monthly);
-    assert.deepEqual(await totals.allTextContents(), ["12 ayda ₺5.988", "12 ayda ₺11.988"]);
+    const termsLink = plan.getByRole("link", { name: "Abonelik koşullarını incele" });
+    assert.equal(await termsLink.getAttribute("href"), "/subscription-terms.html");
+    const terms = await desktop.request.get(new URL(await termsLink.getAttribute("href"), url).href);
+    assert.equal(terms.status(), 200);
+    assert.match(await terms.text(), /999 TL\/ay/);
     assert.equal(requests.some(path => path.endsWith("/core-scene.js")), false,
       "The WebGL bundle must be deferred until activation");
 
@@ -187,6 +189,9 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     const page = await noJS.newPage();
     await checkStaticPage(page, url);
     await checkWidth(page, 320);
+    const plan = page.getByRole("region", { name: "Fiyatlandırma" }).getByRole("article");
+    assert.equal(await plan.locator("#monthly-price").textContent(), "999 TL");
+    assert.equal(await plan.locator("#launch-badge").isVisible(), false);
     await page.locator("#site-menu summary").click();
     await page.locator('#site-menu a[href="#moduller"]').click();
     assert.equal(new URL(page.url()).hash, "#moduller");
@@ -217,11 +222,20 @@ export async function landingChecks({ safeContext, url, snapshots }) {
   try {
     const page = await reduced.newPage();
     const scripts = [];
+    const campaignClosed = await reduced.request.get(url + "/api/public-info");
+    const info = await campaignClosed.json();
+    info.pricing.olvex.launch = null;
+    await page.route("**/api/public-info", route => route.fulfill({ json: info }));
     page.on("request", request => scripts.push(new URL(request.url()).pathname));
     await checkStaticPage(page, url);
     await page.locator('#core-stage[data-core-state="reduced"]').waitFor();
     assert.ok(await page.locator("#core-toggle").isDisabled());
     await page.locator("#baslayin").scrollIntoViewIfNeeded();
+    await page.locator("#trial-title").waitFor();
+    assert.equal(await page.locator("#launch-badge").isVisible(), false);
+    assert.equal(await page.locator("#regular-price").isVisible(), false);
+    assert.equal(await page.locator("#monthly-price").textContent(), "999 TL");
+    assert.equal(await page.locator(".plan-card:visible").count(), 1);
     assert.equal(await page.locator("#core-canvas").isVisible(), false);
     assert.equal(scripts.some(path => path.endsWith("/core-scene.js")), false);
   } finally { await reduced.close(); }
@@ -236,6 +250,13 @@ export async function landingChecks({ safeContext, url, snapshots }) {
       await checkStaticPage(page, url);
       await checkWidth(page, 440);
       await snapshot(page, snapshots, "landing-webkit.png");
+      const plan = page.getByRole("region", { name: "Fiyatlandırma" }).getByRole("article");
+      await plan.locator("#launch-badge").waitFor();
+      assert.equal(await plan.locator("#monthly-price").textContent(), "700 TL");
+      if (snapshots) {
+        await page.evaluate(() => document.fonts.ready);
+        await plan.screenshot({ path: join(snapshots, "single-pricing-webkit.png"), animations: "disabled" });
+      }
       await page.locator("#site-menu summary").tap();
       await page.locator('#site-menu a[href="#moduller"]').tap();
       await page.locator("#tour-products-tab").tap();
@@ -244,5 +265,5 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     } finally { await engine.close(); }
   }
   assert.deepEqual(errors, []);
-  console.log("Açılış sayfası doğrulandı: dokuz genişlik, mobil menü, ürün turu, planlar, JavaScript kapalı, 3B ve statik görsel.");
+  console.log("Açılış sayfası doğrulandı: dokuz genişlik, mobil menü, ürün turu, planlar ve lansman teklifi, JavaScript kapalı, 3B ve statik görsel.");
 }

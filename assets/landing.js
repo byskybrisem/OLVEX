@@ -60,36 +60,6 @@ document.addEventListener("keydown", event => {
   }
 });
 
-const billing = document.querySelector("#billing");
-const monthly = document.querySelector("#monthly");
-const annual = document.querySelector("#annual");
-const prices = [...document.querySelectorAll("[data-price]")];
-const integerLira = new Intl.NumberFormat("tr-TR", {style: "currency", currency: "TRY", maximumFractionDigits: 0});
-const decimalLira = new Intl.NumberFormat("tr-TR", {style: "currency", currency: "TRY"});
-function priceFromKurus(kurus) {
-  const format = kurus % 100 ? decimalLira : integerLira;
-  return format.format(kurus / 100);
-}
-function pricePeriod(yearly) {
-  monthly.setAttribute("aria-pressed", String(!yearly));
-  annual.setAttribute("aria-pressed", String(yearly));
-  prices.forEach(price => {
-    // Convert once to kuruş, keeping the monthly equivalent and annual total in step.
-    const monthlyKurus = Number(price.dataset.price) * (yearly ? 80 : 100);
-    const twelveMonths = monthlyKurus * 12;
-    price.textContent = priceFromKurus(monthlyKurus);
-    const note = price.closest(".plan-card").querySelector("[data-period-note]");
-    const total = priceFromKurus(twelveMonths);
-    note.textContent = (yearly ? "Yıllık toplam " : "12 ayda ") + total;
-  });
-  document.querySelector("#pricing-status").textContent = yearly
-    ? "Yıllık dönem seçildi. Aylık karşılık ve yıllık toplamlar %20 indirimle gösteriliyor."
-    : "Aylık dönem seçildi. Aylık fiyatlar ve 12 aylık karşılıkları gösteriliyor.";
-}
-billing.hidden = false;
-monthly.addEventListener("click", () => pricePeriod(false));
-annual.addEventListener("click", () => pricePeriod(true));
-
 function openDestination() {
   const destination = document.getElementById(location.hash.slice(1));
   if (destination?.matches("details")) destination.open = true;
@@ -112,12 +82,39 @@ if (!tourInRange) {
 openDestination();
 window.addEventListener("hashchange", openDestination);
 
+const lira = new Intl.NumberFormat("tr-TR");
+const moneyLabel = kurus => lira.format(kurus / 100) + " TL";
+const monthlyPrice = document.querySelector("#monthly-price");
+const trialTitle = document.querySelector("#trial-title");
+const fallbackPrice = monthlyPrice.textContent;
+const fallbackTrial = trialTitle.textContent;
+
+function showPricing(pricing) {
+  const standard = pricing?.standard;
+  const launch = pricing?.launch;
+  const standardPrice = standard ? moneyLabel(standard.monthlyKurus) : fallbackPrice;
+  const launchBadge = document.querySelector("#launch-badge");
+  const regularPrice = document.querySelector("#regular-price");
+  const launchTerms = document.querySelector("#launch-terms");
+  for (const element of [launchBadge, regularPrice, launchTerms]) element.hidden = !launch;
+
+  trialTitle.textContent = standard ? `${standard.trialDays} gün ücretsiz deneme` : fallbackTrial;
+  const launchPrice = launch ? moneyLabel(launch.discountedKurus) : null;
+  monthlyPrice.textContent = launchPrice ?? standardPrice;
+  if (!launch) return;
+
+  const renewalPrice = moneyLabel(launch.monthlyKurus);
+  regularPrice.querySelector("del").textContent = standardPrice + "/ay";
+  launchTerms.textContent = `Sınırlı süreli teklif. İlk ${launch.discountedPeriods} ücretli ay ${launchPrice}/ay, sonrasında ${renewalPrice}/ay. Bu teklifte deneme yoktur.`;
+}
+
 // The registration page checks the same server setting again before submission.
-async function showSignupStatus() {
+async function showPublicInfo() {
   try {
     const response = await fetch("/api/public-info", {credentials: "omit"});
-    if (!response.ok) return;
+    if (!response.ok) throw new Error("Public information is unavailable.");
     const info = await response.json();
+    showPricing(info.pricing?.olvex);
     if (info.registrationOpen !== false) return;
     for (const label of document.querySelectorAll("[data-signup-label]")) label.textContent = "Kayıt durumu";
     document.querySelector(".hero [data-signup-label]").textContent = "Yeni kayıtlar kapalı";
@@ -127,7 +124,10 @@ async function showSignupStatus() {
     action.href = "/demo.html#overview";
     action.querySelector("[data-signup-label]").textContent = "Paneli incele";
   } catch {
-    // The link still opens the authoritative registration status page offline or on API errors.
+    showPricing();
   }
 }
-showSignupStatus();
+showPublicInfo();
+window.addEventListener("pageshow", event => {
+  if (event.persisted) showPublicInfo();
+});

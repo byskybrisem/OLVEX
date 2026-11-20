@@ -61,7 +61,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     assert.equal(response.status, 200);
     return (await response.json()).tier;
   };
-  const checkout = { action: "checkout", plan: "esnaf-yearly", requestId: crypto.randomUUID(), price: 1,
+  const checkout = { action: "checkout", plan: "profesyonel-monthly", requestId: crypto.randomUUID(), price: 1,
     name: "Örnek", surname: "Üye", identityNumber: "00000000000", gsmNumber: "+905000000000",
     address: "Yalıtılmış test", city: "Denizli" };
 
@@ -70,11 +70,13 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   let cancellations = 0;
   let planPrice = "1.00";
   let conversationId;
+  let providerRef = "sub";
+  let planRef = "plan-pm";
   let formOk = false;
   let detailShape = "missing";
   let subscriptionStatus = "ACTIVE";
   const now = Date.now();
-  const paidPeriod = { referenceCode: "order-a", orderStatus: "SUCCESS", currencyCode: "TRY", price: "4790.40",
+  const paidPeriod = { referenceCode: "order-a", orderStatus: "SUCCESS", currencyCode: "TRY", price: "999.00",
     startPeriod: now - 10000, endPeriod: now + 86400000 };
   let orders = [paidPeriod];
   const realFetch = globalThis.fetch;
@@ -86,15 +88,15 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     const signed = sign(nonce + url.pathname + (options.body || ""));
     assert.equal(options.headers.Authorization, "IYZWSv2 " + btoa(`apiKey:fixture-key&randomKey:${nonce}&signature:${signed}`));
     switch (url.pathname) {
-      case "/v2/subscription/pricing-plans/plan-ey":
-        return Response.json({ status: "success", data: { referenceCode: "plan-ey", status: "ACTIVE", planPaymentType: "RECURRING",
-          price: planPrice, currencyCode: "TRY", paymentInterval: "YEARLY", paymentIntervalCount: 1, trialPeriodDays: 0 } });
+      case "/v2/subscription/pricing-plans/plan-pm":
+        return Response.json({ status: "success", data: { referenceCode: planRef, status: "ACTIVE", planPaymentType: "RECURRING",
+          price: planPrice, currencyCode: "TRY", paymentInterval: "MONTHLY", paymentIntervalCount: 1, trialPeriodDays: 0 } });
       case "/v2/subscription/checkoutform/initialize": {
         initialized++;
         const body = JSON.parse(options.body);
         assert.deepEqual(Object.keys(body.customer).sort(), ["billingAddress", "email", "gsmNumber", "identityNumber", "name", "surname"]);
         assert.equal(body.customer.email, "owner@example.test");
-        assert.equal(body.pricingPlanReferenceCode, "plan-ey");
+        assert.equal(body.pricingPlanReferenceCode, planRef);
         assert.equal(body.callbackUrl, origin + "/api/billing/callback?id=" + body.conversationId);
         conversationId = body.conversationId;
         return Response.json({ status: "success", conversationId, token: "checkout-token", checkoutFormContent: "<div>fixture</div>" });
@@ -103,15 +105,15 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
         assert.equal(options.method, "GET");
         assert.equal(url.searchParams.get("conversationId"), conversationId);
         return Response.json(formOk ? { status: "success", conversationId,
-          data: { referenceCode: "sub", customerReferenceCode: "customer", subscriptionStatus: "ACTIVE",
-            pricingPlanReferenceCode: "plan-ey" } } : { status: "failure" });
+          data: { referenceCode: providerRef, customerReferenceCode: "customer", subscriptionStatus: "ACTIVE",
+            pricingPlanReferenceCode: planRef } } : { status: "failure" });
       case "/v2/subscription/subscriptions/sub/cancel":
         cancellations++;
         subscriptionStatus = "CANCELED";
         return Response.json({ status: "success" });
-      case "/v2/subscription/subscriptions/sub": {
-        const subscription = { referenceCode: "sub", customerReferenceCode: "customer",
-          pricingPlanReferenceCode: "plan-ey", subscriptionStatus, orders };
+      case "/v2/subscription/subscriptions/" + providerRef: {
+        const subscription = { referenceCode: providerRef, customerReferenceCode: "customer",
+          pricingPlanReferenceCode: planRef, subscriptionStatus, orders };
         const unrelated = { ...subscription, referenceCode: "other-sub" };
         const items = detailShape === "missing" ? [unrelated] : [unrelated, subscription];
         if (detailShape === "duplicate") items.push(subscription);
@@ -127,9 +129,17 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   env.OLVEX_ENVIRONMENT = "preview";
   await call(checkout, 403, { user: "admin" });
   await call(checkout, 404, { user: "outsider" });
+  env.OLVEX_LAUNCH_OFFER = "on";
+  for (const offerId of ["olvex-monthly-standard-v1", "olvex-monthly-launch-v1"]) {
+    await call({ ...checkout, plan: "profesyonel-monthly", offerId }, 503);
+  }
+  await call({ ...checkout, plan: "olvex-monthly-launch-v1" }, 400);
+  for (const plan of ["esnaf-monthly", "esnaf-yearly", "profesyonel-yearly"]) {
+    await call({ ...checkout, plan }, 409);
+  }
   await call(checkout, 503);
   assert.equal(initialized, 0);
-  planPrice = "4790.40";
+  planPrice = "999.00";
   const initial = await Promise.all([call(checkout, 200), call(checkout, 200)]);
   assert.equal(initial.filter(row => row.checkoutFormContent).length, 1);
   assert.equal(initialized, 1);
@@ -153,8 +163,8 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   detailShape = "list";
   await confirm("checkout-token", 303);
   await confirm("checkout-token", 303);
-  assert.equal((await call(null, 200)).tier, "esnaf");
-  assert.equal(await packageTier(), "esnaf");
+  assert.equal((await call(null, 200)).tier, "profesyonel");
+  assert.equal(await packageTier(), "profesyonel");
   assert.equal(await packageTier("https://olvex.com.tr"), "inactive");
 
   const notify = async (type, status, { valid = true, order = "order-next" } = {}) => {
@@ -171,7 +181,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   subscriptionStatus = "UNPAID";
   orders = [{ ...paidPeriod, referenceCode: "order-next", orderStatus: "FAILED" }];
   await notify("failure", 403, { valid: false });
-  assert.equal((await call(null, 200)).tier, "esnaf");
+  assert.equal((await call(null, 200)).tier, "profesyonel");
   await notify("failure", 200);
   assert.equal(await packageTier(), "inactive");
   assert.equal((await call(null, 200)).subscription.state, "unpaid");
@@ -185,7 +195,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await notify("success", 200);
   await notify("failure", 200);
   assert.equal(await revision(), afterRenewal);
-  assert.equal(await packageTier(), "esnaf");
+  assert.equal(await packageTier(), "profesyonel");
   assert.equal((await call(null, 200)).subscription.paidUntil, orders[0].endPeriod);
 
   const queuedWrite = { db: DB, env, request: new Request(origin), businessId: "biz", actorId: "owner", roles: ["owner"] };
@@ -200,4 +210,23 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   ]), { status: 403 });
   assert.equal(await DB.prepare("SELECT name FROM businesses WHERE id = 'biz'").first("name"), "Örnek");
   assert.equal((await call(null, 200)).tier, "free");
+
+  // Retired subscriptions retain the original terms for reconciliation and access.
+  const legacyId = crypto.randomUUID();
+  providerRef = "legacy-sub";
+  planRef = "plan-ey";
+  subscriptionStatus = "ACTIVE";
+  orders = [{ ...paidPeriod, price: "4790.40" }];
+  await DB.prepare(`INSERT INTO olvex_subscriptions
+    (id,business_id,environment,plan,plan_ref,state,provider_ref,customer_ref,paid_until)
+    VALUES (?,'biz','sandbox','esnaf-yearly',?,'active',?,'customer',?)`)
+    .bind(legacyId, planRef, providerRef, paidPeriod.endPeriod).run();
+  const retry = await call({ ...checkout, plan: "esnaf-yearly", requestId: legacyId }, 200);
+  assert.equal(retry.id, legacyId);
+  assert.equal(retry.tier, "esnaf");
+  await call({ ...checkout, plan: "esnaf-monthly", requestId: legacyId }, 409);
+  assert.equal(initialized, 1);
+  const refreshed = await call({ action: "refresh", id: legacyId }, 200);
+  assert.equal(refreshed.paidUntil, paidPeriod.endPeriod);
+  assert.equal(await packageTier(), "esnaf");
 });

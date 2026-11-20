@@ -1,5 +1,6 @@
 import { accountMailReady } from "./account-mail.js";
 import { isPreviewRequest } from "./http.js";
+import { publicPricing } from "./pricing.js";
 import { recoveryOrigin } from "./recovery.js";
 
 export const TERMS_VERSION = "2026-11-17.1";
@@ -18,6 +19,7 @@ export function publicInfo(env, request) {
     operator: configured ? operator : null,
     serviceAddress: configured ? serviceAddress : null,
     email: configured ? email : null,
-    passwordResetEnabled: mailEnabled
+    passwordResetEnabled: mailEnabled,
+    pricing: publicPricing(env)
   };
 }

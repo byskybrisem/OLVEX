@@ -227,7 +227,7 @@ function reports(data, state) {
   const filter = data.packagePlan?.professional ? `<label class="field">Rapor şubesi
     <select data-report-branch><option value="">Tüm şubeler</option>${data.locations.map(row =>
       `<option value="${h(row.id)}"${row.id === data.branchId ? " selected" : ""}>${h(row.name)}</option>`).join("")}</select></label>` :
-    data.packagePlan ? '<p class="hint">Şube bazlı raporlar Profesyonel pakette sunulur.</p>' : "";
+    data.packagePlan ? '<p class="hint">Şube bazlı raporlar OLVEX aboneliğiyle kullanılabilir.</p>' : "";
   return filters(state, { range: true }) + filter + stats(
     stat("Net satış tutarı", money(totals.sales)) + stat("Satılan ürün maliyeti", money(totals.cost)) +
     stat("Brüt kâr", money(totals.sales - totals.cost), "teal") + stat("Satın alma tutarı", money(totals.purchases))) +
@@ -241,14 +241,14 @@ function reports(data, state) {
 function settingView(data, state) {
   const owner = state.business.role === "owner";
   const plan = data.packagePlan;
-  const labels = { esnaf: "Esnaf", profesyonel: "Profesyonel" };
+  const label = plan?.professional ? "OLVEX" : "Önceki abonelik";
   const { counts, limits } = plan ?? {};
-  const packagePanel = limits ? panel(`Paket · ${labels[plan.tier]}`,
+  const packagePanel = limits ? panel(`Abonelik · ${label}`,
     stats(stat("İşletme sınırı", count(limits.businesses)) + stat("Şube", `${counts.branches} / ${limits.branches}`) +
       stat("Kullanıcı ve davet", `${counts.users + counts.invitations} / ${limits.users}`)) +
     `<p class="muted">${h(counts.users)} kullanıcı ve ${h(counts.invitations)} bekleyen davet.
     ${counts.users + counts.invitations >= limits.users ? "Paketinizin kullanıcı sınırı doldu." : ""}</p>` +
-    (plan.professional ? "" : '<p class="muted">Profesyonel pakette daha fazla şube ve kullanıcı, stok transferi, ekip yetkileri, personel ve vardiya, kasa API aktarımı ve şube bazlı rapor sunulur.</p>')) : "";
+    (plan.professional ? "" : '<p class="muted">Yeni OLVEX aboneliğinde şube bazlı raporlar, ekip yetkileri, personel ve vardiya işlemleri kullanılabilir.</p>')) : "";
   const members = panel("Ekip üyeleri", table(["Kullanıcı", "Rol", "İşlemler"], data.members.map((row) => [
     rowName(row.name || row.email, row.name ? row.email : ""), badge(roles[row.role]),
     owner && row.role !== "owner" ? button(plan?.professional === false ? "İşletmeden çıkar" : "Yetkiyi düzenle", "edit-member", { id: row.id, kind: "small" }) : "—"

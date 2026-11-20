@@ -1,12 +1,14 @@
 import { HttpError } from "./http.js";
+import { monthlyPriceKurus } from "./pricing.js";
 
 const encoder = new TextEncoder();
 export const reference = value => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 
+// Keep retired amounts for verification of historical subscriptions.
 export const plans = Object.freeze({
   "esnaf-monthly": { tier: "esnaf", interval: "MONTHLY", amount: 49900, binding: "IYZICO_ESNAF_MONTHLY" },
   "esnaf-yearly": { tier: "esnaf", interval: "YEARLY", amount: 479040, binding: "IYZICO_ESNAF_YEARLY" },
-  "profesyonel-monthly": { tier: "profesyonel", interval: "MONTHLY", amount: 99900, binding: "IYZICO_PROFESYONEL_MONTHLY" },
+  "profesyonel-monthly": { tier: "profesyonel", interval: "MONTHLY", amount: monthlyPriceKurus, binding: "IYZICO_PROFESYONEL_MONTHLY" },
   "profesyonel-yearly": { tier: "profesyonel", interval: "YEARLY", amount: 959040, binding: "IYZICO_PROFESYONEL_YEARLY" }
 });
 

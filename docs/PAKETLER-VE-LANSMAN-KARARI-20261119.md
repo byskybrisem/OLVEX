@@ -1,5 +1,7 @@
 # OLVEX — 19.11.2026 paket ve lansman kararı
 
+> Tarihsel karar kaydı. Yeni satışlar için [güncel OLVEX aboneliği ve Polar lansman rehberine](./POLAR-LANSMAN-TEKLIFI.md) bakın.
+
 Bu belge pazarlama/fiyat kararı ile **gerçekte etkin teknik yetkileri** ayırır. Fiyatlar kaynak kodundaki `functions/_lib/iyzico.js` ile eşleşir.
 
 ## Kesinleşen iki paket
