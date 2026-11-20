@@ -9,7 +9,7 @@
 - GitHub Actions Node 22 ile derleme, seri API/güvenlik/D1 ve Chromium genel + şube/kasa/transfer tarayıcı testlerini çalıştırıyor. Geçerli son koşunun yeşil olması yayımlama ön şartıdır.
 - `migrations/0001`–`0008` izole bir **gerçek Cloudflare D1** veritabanına sırasıyla, hata alınmadan uygulandı. 26 `olvex_*` tablo, 23 `olvex_*` tetikleyici, sıfır FK ihlali doğrulandı. Deneme veritabanları silindi.
 - İki ücretli planın (Esnaf **499 TL/ay**; Profesyonel **999 TL/ay**) gösterimi ve yıllık %20 indirim hesabı hazırlandı. Bunlar şu an **tahsil edilebilen veya sunucuda yetkisi uygulanan abonelikler değildir**.
-- `support@olvex.com.tr` Cloudflare Email Routing'de doğrulanmış mevcut yönlendirme hedefiyle etkinleştirildi ve iletişim sayfasına eklendi. Preview/Production `OLVEX_CONTACT_EMAIL` tanımlandı; mevcut D1 bağları ve kayıt kapalı ayarı korundu.
+- `support@olvex.com.tr` Cloudflare Email Routing'de doğrulanmış mevcut yönlendirme hedefiyle etkinleştirildi ve iletişim sayfasına eklendi. Preview/Production `OLVEX_CONTACT_EMAIL` tanımlandı; o aşamada mevcut D1 bağları ve kayıt ayarı korundu.
 
 ## Lansman öncesi zorunlu engeller
 
@@ -18,7 +18,7 @@
 3. **E-posta:** Gelen `support@` alias yönlendirmesi etkin. Dışarıya güvenilir şifre sıfırlama e-postası gönderimi için `RESEND_API_KEY` ve doğrulanmış `OLVEX_FROM_EMAIL` henüz ayarlanmadı / gerçek gönderim testi yapılmadı.
 4. **OpenAI:** `OPENAI_API_KEY`, bütçe sınırı ve üretim AI çağrısı etkin/gerçek maliyetli test doğrulanmadı; MOCK testlerini canlı OpenAI sanmayın.
 5. **Hukuk ve işletmeci:** `OLVEX_OPERATOR_NAME`, `OLVEX_SERVICE_ADDRESS`, KVKK aydınlatma, hizmet şartları, mesafeli hizmet satış/iade şartları ve fatura düzeni gerçek işletmeci koşullarına göre tamamlanmalı. İşletmeci adı/adresi tahmin edilip kamuya yayımlanmamalı.
-6. **Son yayın:** Tarayıcı, mobil ve API kontrolleri son commit üzerinde yeşil; canlı D1 doğru migrasyon seviyesinde; ödeme ve parola sıfırlama başarılı; yedek/geri dönüş testi onaylı olduğunda PR #7 `main` dalına alınabilir. Sonrasında gerçek yeni hesap, işlem, ödeme ve iptal akışı denetlenip `OLVEX_SIGNUPS=open` yapılabilir. Şu an `closed` kalmalıdır.
+6. **Son yayın:** Tarayıcı, mobil ve API kontrolleri son commit üzerinde yeşil; canlı D1 doğru migrasyon seviyesinde; ödeme ve parola sıfırlama başarılı; yedek/geri dönüş testi onaylı olduğunda PR #7 `main` dalına alınabilir. Mevcut genel kayıt kararı `OLVEX_SIGNUPS=open` olarak korunur. Yeni hesap ve doğrulama akışını ücretli ödeme ve iptal kontrollerinden ayrı doğrulayın.
 
 ## Sıra ve geri dönüş
 

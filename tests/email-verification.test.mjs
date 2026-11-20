@@ -192,6 +192,17 @@ test("açık kayıt ve kurtarma gerçek yerel D1 üzerinde tek kullanımlık pos
     { email: "repeat@example.test" }, 202, { "CF-Connecting-IP": "192.0.2." + index })));
   assert.equal(providerCalls, beforeQuota + 3);
   assert.equal(await count("olvex_signup_links"), 3);
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const accountKey = await sha256("login-account:" + address);
+  await DB.prepare("INSERT INTO auth_rate_limits (key_hash, attempts, window_started_at, updated_at) VALUES (?, 20, ?, ?)")
+    .bind(accountKey, epoch, epoch).run();
+  for (const addressIp of ["192.0.2.1", "192.0.2.2"]) {
+    const rejected = await invoke(login, "/api/auth/login", { email: address, password: newPassword }, 429, { "CF-Connecting-IP": addressIp });
+    assert.equal(rejected.headers.get("Set-Cookie"), null);
+  }
+  await DB.prepare("UPDATE auth_rate_limits SET window_started_at = ? WHERE key_hash = ?").bind(epoch - 901, accountKey).run();
+  await signIn(newPassword, 200);
 });
 
 test("e-posta sağlayıcısı seçimi ve başarısız teslim durumları", async (t) => {

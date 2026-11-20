@@ -43,9 +43,9 @@ test("super admin is strictly isolated; platform income/expenses are auditable a
   assert.equal(adminHtml.status, 200);
   assert.match(await adminHtml.text(),/CONTROL CENTER/);
   await call("overview",{token:null,status:401});
-  await call("overview",{token:customerToken,status:403});
-  await call("me",{token:customerToken,status:403});
-  await call("users",{token:customerToken,status:403});
+  for (const section of ["me", "overview", "businesses", "users", "subscriptions", "ai", "finance", "system"]) {
+    await call(section, { token: customerToken, status: 403 });
+  }
   await call("finance",{method:"POST", token:customerToken, status:403,body:{action:"create"}});
   const me=await call("me");
   assert.equal(me.user.email,"platform-admin@example.test");
@@ -131,11 +131,30 @@ test("sign-in identifies only the configured platform admin, without trusting a 
     const response=await fetch(server.url+"/api/auth/login",{
       method:"POST",
       headers:{"Content-Type":"application/json",Origin:server.url},
-      body:JSON.stringify({email,password,remember:false})
+      body:JSON.stringify({email,password,remember:true})
     });
     assert.equal(response.status,200);
-    return response.json();
+    return { result: await response.json(), cookie: response.headers.get("Set-Cookie") };
   }
-  assert.deepEqual(await signIn("admin-login@example.test"),{success:true,isPlatformAdmin:true});
-  assert.deepEqual(await signIn("tenant-login@example.test"),{success:true,isPlatformAdmin:false});
+  const admin = await signIn("admin-login@example.test");
+  assert.deepEqual(admin.result, { success: true, isPlatformAdmin: true });
+  assert.doesNotMatch(admin.cookie, /Max-Age/);
+  const customer = await signIn("tenant-login@example.test");
+  assert.deepEqual(customer.result, { success: true, isPlatformAdmin: false });
+  assert.match(customer.cookie, /Max-Age=2592000/);
+
+  const [sessions] = await server.query("SELECT user_id, unixepoch(expires_at) - unixepoch(created_at) AS lifetime FROM user_sessions ORDER BY user_id");
+  assert.ok(sessions[0].lifetime > 0 && sessions[0].lifetime <= 3600);
+  assert.equal(sessions[1].lifetime, 2592000);
+
+  const oldToken = randomToken();
+  await server.query("INSERT INTO user_sessions(id,user_id,token_hash,expires_at,created_at) VALUES " +
+    "('old-admin','" + superId + "','" + await sha256(oldToken) + "','2099-01-01T00:00:00Z','2020-01-01 00:00:00')");
+  const headers = { Cookie: "olvex_session=" + oldToken };
+  assert.equal((await fetch(server.url + "/api/auth/me", { headers })).status, 200);
+  assert.equal((await fetch(server.url + "/api/admin/me", { headers })).status, 401);
+  assert.equal((await fetch(server.url + "/api/admin/finance", {
+    method: "POST", headers: { ...headers, Origin: server.url, "Content-Type": "application/json" },
+    body: "{}"
+  })).status, 401);
 });

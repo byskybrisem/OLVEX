@@ -35,7 +35,7 @@ Tarayıcı testi için Chromium gerekir. Sistem Chromium’u yoksa `npx playwrig
 1. Ön izleme ortamında ayrı bir D1 veritabanı kullanın ve `migrations/` altındaki dosyaları sırayla uygulayın. Yayımdaki D1 için önce mevcut şemayı ve geri yükleme noktasını doğrulayın. İlk migrasyon, mevcut tabloları ve verilerini koruyan eklemeler kullanır.
 2. Cloudflare Pages'te Preview ve Production için `DB` bağlarını kendi veritabanlarına yönlendirin. Üretimde güncel dal birleştirilmeden önce D1 migrasyonları uygulanmış olmalı.
 3. Ön izleme ortamında `OLVEX_ENVIRONMENT=preview`, `OLVEX_SIGNUPS=preview` ve `OLVEX_AI_MODE=mock` ile kayıt ve AI akışlarını deneyin. Ön izlemeyi erişim kontrolüyle kısıtlamak için Pages projesinin Access ayarını kullanın.
-4. Üretim açılışı için aşağıdaki servis değerlerini ekleyin. Tebligat ve iletişim bilgilerini doğrulayın, KVKK metnini gerçek barındırma ve veri aktarımı koşullarıyla karşılaştırın. `0009_email_verification.sql` uygulandıktan sonra doğrulanmış göndericiyle doğrulama ve parola kurtarma e-postalarının gerçekten ulaştığını sınayın. Sonrasında `OLVEX_SIGNUPS=open` ile genel kaydı açın.
+4. Üretim açılışı için aşağıdaki servis değerlerini ekleyin. Tebligat ve iletişim bilgilerini doğrulayın, KVKK metnini gerçek barındırma ve veri aktarımı koşullarıyla karşılaştırın. `0009_email_verification.sql` uygulandıktan sonra doğrulanmış göndericiyle doğrulama ve parola kurtarma e-postalarının gerçekten ulaştığını sınayın. Üretimde mevcut `OLVEX_SIGNUPS=open` kararını koruyun.
 
 Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_dir = "migrations"` yolunu içeren bir Wrangler yapılandırması kullanın. Ön izleme ve üretim komutlarında doğru yapılandırma dosyasını belirtin. [D1 migrasyon yönergesi](https://developers.cloudflare.com/d1/reference/migrations/)
 
@@ -44,7 +44,7 @@ Migrasyonları Wrangler ile uygulamak için hedef D1 kimliğini ve `migrations_d
 | `OLVEX_OPERATOR_NAME` | Kullanım şartları ve aydınlatma metninde gösterilecek hizmet sağlayıcı ve veri sorumlusu adı |
 | `OLVEX_SERVICE_ADDRESS` | Yayınlanacak tebligat ve başvuru adresi |
 | `OLVEX_CONTACT_EMAIL` | Çalıştığı doğrulanmış destek ve başvuru adresi |
-| `OLVEX_SIGNUPS` | Üretimde açılışa kadar `closed`. `open` için yukarıdaki üç bilgi ve e-posta gönderim ayarları gerekir |
+| `OLVEX_SIGNUPS` | Üretim için mevcut karar `open`. Kayıt akışının açılması için yukarıdaki üç bilgi ve e-posta gönderim ayarları gerekir |
 | `OLVEX_PUBLIC_ORIGIN` | Kayıt doğrulama ve parola sıfırlama bağlantılarının HTTPS kökeni. Varsayılan `https://olvex.com.tr` |
 | `RESEND_API_KEY` | Resend ile kayıt doğrulama ve parola sıfırlama için Cloudflare secret |
 | `OLVEX_FROM_EMAIL` | Seçilen sağlayıcıda doğrulanmış gönderici adresi |
