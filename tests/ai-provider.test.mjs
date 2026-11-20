@@ -189,6 +189,11 @@ test("AI anahtarsız güvenli kapanır ve sağlayıcıya yalnızca yetkili işle
   const message = { action: "send", id: crypto.randomUUID(), requestId: crypto.randomUUID(),
     newChat: true, prompt: "Bugün satışlar?" };
   const cloud = (payload, status) => call("private", payload, status, "ai", otherToken);
+  await cloud(message, 403);
+  assert.equal(workerCalls, 0);
+  assert.equal(await DB.prepare("SELECT COUNT(*) n FROM olvex_ai_conversations WHERE business_id = 'private'").first("n"), 0);
+  await DB.prepare("INSERT INTO olvex_subscriptions (id,business_id,environment,plan,plan_ref,state,provider_ref,customer_ref,paid_until) VALUES ('private-plan','private','live','esnaf-monthly','fixture-plan','active','private-subscription','private-customer',?)")
+    .bind(Date.now() + 86400000).run();
   await cloud(message, 429);
   assert.equal((await cloud(message, 200)).state, "failed");
   assert.equal(workerCalls, 1);

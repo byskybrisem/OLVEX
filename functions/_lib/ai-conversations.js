@@ -1,4 +1,5 @@
 import { aiDashboard, ask, mode } from "./ai.js";
+import { entitlement, paidAt, subscriptionEnvironment } from "./entitlements.js";
 import { HttpError } from "./http.js";
 import { identifier, integer, text } from "./validate.js";
 
@@ -18,6 +19,11 @@ function query(ctx, sql, ...bindings) {
   return ctx.db.prepare(sql).bind(ctx.businessId, ctx.actorId, ...bindings);
 }
 
+function paidWrite(ctx, statement, ...bindings) {
+  const active = paidAt("?1", "?" + (bindings.length + 3));
+  return query(ctx, statement(active), ...bindings, subscriptionEnvironment(ctx));
+}
+
 async function conversation(ctx, id) {
   const row = await query(ctx, `SELECT id, title, branch_id, branch_name FROM olvex_ai_conversations
     WHERE ${chatOwner} AND ${manager}`, id).first();
@@ -27,7 +33,7 @@ async function conversation(ctx, id) {
 
 export async function readAI(ctx) {
   const params = ctx.paramsUrl;
-  if (params.get("chat") === "1") return { mode: mode(ctx) };
+  if (params.get("chat") === "1") return { mode: (await entitlement(ctx)).paidUntil ? mode(ctx) : "off" };
   if (params.has("conversation")) {
     const id = identifier(params.get("conversation"), "Sohbet");
     const chat = await conversation(ctx, id);
@@ -72,7 +78,7 @@ export async function readAI(ctx) {
 export async function renameChat(ctx, body) {
   const id = identifier(body.id, "Sohbet");
   const title = text(body.title, "Sohbet adı", { max: 100 });
-  const { meta } = await query(ctx, `UPDATE olvex_ai_conversations SET title = ?4 WHERE ${chatOwner} AND ${manager}`, id, title).run();
+  const { meta } = await paidWrite(ctx, active => `UPDATE olvex_ai_conversations SET title = ?4 WHERE ${chatOwner} AND ${manager} AND ${active}`, id, title).run();
   if (!meta.changes) throw new HttpError(404, "Sohbet bulunamadı.");
   return { id, title };
 }
@@ -80,11 +86,11 @@ export async function renameChat(ctx, body) {
 export async function removeChat(ctx, body) {
   const id = identifier(body.id, "Sohbet");
   const [, , deleted] = await ctx.db.batch([
-    query(ctx, `UPDATE olvex_ai_proposals SET state = 'discarded' WHERE ${owner} AND state = 'pending' AND ${manager}
+    paidWrite(ctx, active => `UPDATE olvex_ai_proposals SET state = 'discarded' WHERE ${owner} AND state = 'pending' AND ${manager} AND ${active}
       AND id IN (SELECT proposal_id FROM olvex_ai_turns WHERE ${turnOwner})`, id),
-    query(ctx, `DELETE FROM olvex_ai_turns WHERE ${turnOwner} AND ${manager}`, id),
-    query(ctx, `UPDATE olvex_ai_conversations SET deleted_at = ?4, title = '', branch_id = NULL, branch_name = NULL
-      WHERE ${chatOwner} AND ${manager}`, id, now())
+    paidWrite(ctx, active => `DELETE FROM olvex_ai_turns WHERE ${turnOwner} AND ${manager} AND ${active}`, id),
+    paidWrite(ctx, active => `UPDATE olvex_ai_conversations SET deleted_at = ?4, title = '', branch_id = NULL, branch_name = NULL
+      WHERE ${chatOwner} AND ${manager} AND ${active}`, id, now())
   ]);
   if (!deleted.meta.changes) throw new HttpError(404, "Sohbet bulunamadı.");
   return { id };
@@ -101,8 +107,8 @@ export async function sendChat(ctx, body) {
 
   // Only a first turn may create a conversation. An old reply cannot revive deleted history.
   if (body.newChat === true) {
-    await query(ctx, `INSERT INTO olvex_ai_conversations (business_id, user_id, id, title, branch_id, branch_name, updated_at)
-      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE ${manager}
+    await paidWrite(ctx, active => `INSERT INTO olvex_ai_conversations (business_id, user_id, id, title, branch_id, branch_name, updated_at)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE ${manager} AND ${active}
       ON CONFLICT DO NOTHING`, id, titleFrom(prompt), branchId, branch?.name ?? null, now()).run();
   }
   const chat = await conversation(ctx, id);
@@ -115,12 +121,12 @@ export async function sendChat(ctx, body) {
   if (existing && existing.prompt !== prompt) throw new HttpError(409, "Bu istek kimliği başka bir mesajda kullanılmış.");
   if (existing && (existing.state === "complete" || body.retry !== true)) return { id, state: existing.state };
   const claimed = existing
-    ? await query(ctx, `UPDATE OR IGNORE olvex_ai_turns SET state = 'pending', error = NULL, started_at = ?5, attempt = ?6
-      WHERE ${turnOwner} AND request_id = ?4 AND ${manager} AND (state = 'failed' OR (state = 'pending' AND started_at < ?7))`,
+    ? await paidWrite(ctx, active => `UPDATE OR IGNORE olvex_ai_turns SET state = 'pending', error = NULL, started_at = ?5, attempt = ?6
+      WHERE ${turnOwner} AND request_id = ?4 AND ${manager} AND ${active} AND (state = 'failed' OR (state = 'pending' AND started_at < ?7))`,
       id, requestId, started, attempt, expired()).run()
-    : await query(ctx, `INSERT OR IGNORE INTO olvex_ai_turns (business_id,user_id,chat_id,request_id,prompt,state,started_at,attempt)
+    : await paidWrite(ctx, active => `INSERT OR IGNORE INTO olvex_ai_turns (business_id,user_id,chat_id,request_id,prompt,state,started_at,attempt)
       SELECT ?1,?2,?3,?4,?5,'pending',?6,?7
-      WHERE ${manager} AND EXISTS (SELECT 1 FROM olvex_ai_conversations WHERE ${chatOwner})`,
+      WHERE ${manager} AND ${active} AND EXISTS (SELECT 1 FROM olvex_ai_conversations WHERE ${chatOwner})`,
       id, requestId, prompt, started, attempt).run();
   if (!claimed.meta.changes) {
     const current = await lookup();
@@ -142,8 +148,8 @@ export async function sendChat(ctx, body) {
     const committed = now();
     const saved = `EXISTS (SELECT 1 FROM olvex_ai_turns WHERE ${turnOwner} AND request_id = ?4 AND attempt = ?5 AND state = 'complete')`;
     const writes = [
-      query(ctx, `UPDATE olvex_ai_turns SET state = 'complete', answer = ?6, evidence = ?7, proposal_id = ?8
-        WHERE ${turnOwner} AND request_id = ?4 AND attempt = ?5 AND state = 'pending' AND ${manager}`,
+      paidWrite(ctx, active => `UPDATE olvex_ai_turns SET state = 'complete', answer = ?6, evidence = ?7, proposal_id = ?8
+        WHERE ${turnOwner} AND request_id = ?4 AND attempt = ?5 AND state = 'pending' AND ${manager} AND ${active}`,
         id, requestId, attempt, result.answer, result.evidence ?? null, proposal?.id ?? null),
       query(ctx, `UPDATE olvex_ai_conversations SET updated_at = ?6 WHERE ${chatOwner} AND ${saved}`,
         id, requestId, attempt, committed)

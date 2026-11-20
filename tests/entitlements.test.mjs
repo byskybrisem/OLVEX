@@ -49,9 +49,27 @@ test("Paket yetkileri, D1 limitleri ve abonelik geçişleri", { timeout: 120_000
   await read("billing", 404, "other");
   const otherBranch = (await read("locations", 200, "other", secondBusiness)).rows[0].id;
   const defaultBranch = (await read("locations")).rows[0].id;
-  const free = await read("package");
-  assert.equal(free.tier, "free");
-  assert.deepEqual(free.counts, { branches: 1, users: 1, invitations: 0 });
+  const inactive = await read("package");
+  assert.equal(inactive.tier, "inactive");
+  assert.equal(inactive.limits, null);
+  assert.equal(inactive.billingAvailable, false);
+  assert.deepEqual(inactive.counts, { branches: 1, users: 1, invitations: 0 });
+  assert.equal((await read("billing")).enabled, false);
+  await write("billing", "checkout", { plan: "esnaf-monthly" }, 503);
+  assert.equal((await read("ai?chat=1")).mode, "off");
+
+  const forbidden = [
+    ["products", "save"], ["products", "bulk"], ["sales", "create"], ["sales", "import"],
+    ["stock", "adjust"], ["finance", "create"], ["locations", "create"], ["transfers", "create"],
+    ["settings", "invite"], ["settings", "rename"], ["customers", "save"],
+    ["ai", "ask"], ["ai", "send"], ["ai", "apply"], ["ai", "rename"], ["ai", "remove"]
+  ];
+  for (const [section, action] of forbidden) {
+    const result = await write(section, action, { plan: "profesyonel-yearly", paid: true }, 403);
+    assert.match(result.error, /Aktif aboneliğiniz bulunmuyor/);
+  }
+  assert.deepEqual((await read("sales")).rows, []);
+  assert.deepEqual((await read("products")).rows, []);
 
   const future = Date.now() + 86_400_000;
   const change = (plan, state = "active", paidUntil = future) => local.query(
@@ -122,11 +140,30 @@ test("Paket yetkileri, D1 limitleri ve abonelik geçişleri", { timeout: 120_000
 
   await change("profesyonel-yearly", "canceling");
   await read("employees");
+  await write("locations", "create", { name: "Dönem sonuna kadar limit korunur" }, 409);
+  await write("settings", "rename", { name: "İptal bekleyen işletme" });
   await change("profesyonel-yearly", "active", Date.now() - 1);
-  assert.equal((await read("package")).tier, "free");
+  assert.equal((await read("package")).tier, "inactive");
   expect(await request("pos", { ...pos, reference: "POS-2" }, "owner", secret), 403);
-  await change("profesyonel-yearly", "unpaid");
-  assert.equal((await read("package")).tier, "free");
+  expect(await request("pos", pos, "owner", secret), 403);
+  expect(await request("join", { token: pendingAdmin.secret }, "other"), 403);
+  const repeat = { ...csv, action: "import", requestId: randomUUID() };
+  const concurrent = await Promise.all([workspace("sales", repeat), workspace("sales", repeat)]);
+  assert.deepEqual(concurrent.map(result => result.status), [403, 403]);
+  await read("employees");
+  assert.equal((await read("pos")).rows[0].id, till.id);
+  assert.equal((await read("reports")).totals.sales, 300);
+  assert.equal((await read("sales")).rows.length, 2);
+  assert.equal((await read("products")).rows[0].total_stock, 7);
+  assert.equal((await read("package", 200, "invitee")).counts.users, 2);
+  const [paidRows] = await local.query("SELECT COUNT(*) AS n FROM olvex_ai_usage");
+  assert.equal(paidRows[0].n, 0);
+  for (const state of ["pending", "checkout", "unpaid", "failed", "canceled", "expired"]) {
+    await change("profesyonel-yearly", state);
+    assert.equal((await read("package")).tier, "inactive");
+    await write("products", "save", { paid: true }, 403);
+  }
+  expect(await workspace("products", { action: "save", businessId: business, paid: true }, "other", secondBusiness), 403);
   await change("esnaf-yearly");
   await write("locations", "create", { name: "Kota aşıldı" }, 409);
   expect(await request("join", { token: pendingAdmin.secret }, "other"), 409);
