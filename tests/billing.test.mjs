@@ -222,7 +222,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   assert.match(hosted.headers.get("Content-Security-Policy"), /script-src.*nonce-/);
   assert.equal(hosted.headers.get("Cache-Control"), "no-store");
   const content = await hosted.text();
-  assert.match(content, /<script nonce="[a-f0-9]+">window\\.iyzicoFixture/);
+  assert.match(content, /<script nonce="[a-f0-9]+">window\.iyzicoFixture/);
   assert.doesNotMatch(content, /fixture-secret|fixture-key/);
 
   // When live billing is switched on, unpaid businesses cannot create new records.
