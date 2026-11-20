@@ -20,8 +20,12 @@ function query(ctx, sql, ...bindings) {
 }
 
 function paidWrite(ctx, statement, ...bindings) {
-  const active = paidAt("?1", "?" + (bindings.length + 3));
-  return query(ctx, statement(active), ...bindings, subscriptionEnvironment(ctx));
+  // These queries use numbered placeholders. Keep the regular subscription
+  // predicate parameter-indexed instead of injecting the generic guard's
+  // anonymous placeholders; only the verified exemption may omit it.
+  const exempt = ctx.subscriptionExempt === true;
+  const active = exempt ? "1" : paidAt("?1", "?" + (bindings.length + 3));
+  return query(ctx, statement(active), ...bindings, ...(exempt ? [] : [subscriptionEnvironment(ctx)]));
 }
 
 async function conversation(ctx, id) {
@@ -35,7 +39,7 @@ export async function readAI(ctx) {
   const params = ctx.paramsUrl;
   if (params.get("chat") === "1") {
     const plan = await entitlement(ctx);
-    return { mode: (plan.paidUntil || plan.trialUntil) ? mode(ctx) : "off" };
+    return { mode: (plan.exempt || plan.paidUntil || plan.trialUntil) ? mode(ctx) : "off" };
   }
   if (params.has("conversation")) {
     const id = identifier(params.get("conversation"), "Sohbet");

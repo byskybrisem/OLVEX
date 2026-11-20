@@ -17,13 +17,15 @@ export const onRequestPost = handle(async ({ request, env }) => {
   const invitation = await db.prepare(`SELECT business_id, role FROM olvex_invitations
     WHERE token_hash = ? AND email = ? COLLATE NOCASE AND accepted_by IS NULL AND revoked_at IS NULL AND expires_at > ?`)
     .bind(hash, user.email, new Date().toISOString()).first();
-  const scope = invitation && { db, env, request, businessId: invitation.business_id };
+  const scope = invitation && { db, env, request, businessId: invitation.business_id, actorId: user.id, user };
   if (scope) await requirePaidSubscription(scope);
-  const guard = `AND ${paidSql} AND (role = 'member' OR ${professionalSql})
-    AND ((SELECT COUNT(*) FROM business_members WHERE business_id = ?) < ${seatLimitSql}
+  const exempt = scope?.subscriptionExempt === true;
+  const guard = `AND ${exempt ? "1" : paidSql} AND (role = 'member' OR ${exempt ? "1" : professionalSql})
+    AND ((SELECT COUNT(*) FROM business_members WHERE business_id = ?) < ${exempt ? "10" : seatLimitSql}
       OR EXISTS (SELECT 1 FROM business_members WHERE business_id = ? AND user_id = ?))`;
-  const scoped = invitation ? [invitation.business_id, environment, invitation.business_id, environment, invitation.business_id, invitation.business_id, environment,
-    invitation.business_id, user.id] : [];
+  const scoped = invitation ? (exempt ? [invitation.business_id, invitation.business_id, user.id] :
+    [invitation.business_id, environment, invitation.business_id, environment, invitation.business_id, invitation.business_id, environment,
+      invitation.business_id, user.id]) : [];
   let record = invitation && await db.prepare(`UPDATE olvex_invitations SET accepted_by = ?
     WHERE token_hash = ? AND email = ? COLLATE NOCASE AND accepted_by IS NULL AND revoked_at IS NULL AND expires_at > ?
     ${guard} RETURNING business_id`).bind(user.id, hash, user.email, new Date().toISOString(), ...scoped).first();

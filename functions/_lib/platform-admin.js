@@ -2,6 +2,8 @@ import { HttpError } from "./http.js";
 import { platformAdminId, PLATFORM_ADMIN_SESSION_SECONDS, requireUser } from "./session.js";
 import { choice, date, identifier, integer, period, text, today, addDays } from "./validate.js";
 
+const SUBSCRIPTION_EXEMPT_EMAIL = "vayymatik0@gmail.com";
+
 // Use a stable, private user ID, not an email address, tenant owner role, or
 // a client-side flag. Fail closed until an operator explicitly provisions it.
 export async function requirePlatformAdmin(request, env) {
@@ -14,6 +16,30 @@ export async function requirePlatformAdmin(request, env) {
     throw new HttpError(403, "Bu bölüme erişim yetkiniz yok.");
   }
   return user;
+}
+
+// The exemption is deliberately narrower than platform administration. A configured
+// platform-admin ID alone is insufficient: the verified user must also own the
+// explicitly approved account. Browser requests repeat the normal fresh-session
+// Super Admin check. POS requests have no browser session, so their server-stored
+// key creator is checked against the same configured identity and email instead.
+export async function hasSubscriptionExemption(ctx) {
+  const allowedId = platformAdminId(ctx.env);
+  if (!allowedId || typeof ctx.actorId !== "string" || ctx.actorId.toLowerCase() !== allowedId) return false;
+
+  if (ctx.user) {
+    try {
+      const user = await requirePlatformAdmin(ctx.request, ctx.env);
+      return user.id.toLowerCase() === ctx.actorId.toLowerCase() &&
+        user.email.toLowerCase() === SUBSCRIPTION_EXEMPT_EMAIL;
+    } catch (error) {
+      if (error instanceof HttpError && (error.status === 401 || error.status === 403)) return false;
+      throw error;
+    }
+  }
+
+  const user = await ctx.db.prepare("SELECT email FROM users WHERE id = ?").bind(ctx.actorId).first();
+  return user?.email?.toLowerCase() === SUBSCRIPTION_EXEMPT_EMAIL;
 }
 
 function pagination(params) {
