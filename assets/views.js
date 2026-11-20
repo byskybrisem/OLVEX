@@ -241,7 +241,7 @@ function reports(data, state) {
 function settingView(data, state) {
   const owner = state.business.role === "owner";
   const plan = data.packagePlan;
-  const labels = { free: "Ücretsiz", esnaf: "Esnaf", profesyonel: "Profesyonel" };
+  const labels = { free: "Aktif abonelik yok", esnaf: "Esnaf (önceki paket)", profesyonel: "Profesyonel" };
   const { counts, limits } = plan ?? {};
   const packagePanel = limits ? panel(`Paket · ${labels[plan.tier]}`,
     stats(stat("İşletme sınırı", count(limits.businesses)) + stat("Şube", `${counts.branches} / ${limits.branches}`) +
@@ -253,7 +253,10 @@ function settingView(data, state) {
     rowName(row.name || row.email, row.name ? row.email : ""), badge(roles[row.role]),
     owner && row.role !== "owner" ? button(plan?.professional === false ? "İşletmeden çıkar" : "Yetkiyi düzenle", "edit-member", { id: row.id, kind: "small" }) : "—"
   ])));
-  return settingsTabs("settings") + packagePanel + members + (owner ?
+  const billingPanel = owner ? panel("Abonelik ve 14 günlük deneme",
+    '<p class="muted">Profesyonel: 999 TL/ay veya 9.590,40 TL/yıl. Deneme için iyzico üzerinden kart doğrulaması gerekir; deneme bitmeden iptal edilmezse otomatik ücretlendirme başlar.</p>' +
+    '<p><a class="button" href="/billing.html?businessId=' + encodeURIComponent(state.business.id) + '">Aboneliği yönet</a></p>') : "";
+  return settingsTabs("settings") + billingPanel + packagePanel + members + (owner ?
     panel("Bekleyen davetler", table(["E-posta", "Rol", "Geçerlilik", "İşlemler"], data.invites.map((row) => [
       h(row.email), h(roles[row.role]), h(day(row.expires_at)), button("İptal et", "revoke-invite", { id: row.id, kind: "small danger" })
     ]), "Bekleyen davet yok.")) : "");
