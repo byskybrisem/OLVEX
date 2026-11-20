@@ -60,6 +60,23 @@ export async function landingChecks({ safeContext, url, snapshots }) {
       }
     });
     await checkStaticPage(page, url);
+    const canonical = "https://olvex.com.tr/";
+    assert.equal(await page.locator('link[rel="canonical"]').getAttribute("href"), canonical);
+    assert.equal(await page.locator('meta[property="og:url"]').getAttribute("content"), canonical);
+    assert.equal(await page.locator('meta[property="og:title"]').getAttribute("content"), await page.title());
+    const schema = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+    assert.equal(schema["@type"], "SoftwareApplication");
+    assert.equal(schema.url, canonical);
+    for (const field of ["review", "aggregateRating", "offers"]) assert.equal(schema[field], undefined);
+    const robots = await page.request.get(new URL("/robots.txt", url).href);
+    assert.match(robots.headers()["content-type"], /text\/plain/);
+    assert.match(await robots.text(), /^Sitemap: https:\/\/olvex\.com\.tr\/sitemap\.xml$/m);
+    const sitemap = await page.request.get(new URL("/sitemap.xml", url).href);
+    assert.deepEqual((await sitemap.text()).match(/<loc>([^<]+)<\/loc>/g), [`<loc>${canonical}</loc>`]);
+    const socialImage = await page.locator('meta[property="og:image"]').getAttribute("content");
+    const socialResponse = await page.request.get(new URL(new URL(socialImage).pathname, url).href);
+    assert.equal(socialResponse.headers()["content-type"], "image/jpeg");
+    assert.equal(requests.filter(path => path.endsWith(".js")).length, 1, "Only the landing UI bundle loads initially");
     // A first-time visitor must see preferences before opening an account.
     const cookieBanner = page.locator("#site-cookie-banner");
     await cookieBanner.waitFor({ state: "visible" });
@@ -220,6 +237,7 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     page.on("request", request => scripts.push(new URL(request.url()).pathname));
     await checkStaticPage(page, url);
     await page.locator('#core-stage[data-core-state="reduced"]').waitFor();
+    assert.equal(await page.locator(".hero .signal").evaluate(el => getComputedStyle(el).animationName), "none");
     assert.ok(await page.locator("#core-toggle").isDisabled());
     await page.locator("#baslayin").scrollIntoViewIfNeeded();
     assert.equal(await page.locator("#core-canvas").isVisible(), false);

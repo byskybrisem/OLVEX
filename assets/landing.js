@@ -1,3 +1,9 @@
+import "./tokens.css";
+import "./landing.css";
+import "./site-cookie-banner.css";
+import "./core.js";
+import "./site-cookie-banner.js";
+
 // Each preview remains a normal anchor and section when JavaScript is unavailable.
 const tour = document.querySelector(".tour-tabs");
 const tabs = [...tour.querySelectorAll("a")];
