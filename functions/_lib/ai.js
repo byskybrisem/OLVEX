@@ -33,7 +33,7 @@ export async function aiDashboard(ctx) {
     full && plan.professional
       ? factsForAI(ctx, [{ role: "user", content: "Son 7 gün hangi şube daha fazla satış yapıyor?" }], null, null) : null
   ]);
-  return { mode: plan.paidUntil ? mode(ctx) : "off", facts, usage, daily: daily?.totals, branches: branches?.rows, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
+  return { mode: (plan.paidUntil || plan.trialUntil) ? mode(ctx) : "off", facts, usage, daily: daily?.totals, branches: branches?.rows, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
 }
 
 function draftKind(message) {

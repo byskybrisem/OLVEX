@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Abonelik | OLVEX</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/public.css">
+<script type="module" src="/assets/polar-billing.js"></script>
+</head>
+<body>
+<div class="shell">
+<header><a class="brand" href="/app.html#settings">OLVEX · Panele dön</a></header>
+<main class="card">
+  <h1>Abonelik</h1>
+  <p id="billing-status" role="status" aria-live="polite">Abonelik durumu yükleniyor.</p>
+  <div id="billing-actions" hidden>
+    <p>Standart abonelik 999 TL/ay. İlk kullanımda ödeme kartıyla 14 günlük deneme sunulur.</p>
+    <button type="button" data-offer="standard">Standart aboneliği başlat</button>
+    <div id="billing-launch" hidden>
+      <p>Lansman teklifi denemesizdir. İlk üç ücretli ay 700 TL/ay, ardından 999 TL/ay.</p>
+      <button type="button" data-offer="launch">Lansman aboneliğini başlat</button>
+    </div>
+  </div>
+  <button type="button" id="billing-portal" hidden>Polar müşteri panelini aç</button>
+  <p><a href="/subscription-terms.html">Abonelik koşulları</a></p>
+</main>
+</div>
+</body>
+</html>

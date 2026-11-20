@@ -115,6 +115,8 @@ async function showPublicInfo() {
     if (!response.ok) throw new Error("Public information is unavailable.");
     const info = await response.json();
     showPricing(info.pricing?.olvex);
+    document.querySelector("#billing-unavailable").hidden = info.polarCheckoutEnabled === true;
+    document.querySelector("#billing-open").hidden = info.polarCheckoutEnabled !== true;
     if (info.registrationOpen !== false) return;
     for (const label of document.querySelectorAll("[data-signup-label]")) label.textContent = "Kayıt durumu";
     document.querySelector(".hero [data-signup-label]").textContent = "Yeni kayıtlar kapalı";

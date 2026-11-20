@@ -33,7 +33,10 @@ async function conversation(ctx, id) {
 
 export async function readAI(ctx) {
   const params = ctx.paramsUrl;
-  if (params.get("chat") === "1") return { mode: (await entitlement(ctx)).paidUntil ? mode(ctx) : "off" };
+  if (params.get("chat") === "1") {
+    const plan = await entitlement(ctx);
+    return { mode: (plan.paidUntil || plan.trialUntil) ? mode(ctx) : "off" };
+  }
   if (params.has("conversation")) {
     const id = identifier(params.get("conversation"), "Sohbet");
     const chat = await conversation(ctx, id);

@@ -77,7 +77,9 @@ export async function beginCheckout(ctx, body) {
 
   const reserve = await ctx.db.prepare(`INSERT INTO olvex_subscriptions (id, business_id, environment, plan, plan_ref, state)
     SELECT ?, ?, ?, ?, ?, 'creating' FROM business_members WHERE business_id = ? AND user_id = ? AND role = 'owner'
-    ON CONFLICT DO NOTHING`).bind(id, ctx.businessId, config.environment, body.plan, planRef, ctx.businessId, ctx.actorId).run();
+    AND NOT EXISTS (SELECT 1 FROM olvex_polar_checkouts WHERE business_id = ? AND environment = ? AND closed = 0)
+    ON CONFLICT DO NOTHING`).bind(id, ctx.businessId, config.environment, body.plan, planRef, ctx.businessId, ctx.actorId,
+      ctx.businessId, config.environment).run();
   if (!reserve.meta.changes) return repeat(await existing());
   const callback = new URL("/api/billing/callback", config.origin);
   callback.searchParams.set("id", id);
