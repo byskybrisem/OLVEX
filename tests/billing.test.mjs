@@ -98,7 +98,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
         assert.equal(body.pricingPlanReferenceCode, "plan-pm");
         assert.equal(body.callbackUrl, origin + "/api/billing/callback?id=" + body.conversationId);
         conversationId = body.conversationId;
-        return Response.json({ status: "success", conversationId, token: "checkout-token", checkoutFormContent: "<script>window.iyzicoFixture = true;</script>" });
+        return Response.json({ status: "success", conversationId, token: body.customer.email === "outsider@example.test" ? "checkout-token-other" : "checkout-token", checkoutFormContent: "<script>window.iyzicoFixture = true;</script>" });
       }
       case "/v2/subscription/checkoutform/checkout-token":
         assert.equal(options.method, "GET");
