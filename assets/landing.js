@@ -60,41 +60,6 @@ document.addEventListener("keydown", event => {
   }
 });
 
-const billing = document.querySelector("#billing");
-const monthly = document.querySelector("#monthly");
-const annual = document.querySelector("#annual");
-const prices = [...document.querySelectorAll("[data-price]")];
-const launchCard = document.querySelector("#professional-launch");
-const trialNote = document.querySelector("#professional-trial");
-let professionalPricing;
-const lira = new Intl.NumberFormat("tr-TR");
-const integerLira = new Intl.NumberFormat("tr-TR", {style: "currency", currency: "TRY", maximumFractionDigits: 0});
-const decimalLira = new Intl.NumberFormat("tr-TR", {style: "currency", currency: "TRY"});
-function priceFromKurus(kurus) {
-  const format = kurus % 100 ? decimalLira : integerLira;
-  return format.format(kurus / 100);
-}
-function pricePeriod(yearly) {
-  monthly.setAttribute("aria-pressed", String(!yearly));
-  annual.setAttribute("aria-pressed", String(yearly));
-  prices.forEach(price => {
-    // Convert once to kuruş, keeping the monthly equivalent and annual total in step.
-    const monthlyKurus = Number(price.dataset.price) * (yearly ? 80 : 100);
-    const twelveMonths = monthlyKurus * 12;
-    price.textContent = priceFromKurus(monthlyKurus);
-    const note = price.closest(".plan-card").querySelector("[data-period-note]");
-    const total = priceFromKurus(twelveMonths);
-    note.textContent = (yearly ? "Yıllık toplam " : "12 ayda ") + total;
-  });
-  updateProfessionalOffers(yearly);
-  document.querySelector("#pricing-status").textContent = yearly
-    ? "Yıllık dönem seçildi. Aylık karşılık ve yıllık toplamlar %20 indirimle gösteriliyor."
-    : "Aylık dönem seçildi. Aylık fiyatlar ve 12 aylık karşılıkları gösteriliyor.";
-}
-billing.hidden = false;
-monthly.addEventListener("click", () => pricePeriod(false));
-annual.addEventListener("click", () => pricePeriod(true));
-
 function openDestination() {
   const destination = document.getElementById(location.hash.slice(1));
   if (destination?.matches("details")) destination.open = true;
@@ -117,28 +82,30 @@ if (!tourInRange) {
 openDestination();
 window.addEventListener("hashchange", openDestination);
 
-function updateProfessionalOffers(yearly) {
-  const standard = professionalPricing?.standard;
-  const offer = professionalPricing?.launch;
-  trialNote.hidden = yearly || !standard?.trialDays;
-  if (!trialNote.hidden) {
-    trialNote.textContent = `Standart aylık teklif · ${standard.trialDays} gün ücretsiz deneme (abonelikler açıldığında)`;
-  }
-  launchCard.hidden = yearly || !offer;
-  launchCard.parentElement.classList.toggle("has-launch", !launchCard.hidden);
-  if (launchCard.hidden) return;
+const lira = new Intl.NumberFormat("tr-TR");
+const moneyLabel = kurus => lira.format(kurus / 100) + " TL";
+const monthlyPrice = document.querySelector("#monthly-price");
+const trialTitle = document.querySelector("#trial-title");
+const fallbackPrice = monthlyPrice.textContent;
+const fallbackTrial = trialTitle.textContent;
 
-  const formatLira = kurus => lira.format(kurus / 100) + " TL";
-  const launchPrice = formatLira(offer.discountedKurus);
-  const standardPrice = formatLira(offer.monthlyKurus);
-  launchCard.querySelector("[data-launch-standard]").textContent = standardPrice + "/ay";
-  launchCard.querySelector("[data-launch-price]").textContent = launchPrice;
-  launchCard.querySelector("[data-launch-discount]").textContent =
-    `İlk ${offer.discountedPeriods} ay boyunca yaklaşık %${offer.discountPercent} indirim!`;
-  launchCard.querySelector("[data-launch-savings]").textContent =
-    `Toplam ${formatLira(offer.savingsKurus)} tasarruf`;
-  launchCard.querySelector("[data-launch-terms]").textContent =
-    `İlk ${offer.discountedPeriods} ücretli ay ${launchPrice}/ay, sonrasında ${standardPrice}/ay. Aboneliğinizi istediğiniz zaman iptal edebilirsiniz.`;
+function showPricing(pricing) {
+  const standard = pricing?.standard;
+  const launch = pricing?.launch;
+  const standardPrice = standard ? moneyLabel(standard.monthlyKurus) : fallbackPrice;
+  const launchBadge = document.querySelector("#launch-badge");
+  const regularPrice = document.querySelector("#regular-price");
+  const launchTerms = document.querySelector("#launch-terms");
+  for (const element of [launchBadge, regularPrice, launchTerms]) element.hidden = !launch;
+
+  trialTitle.textContent = standard ? `${standard.trialDays} gün ücretsiz deneme` : fallbackTrial;
+  const launchPrice = launch ? moneyLabel(launch.discountedKurus) : null;
+  monthlyPrice.textContent = launchPrice ?? standardPrice;
+  if (!launch) return;
+
+  const renewalPrice = moneyLabel(launch.monthlyKurus);
+  regularPrice.querySelector("del").textContent = standardPrice + "/ay";
+  launchTerms.textContent = `Sınırlı süreli teklif. İlk ${launch.discountedPeriods} ücretli ay ${launchPrice}/ay, sonrasında ${renewalPrice}/ay. Bu teklifte deneme yoktur.`;
 }
 
 // The registration page checks the same server setting again before submission.
@@ -147,8 +114,7 @@ async function showPublicInfo() {
     const response = await fetch("/api/public-info", {credentials: "omit"});
     if (!response.ok) throw new Error("Public information is unavailable.");
     const info = await response.json();
-    professionalPricing = info.pricing?.professional;
-    updateProfessionalOffers(annual.getAttribute("aria-pressed") === "true");
+    showPricing(info.pricing?.olvex);
     if (info.registrationOpen !== false) return;
     for (const label of document.querySelectorAll("[data-signup-label]")) label.textContent = "Kayıt durumu";
     document.querySelector(".hero [data-signup-label]").textContent = "Yeni kayıtlar kapalı";
@@ -158,8 +124,7 @@ async function showPublicInfo() {
     action.href = "/demo.html#overview";
     action.querySelector("[data-signup-label]").textContent = "Paneli incele";
   } catch {
-    professionalPricing = undefined;
-    updateProfessionalOffers(annual.getAttribute("aria-pressed") === "true");
+    showPricing();
   }
 }
 showPublicInfo();

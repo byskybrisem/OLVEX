@@ -3,7 +3,7 @@ import { HttpError, isPreviewRequest } from "./http.js";
 
 export const paidMessage = "Aktif aboneliğiniz bulunmuyor. İşletme kayıtlarınızı görüntüleyebilirsiniz.";
 export const billingUnavailable = "OLVEX abonelik sistemi hazırlanıyor. İşletme verileriniz güvende. Ücretli erişim açıldığında buradan devam edebilirsiniz.";
-export const professionalMessage = "Bu özellik Profesyonel pakette kullanılabilir.";
+export const professionalMessage = "Bu özellik mevcut aboneliğinizin kapsamı dışında.";
 
 export function subscriptionEnvironment({ env, request }) {
   return env.OLVEX_BILLING === "sandbox" && isPreviewRequest(env, request) ? "sandbox" : "live";
@@ -59,7 +59,7 @@ export function branchCapacity(ctx) {
   return {
     sql: `(SELECT COUNT(*) FROM olvex_branches WHERE business_id = ?) < ${branchLimitSql}`,
     values: id => [id, id, environment],
-    message: "Paketinizin şube sınırı doldu. Esnaf 1, Profesyonel 5 şube destekler."
+    message: "Aboneliğinizin şube sınırı doldu."
   };
 }
 

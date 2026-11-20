@@ -230,9 +230,9 @@ async function load() {
       const subscription = packagePlan?.tier === "inactive" && ["overview", "settings"].includes(tab)
         ? panel("Aktif aboneliğiniz bulunmuyor",
           packagePlan.billingAvailable
-            ? '<p>İşletme kayıtlarınızı görüntüleyebilir ve paketleri inceleyebilirsiniz.</p>'
+            ? '<p>İşletme kayıtlarınızı görüntüleyebilir ve OLVEX aboneliğini inceleyebilirsiniz.</p>'
             : '<p>OLVEX abonelik sistemi hazırlanıyor. İşletme verileriniz güvende. Ücretli erişim açıldığında buradan devam edebilirsiniz.</p>',
-          link(packagePlan.billingAvailable ? "Paket seçimine git" : "Paketleri ve fiyatları gör", "/#fiyatlandirma", "small"))
+          link("Abonelik ve fiyatı gör", "/#fiyatlandirma", "small"))
         : "";
       content.innerHTML = subscription + renderers[tab](data, state());
     }

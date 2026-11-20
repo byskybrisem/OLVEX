@@ -1,5 +1,7 @@
 # OLVEX — Resmî lansman kontrol ve devir kaydı
 
+> Tarihsel karar kaydı. Yeni satışlar için [güncel OLVEX aboneliği ve Polar lansman rehberine](./POLAR-LANSMAN-TEKLIFI.md) bakın.
+
 **Tarih:** 19 Kasım 2026  
 **Hedef:** Beta etiketi olmadan, gerçek müşterilerin güvenli şekilde kullanabileceği resmî lansman.
 

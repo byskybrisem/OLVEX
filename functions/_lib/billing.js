@@ -55,7 +55,6 @@ export async function beginCheckout(ctx, body) {
   const id = identifier(body.requestId);
   const plan = plans[body.plan];
   const planRef = ctx.env[plan.binding];
-  const customer = customerPayload(body, ctx.user.email);
   const existing = () => ctx.db.prepare("SELECT * FROM olvex_subscriptions WHERE id = ? AND business_id = ? AND environment = ?")
     .bind(id, ctx.businessId, config.environment).first();
   const repeat = row => {
@@ -64,6 +63,8 @@ export async function beginCheckout(ctx, body) {
   };
   const previous = await existing();
   if (previous) return repeat(previous);
+  if (body.plan !== "profesyonel-monthly") throw new HttpError(409, "Bu abonelik yeni satışa kapalı.");
+  const customer = customerPayload(body, ctx.user.email);
 
   const checked = await iyzico(config, "/v2/subscription/pricing-plans/" + planRef);
   const remote = checked.data;

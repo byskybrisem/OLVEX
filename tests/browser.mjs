@@ -404,7 +404,7 @@ try {
   await loaded(page);
   await page.getByRole("button", { name: "+ Vardiya ekle", exact: true }).waitFor();
   await navigate(page, "settings", "Ayarlar");
-  await page.getByRole("heading", { name: "Paket · Profesyonel" }).waitFor();
+  await page.getByRole("heading", { name: "Abonelik · OLVEX" }).waitFor();
   await page.getByText(/bekleyen davet\./).waitFor();
 
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
@@ -686,7 +686,7 @@ try {
   await navigate(page, "overview", "Genel Bakış");
   await page.getByRole("heading", { name: "Aktif aboneliğiniz bulunmuyor" }).waitFor();
   await page.getByText(/OLVEX abonelik sistemi hazırlanıyor/).waitFor();
-  assert.equal(await page.getByRole("link", { name: "Paketleri ve fiyatları gör" }).getAttribute("href"), "/#fiyatlandirma");
+  assert.equal(await page.getByRole("link", { name: "Abonelik ve fiyatı gör" }).getAttribute("href"), "/#fiyatlandirma");
   assert.equal(await page.getByRole("link", { name: "Paket seçimine git" }).count(), 0);
   await navigate(page, "products", "Ürünler ve Stok");
   await page.getByText("Filtre kahve", { exact: true }).first().waitFor();

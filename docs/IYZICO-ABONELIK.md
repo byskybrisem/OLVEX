@@ -1,11 +1,15 @@
-# iyzico abonelik altyapısı
+# Geçmiş iyzico abonelikleri
+
+Yeni satışların ödeme sağlayıcısı Polar olarak belirlendi. [Güncel OLVEX aboneliği ve Polar lansman rehberi](./POLAR-LANSMAN-TEKLIFI.md).
+
+iyzico plan tutarları, geçmiş ödeme dönemlerinin doğrulanması için aşağıda kayıtlıdır. Önceki planlarda yeni checkout başlatılmaz. Mevcut işlemlerin dönüş, yenileme ve iptal yolları ile mevcut aylık checkout sözleşmesi korunur.
 
 | Paket | Aylık | Yıllık ödeme (%20 indirim) |
 | --- | ---: | ---: |
 | Esnaf | 499,00 TL | 4.790,40 TL |
 | Profesyonel | 999,00 TL | 9.590,40 TL |
 
-Fiyat ve plan eşleşmesini sunucu belirler. Checkout başlamadan önce iyzico planının TL fiyatı, aylık/yıllık periyodu, tek periyot aralığı, tekrarlayan ödeme tipi ve deneme süresi kontrol edilir. Ücretsiz kayıt ve mevcut modüller ödeme yapılandırmasına bağlı değildir. Abonelik API’sinin verdiği katman işletmeye aittir. Süresi dolmamış ve tutarı doğrulanmış bir ödeme dönemiyle etkinleşir. İptal doğrulanınca, ödeme başarısız olduğunda veya dönem bittiğinde ücretsiz katman döner. Esnaf ve Profesyonel için hangi modüllerin veya limitlerin farklı olacağı ürün kararıdır.
+Fiyat ve plan eşleşmesini sunucu belirler. Checkout başlamadan önce iyzico planının TL fiyatı, aylık/yıllık periyodu, tek periyot aralığı, tekrarlayan ödeme tipi ve deneme süresi kontrol edilir. Ücretsiz kayıt ve mevcut modüller ödeme yapılandırmasına bağlı değildir. Abonelik API’sinin verdiği katman işletmeye aittir. Süresi dolmamış ve tutarı doğrulanmış bir ödeme dönemiyle etkinleşir. İptal doğrulanınca, ödeme başarısız olduğunda veya dönem bittiğinde ücretsiz katman döner. Geçmiş aboneliklerin kendi dönemleri ve paket limitleriyle doğrulanması sürer.
 
 ## API ve hata davranışı
 
@@ -17,12 +21,9 @@ Fiyat ve plan eşleşmesini sunucu belirler. Checkout başlamadan önce iyzico p
 - İşletme başına bir açık checkout veya abonelik vardır. Aynı istek kimliği yeniden form başlatmaz. İlk yanıt kaybolursa tekrar isteği yalnızca durum döndürür. Zaman aşımında yeni ödeme oturumu üretmeden önce iyzico panelinde `conversationId` veya abonelik referansıyla mutabakat gerekir. İlk ödeme reddinden sonra da aynı sağlayıcı token’ı tekrar doğrulanabilir.
 - İptal, iyzico'nun etkin abonelik iptal işlemini çağırır. Sonuç belirsizse tekrar istek sadece sağlayıcı durumunu okur. Yeni iptal çağrısı için operasyonel mutabakat gerekir. İade, dönem sonunda iptal, kart güncelleme ve plan geçişi bu akışta sunulmuyor.
 
-## Üye işyeri ve canlı açılış
+## Mevcut ortamın yapılandırması
 
-1. iyzico’dan OLVEX’in faaliyet ve başvuru statüsü için Sanal POS ve **Abonelik** uygunluğunu yazılı doğrulayın. Resmî yardım merkezindeki bireysel başvuru açıklaması iyzico Link’e ilişkindir. Bu bilgi Abonelik başvurusu için onay anlamına gelmez.
-2. Başvuruya uygun imza sirküleri veya beyannamesi, vergi levhası ve işletmeciyle eşleşen banka hesabı/IBAN doğrulamasını hazırlayın. iyzico banka doğrulaması başarısız olursa hesap adı ve IBAN’ı gösteren belge ister. Başvuruya özgü ek belgeleri iyzico’dan alın ve üye işyeri sözleşmesini tamamlayın. Gizlilik, mesafeli satış, teslimat/iade ve işletmeci bilgileri sayfalarını abonelik koşulları ve iyzico’ya aktarılacak müşteri bilgilerine göre doğrulayın.
-3. Sandbox ve üretim için ayrı D1 ve ayrı iyzico kimlikleri kullanın. `0010_iyzico_subscriptions.sql` migrasyonunu doğru D1 bağında uygulayın. iyzico panelinde yukarıdaki ücretlerle dört farklı `RECURRING` plan ve `/api/billing/webhook` adresini tanımlayın. V3 webhook imzasının hesapta etkin olduğunu iyzico ile doğrulayın.
-4. İzole ödeme formu, ilk ödeme, yinelenen ödeme, başarısız ödeme, iptal, form ve webhook tekrarları gerçek sandbox hesabıyla doğrulandıktan sonra canlı yapılandırmayı ayrıca onaylayın. Paket yetki matrisini doğrulanmış sandbox abonelikleriyle tekrar test edin. Canlı ödeme butonunu ayrı yayın onayına bağlayın.
+Bu ayarlar önceki iyzico kurulumlarına aittir.
 
 | Cloudflare Pages ayarı | Değer |
 | --- | --- |
