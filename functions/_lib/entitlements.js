@@ -6,12 +6,26 @@ export function subscriptionEnvironment({ env, request }) {
   return env.OLVEX_BILLING === "sandbox" && isPreviewRequest(env, request) ? "sandbox" : "live";
 }
 
+const databaseNow = "CAST(strftime('%s','now') AS INTEGER) * 1000 + CAST(substr(strftime('%f','now'),4) AS INTEGER)";
+
 function paidSubscription(professionalOnly = false) {
-  return `SELECT ${professionalOnly ? "1" : "plan, paid_until"} FROM olvex_subscriptions
-    WHERE business_id = ? AND environment = ? AND state IN ('active','canceling')
-      AND paid_until > CAST(strftime('%s','now') AS INTEGER) * 1000 + CAST(substr(strftime('%f','now'),4) AS INTEGER)
+  return `SELECT ${professionalOnly ? "1" : "plan, paid_until, trial_until"} FROM olvex_subscriptions
+    WHERE business_id = ? AND environment = ?
       AND provider_ref IS NOT NULL AND customer_ref IS NOT NULL
+      AND (
+        (state IN ('active','canceling') AND paid_until > ${databaseNow})
+        OR (plan IN ('profesyonel-monthly','profesyonel-yearly')
+          AND state IN ('active','canceling','canceled') AND trial_until > ${databaseNow})
+      )
       ${professionalOnly ? "AND plan IN ('profesyonel-monthly','profesyonel-yearly')" : ""}`;
+}
+
+export const billableSql = `EXISTS (${paidSubscription(false)})`;
+export function billableGuard(environment) {
+  return {
+    sql: billableSql, values: id => [id, environment],
+    message: "Deneme veya ücretli abonelik etkin değil. İşlem yapmak için kartla abonelik başlatın."
+  };
 }
 
 export const professionalSql = `EXISTS (${paidSubscription(true)})`;
@@ -24,7 +38,7 @@ export async function entitlement(ctx) {
   const row = await ctx.db.prepare(paidSubscription()).bind(ctx.businessId, environment).first();
   const professional = row?.plan.startsWith("profesyonel-") === true;
   const tier = row ? (professional ? "profesyonel" : "esnaf") : "free";
-  return { professional, tier, paidUntil: row?.paid_until ?? null,
+  return { professional, tier, paidUntil: row?.paid_until ?? null, trialUntil: row?.trial_until ?? null,
     limits: { businesses: 1, branches: professional ? 5 : 1, users: professional ? 10 : 2 } };
 }
 
@@ -45,7 +59,7 @@ export function branchCapacity(ctx) {
   return {
     sql: `(SELECT COUNT(*) FROM olvex_branches WHERE business_id = ?) < ${branchLimitSql}`,
     values: id => [id, id, environment],
-    message: "Paketinizin şube sınırı doldu. Esnaf 1, Profesyonel 5 şube destekler."
+    message: "Paketinizin şube sınırı doldu. Profesyonel paket 5 şube destekler."
   };
 }
 
