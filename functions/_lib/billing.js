@@ -91,11 +91,14 @@ export async function beginCheckout(ctx, body) {
     (id, business_id, environment, plan, plan_ref, state, billing_terms_accepted_at, trial_owner_id, trial_identity_key)
     SELECT ?, ?, ?, ?, ?, 'creating', CURRENT_TIMESTAMP, user_id, ? FROM business_members
     WHERE business_id = ? AND user_id = ? AND role = 'owner'
-      AND NOT EXISTS (SELECT 1 FROM olvex_subscriptions WHERE business_id = ? AND environment = ?
-        AND provider_ref IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM olvex_subscriptions prior
+        WHERE prior.environment = ? AND prior.provider_ref IS NOT NULL
+          AND (prior.business_id = ? OR EXISTS (SELECT 1 FROM business_members owner
+            WHERE owner.business_id = prior.business_id AND owner.user_id = ? AND owner.role = 'owner'
+              AND (prior.trial_started_at IS NOT NULL OR prior.paid_until IS NOT NULL))))
     ON CONFLICT DO NOTHING`).bind(id, ctx.businessId, config.environment, body.plan, planRef,
       await trialIdentityKey(ctx.env.OLVEX_TRIAL_IDENTITY_SECRET, customer), ctx.businessId, ctx.actorId,
-      ctx.businessId, config.environment).run();
+      config.environment, ctx.businessId, ctx.actorId).run();
   if (!reserve.meta.changes) return repeat(await existing());
   const callback = new URL("/api/billing/callback", config.origin);
   callback.searchParams.set("id", id);

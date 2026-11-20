@@ -252,6 +252,11 @@ for (const duringTrial of [true, false]) test(duringTrial ? "Doğrulanmış dene
   await call({ ...checkout, requestId: crypto.randomUUID() }, 409);
 
   // Hosted checkout must render the iyzico bootstrap safely, not collect card data locally.
+  await DB.batch([
+    DB.prepare("INSERT INTO businesses(id,name,created_by) VALUES ('another','Ek işletme','owner')"),
+    DB.prepare("INSERT INTO business_members(id,business_id,user_id,role) VALUES ('extra','another','owner','owner')")
+  ]);
+  await call({ ...checkout, requestId: crypto.randomUUID(), identityNumber: "22222222222" }, 409, { businessId: "another" });
   await call({ ...checkout, requestId: crypto.randomUUID() }, 409, { user: "outsider", businessId: "other" });
   const fields = { ...checkout, identityNumber: "11111111111", businessId: "other", requestId: crypto.randomUUID() };
   const form = new URLSearchParams(Object.entries(fields).map(([key,value])=>[key,String(value)]));
