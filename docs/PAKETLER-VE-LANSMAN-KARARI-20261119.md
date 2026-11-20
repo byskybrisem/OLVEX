@@ -22,7 +22,7 @@ Bu belge pazarlama/fiyat kararı ile **gerçekte etkin teknik yetkileri** ayır�
 | Şube bazlı rapor | Hayır | Evet |
 | OLVEX AI (mevcut kota ve sağlayıcı) | Evet | Evet |
 
-**Sunucu yetkileri:** Yalnızca doğrulanmış iyzico kaydındaki etkin veya iptal sürerken ödemesi geçerli abonelik, ödenmiş dönem sonuna kadar paket yetkilerini verir. Başarısız yenileme, iptal, sona erme veya geçerli kayıt bulunmamasında ücretsiz erişim Esnaf sınırlarını kullanır. Her kullanıcı en fazla bir işletmenin sahibi olarak yeni işletme açabilir. Üye olunan ve geçmişten kalan işletmeler korunur. Üye ve süresi dolmamış bekleyen davet birlikte sayılır. Paket düşüşünde şubeler, üyeler ve geçmiş iş kayıtları saklanır. Kota aşıldıysa yeni şube veya davet oluşturulamaz. Sandbox abonelikleri yalnızca sandbox yapılandırılmış önizlemede geçerlidir.
+**Sunucu yetkileri:** Yalnızca doğrulanmış iyzico kaydındaki etkin veya iptal sürerken ödemesi geçerli abonelik, ödenmiş dönem sonuna kadar paket yetkilerini verir. Başarısız yenileme, iptal, sona erme veya geçerli kayıt bulunmamasında yalnızca mevcut kayıtlara salt okunur erişim, ilk işletme kurulumu ve abonelik işlemleri açık kalır. Her kullanıcı en fazla bir işletmenin sahibi olarak yeni işletme açabilir. Üye olunan ve geçmişten kalan işletmeler korunur. Üye ve süresi dolmamış bekleyen davet birlikte sayılır. Paket düşüşünde şubeler, üyeler ve geçmiş iş kayıtları saklanır. Kota aşıldıysa yeni şube veya davet oluşturulamaz. Sandbox abonelikleri yalnızca sandbox yapılandırılmış önizlemede geçerlidir.
 
 **AI kararı:** Her iki paket mevcut sağlayıcı ve kota ayarlarını kullanır. Şube bazlı performans verisi Profesyonel yetkisine bağlıdır. Canlı sağlayıcı ve kota, lansmandan önce ayrıca doğrulanır.
 

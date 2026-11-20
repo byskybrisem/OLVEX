@@ -34,11 +34,10 @@ form.addEventListener("submit", async (event) => {
   try {
     const result = await request("/api/businesses", "POST", { name, requestId });
     // When billing is enabled, begin the card-verified trial after the first business is created.
-    // During the iyzico approval period, retain the existing free setup flow.
     let redirect = `/app.html?business=${encodeURIComponent(result.business.id)}`;
     try {
       const status = await request(`/api/workspace/${encodeURIComponent(result.business.id)}/billing`);
-      if (status.enabled) redirect = `/billing.html?businessId=${encodeURIComponent(result.business.id)}`;
+      if (status.checkoutEnabled) redirect = `/billing.html?businessId=${encodeURIComponent(result.business.id)}`;
     } catch { /* Preserve the created business even if billing status cannot load. */ }
     location.replace(redirect);
   } catch (error) {

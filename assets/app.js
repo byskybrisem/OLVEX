@@ -6,7 +6,7 @@ import { formCommand } from "./forms.js";
 import { importProducts } from "./product-import.js";
 import { customerHistory, importSales, lookup, lookupField, newOrder, orderCommand } from "./orders.js";
 import { actions, renderers, roles, views } from "./views.js";
-import { button, csvDownload, day, h, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
+import { button, csvDownload, day, h, link, monthSpan, moveMonth, offsetDay, periods, panel, request, today } from "./ui.js";
 
 const $ = (selector) => document.querySelector(selector);
 const content = $("#content");
@@ -198,7 +198,7 @@ async function load() {
   content.innerHTML = '<div class="loading-panel" role="status">Kayıtlar yükleniyor…<i></i><i></i><i></i></div>';
   data = null;
   try {
-    const packagePlan = ["settings", "locations", "reports"].includes(tab)
+    const packagePlan = ["overview", "settings", "locations", "reports"].includes(tab)
       ? await get(businessId, "package") : null;
     if (current !== revision) return;
     if (tab === "reports" && !packagePlan.professional) {
@@ -226,7 +226,16 @@ async function load() {
       $("#alerts").hidden = false;
     }
     if (tab === "ai") unmountAI = mountAI(content, commandContext(), data.mode, user.id);
-    else content.innerHTML = renderers[tab](data, state());
+    else {
+      const subscription = packagePlan?.tier === "inactive" && ["overview", "settings"].includes(tab)
+        ? panel("Aktif aboneliğiniz bulunmuyor",
+          packagePlan.billingAvailable
+            ? '<p>İşletme kayıtlarınızı görüntüleyebilir ve paketleri inceleyebilirsiniz.</p>'
+            : '<p>OLVEX abonelik sistemi hazırlanıyor. İşletme verileriniz güvende. Ücretli erişim açıldığında buradan devam edebilirsiniz.</p>',
+          link(packagePlan.billingAvailable ? "Paket seçimine git" : "Paketleri ve fiyatları gör", "/#fiyatlandirma", "small"))
+        : "";
+      content.innerHTML = subscription + renderers[tab](data, state());
+    }
     content.scrollTop = 0;
   } catch (error) {
     if (current !== revision || loginIfNeeded(error)) return;

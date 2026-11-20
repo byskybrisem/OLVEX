@@ -1,6 +1,5 @@
 
-import { billableGuard, entitlement, packageStatus, professionalGuard, requireProfessional, subscriptionEnvironment } from "../../../_lib/entitlements.js";
-import { billingConfig } from "../../../_lib/iyzico.js";
+import { entitlement, packageStatus, requirePaidSubscription, requireProfessional, professionalMessage } from "../../../_lib/entitlements.js";
 import { beginCheckout, billingStatus, manageSubscription } from "../../../_lib/billing.js";
 import { linkLegacyCsv } from "../../../_lib/legacy-csv.js";
 import { csvSources, importRegisterSale } from "../../../_lib/register.js";
@@ -132,7 +131,10 @@ export const onRequestGet = handle(async (context) => {
   const ctx = await workspace(context, roles);
   ctx.paramsUrl = new URL(context.request.url).searchParams;
 
-  if (premiumSections.has(section) || (section === "reports" && ctx.paramsUrl.has("branchId"))) await requireProfessional(ctx);
+  if (section === "reports" && ctx.paramsUrl.has("branchId")) await requireProfessional(ctx);
+  if (premiumSections.has(section) && (await entitlement(ctx)).tier === "esnaf") {
+    throw new HttpError(403, professionalMessage);
+  }
   return json(await action(ctx));
 });
 
@@ -156,14 +158,6 @@ export const onRequestPost = handle(async (context) => {
   const [roles, action] = WRITE[section][data.action];
   const ctx = await workspace(context, roles);
 
-  // In live billing mode, no free write access remains after the trial. Reads and billing stay available.
-  if (section !== "billing" && billingConfig(ctx.env)?.environment === "live") {
-    if ((await entitlement(ctx)).tier === "free") {
-      throw new HttpError(402, "Deneme veya ücretli abonelik etkin değil. Yeni işlem için abonelik başlatın.");
-    }
-    ctx.packageGuard = billableGuard(subscriptionEnvironment(ctx));
-  }
-
   if (
     Object.hasOwn(data, "businessId") &&
     data.businessId !== ctx.businessId
@@ -174,8 +168,10 @@ export const onRequestPost = handle(async (context) => {
     );
   }
 
-  if (premiumSections.has(section) || (section === "settings" && data.action === "member" && data.role !== "remove")) {
-    ctx.packageGuard = professionalGuard(await requireProfessional(ctx));
+  if (section !== "billing") {
+    const professional = premiumSections.has(section) ||
+      (section === "settings" && data.action === "member" && data.role !== "remove");
+    ctx.packageGuard = await requirePaidSubscription(ctx, { professional });
   }
   return json(await action(ctx, data));
 });

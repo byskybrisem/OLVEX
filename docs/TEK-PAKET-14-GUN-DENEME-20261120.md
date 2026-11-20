@@ -1,29 +1,19 @@
-# OLVEX — 20 Kasım 2026 Tek Paket ve Kartlı Deneme Kararı
+# OLVEX Profesyonel ve kartlı deneme
 
-## Müşteriye görünen teklif
-- **Tek abonelik paketi: Profesyonel.** Aylık **999 TL** veya yıllık **9.590,40 TL** (%20 indirim).
-- **14 gün ücretsiz deneme**: yalnızca iyzico'nun güvenli kart doğrulaması tamamlanınca başlar, hesap kaydı tek başına deneme başlatmaz.
-- Kullanıcı kartını iyzico Checkout Form üzerinde girer. OLVEX kart numarası/CVV saklamaz.
-- Sağlayıcı kartı doğrulamak amacıyla geçici **1 TL çekip iade edebilir**. Deneme içinde abonelik bedeli alınmaz.
-- Deneme süresi bitmeden abonelik iptal edilmezse **seçilen aylık veya yıllık abonelik tutarı** otomatik tahsil edilir. Başvuru öncesi açık onay alınır ve sunucuya kaydedilir.
-- 1 işletme, 5 şube, 10 kullanıcı (işletme sahibi dahil). POS API/CSV/manual kayıt, transfer ve personel yetkileri mevcut backend'deki sınırlara tabidir. Kasa sağlayıcısına özel hazır bir bağlayıcı garanti edilmez; canlı AI sohbetinin pakete dahil olduğu iddia edilmez.
-- Mevcut Esnaf kayıtları korunur ama **yeni Esnaf satışı açılmaz**. Eski aboneliklerin tutarı/tarihçesi değiştirilmez.
+Yeni satış için aylık 999 TL veya yıllık 9.590,40 TL tutarında tek paket hazırlanmıştır. Yıllık indirim %20’dir. Esnaf satışa kapalıdır. Geçmiş Esnaf abonelikleri önceki tarife, dönem ve haklarıyla doğrulanır.
 
-## Teknik uygulama
-- `functions/_lib/iyzico.js`: yalnızca iki Profesyonel ödeme dönemi satılabilir; `legacyPlans` eski kayıtların güvenli doğrulanması içindir.
-- `migrations/0015_professional_trial.sql`: deneme bitişi ve otomatik yenileme onay zamanı (additive schema).
-- `functions/_lib/billing.js`: iyzico planının 14 gün / doğru fiyat / dönem koşullarını doğrulama, imzalı iyzico yanıtlarından deneme bitişini alma, ödemeli döneme geçiş ve iptal.
-- `functions/_lib/entitlements.js`: aktif deneme veya ödenmiş dönemde Profesyonel yetkileri. Süre bitiminde ücret ödenmemişse erişim sona erer; kayıtlar saklanır.
-- `functions/api/workspace/[businessId]/[section].js`: **yalnızca canlı ödeme yapılandırması açıkken** aktif aboneliği olmayan kullanıcıya yeni işleme izin verilmez; okuma/billing açık kalır. Yeni yazmalar veritabanı seviyesinde ayrıca sorgu korumasına tabidir. Mevcut müşterileri iyzico onayını beklerken kilitlememek için ödeme özelliği hâlâ kapalı.
-- `billing.html`, `assets/billing.js`, `functions/api/billing/start.js`: işletme sahibi onayı ve sunucu üzerinden iyzico formu. Kart alanları OLVEX'te sunulmaz.
+## Kart doğrulaması ve erişim
 
-## Lansman ön koşulları — **tamamlandığı doğrulanmadan canlıya açmayın**
-1. iyzico üye işyeri ve **Abonelik** özelliği canlı onaylanmalı; 2 Profesyonel fiyat planı iyzico panelinde `trialPeriodDays: 14` ile oluşturulmalı. Aylık/yıllık fiyatlar 999,00 / 9.590,40 TL ve tekrarlama sıklığı eşleşmeli.
-2. Cloudflare D1 üretim veritabanına kontrollü migration `0015` uygulanmalı, yedek ve geri dönüşü planlanmalı.
-3. Cloudflare secrets `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_MERCHANT_ID`; plain-text env `OLVEX_BILLING_ORIGIN` ve iki pro plan ref ayarlanmalı. Anahtarlar Git'e konmaz.
-4. iyzico sandbox üzerinden gerçek Checkout Form yükleme/host CSP, kart 1 TL doğrulama, başlangıçta **0 TL abonelik ödemesi**, callback/webhook, 14 gün erişim, ilk tahsilat, yenileme, başarısız tahsilat, iptal ve tekrar deneme kötüye kullanım senaryoları test edilmeli.
-5. Koşullar/ön bilgilendirme, vergi dahil tutar, fatura/muhasebe ve iptal/cayma/iade mevzuatı hukuk/mali müşavir tarafından kontrol edilmeli. Mesafeli hizmet sözleşmesi işlem öncesi saklanabilir ve doğrulanabilir onayla tamamlanmalı.
-6. Tüm CI ve tarayıcı testleri geçmeli; gerçek kullanıcı, tarayıcı ve cihaz denetimi yapılmalı.
-7. Yalnızca bunlar başarılı olunca `OLVEX_BILLING=live` ve kontrollü müşteri kaydı açılmalı.
+1. İşletme sahibi dönemi seçer ve yenileme koşullarını kabul eder. Sunucu fiyatı, TRY para birimini, ödeme sıklığını, tekrarlayan planı ve `trialPeriodDays = 14` değerini iyzico plan detayından kontrol eder. Doğrulanan plan referansı ve onay zamanı abonelik kaydındadır. [iyzico ödeme planı](https://docs.iyzico.com/urunler/abonelik/abonelik-entegrasyonu/odeme-plani)
+2. Kart alanlarını iyzico Checkout Form sunar. iyzico kart doğrulaması için 1 TL çeker ve hemen iade eder. Deneme boyunca normal abonelik ücreti alınmaz. OLVEX kart numarası veya CVV saklamaz. [iyzico abonelik işlemleri](https://docs.iyzico.com/urunler/abonelik/abonelik-entegrasyonu/abonelik-islemleri)
+3. Callback’teki belirtecin özeti D1’deki ödeme oturumuyla eşleşmelidir. Sunucu iyzico’dan form sonucunu ve abonelik detayını ayrı ayrı alır. İlgili müşteri, plan ve abonelik referansları, ACTIVE durumu ve tam 14 günlük sağlayıcı zaman aralığı doğrulanınca başlangıç ve bitiş kaydedilir. Tekrar gelen bildirim bu süreyi uzatamaz.
+4. Yazma işlemleri D1 saatine göre geçerli denemeye veya doğrulanmış ödenmiş döneme bağlıdır. İlk tahsilat için webhook imzası kontrol edilir ve sipariş durumu, dönem, tutar ve para birimi sağlayıcıdan yeniden okunur. Ödeme gelmezse işletme kayıtları okunabilir. Deneme sırasında doğrulanmış iptalde kalan deneme süresi boyunca erişim korunur.
+5. İşletme ve sahip için ikinci deneme kısıtlanır. Aynı kimlik numarası ve telefon ikilisinin farklı hesapla tekrar kullanılması, ortama özel gizli anahtarla üretilen HMAC ve D1 benzersizlik kısıtıyla denetlenir. Tek başına ortak telefon, IP veya isim eşleşmesi müşteriyi engellemez. Fatura bilgileri müşterinin beyanıdır. Bu kontrol farklı kimlik ve telefonlarla kaydı bütünüyle önlemez.
+6. Kesin form başlatma hatası rezervasyonu serbest bırakır. Belirsiz veya yarım kalan işlemlerde destek, iyzico işlem kaydını uzlaştırmalıdır. Açık bir aboneliğin bulunmadığı doğrulanmadan yeni tahsilat akışı başlatılmaz. Eski müşterinin ücretli dönüşü de destek üzerinden ele alınır.
 
-**Not:** Bu dal canlı iyzico merchant hesabını aktive etmez. Üretimde mevcut ödeme kapalı uyarısı korunur.
+## iyzico onayından sonra
+
+- Önce ayrı sandbox ürününde MONTHLY ve YEARLY olmak üzere iki yeni, süresiz RECURRING plan tanımlayın. Her ikisinde `paymentIntervalCount = 1`, `currencyCode = TRY`, `trialPeriodDays = 14` kullanın. Eski plan referanslarını veya fiyatlarını değiştirmeyin.
+- Yalıtılmış test ortamında `OLVEX_BILLING=sandbox`, `OLVEX_ENVIRONMENT=preview`, tam HTTPS `OLVEX_BILLING_ORIGIN` ve iki `IYZICO_PROFESYONEL_*` plan referansı gerekir. API anahtarlarını, üye işyeri numarasını ve en az 32 karakterlik sabit, bağımsız `OLVEX_TRIAL_IDENTITY_SECRET` değerini gizli yapılandırmada tutun. HMAC anahtarının değişmesi önceki kimlik eşleşmelerini etkiler.
+- Sağlayıcıda aynı ortama ait `/api/billing/webhook` adresini ve V3 imzalı abonelik bildirimlerini yapılandırın. Sandbox test kartıyla gerçek form/CSP, kart doğrulaması ve iade, ACTIVE detay tarihleri, iptal, ilk başarılı ve başarısız tahsilatı sınayın. Sağlayıcı hareketlerini ve D1 kayıtlarını karşılaştırın.
+- Üretime geçişte D1 yedeğini ve migrasyon sırasını gözden geçirin. Ayrı, eklemeli `0015_professional_trial.sql` için yayın planı ve nihai sözleşme/onay metinleri gereklidir. Bu PR yalnız sandbox ortamında yeni abonelik açar. Canlı satış için sandbox kanıtı ve iyzico onayından sonra ayrı bir kod incelemesi ve yayın kararı gerekir.

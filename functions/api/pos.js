@@ -1,5 +1,5 @@
 import { clientIp, handle, HttpError, json, readJson } from "../_lib/http.js";
-import { professionalGuard, requireProfessional } from "../_lib/entitlements.js";
+import { requirePaidSubscription, paidSql, subscriptionEnvironment } from "../_lib/entitlements.js";
 import { postRegisterEvent } from "../_lib/register.js";
 import { sha256, TOKEN_PATTERN } from "../_lib/session.js";
 import { isRateLimited, reachedRateLimit } from "./auth/rate-limit.js";
@@ -28,7 +28,7 @@ export const onRequestPost = handle(async ({ request, env }) => {
     throw new HttpError(401, "Kasa anahtarı geçersiz veya bağlantı iptal edilmiş. OLVEX’teki kasa kaydını ve güncel anahtarı kontrol edin.");
   }
   const ctx = { db, env, request, pos, tokenHash, businessId: pos.business_id, actorId: pos.created_by };
-  ctx.packageGuard = professionalGuard(await requireProfessional(ctx));
+  ctx.packageGuard = await requirePaidSubscription(ctx, { professional: true });
   const configured = Number(env.OLVEX_POS_REQUESTS_PER_MINUTE);
   const limit = Number.isSafeInteger(configured) && configured > 0 ? configured : REGISTER_LIMIT;
   if (await isRateLimited(db, `pos-register:${pos.business_id}:${pos.id}`, limit, WINDOW_SECONDS)) throw limited();
@@ -36,8 +36,8 @@ export const onRequestPost = handle(async ({ request, env }) => {
   const result = await postRegisterEvent(ctx, body);
   // A recorded acknowledgment proves this key reached the API, even on an idempotent replay.
   await db.prepare(`UPDATE olvex_pos_connections SET last_api_success_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE business_id = ? AND id = ? AND token_hash = ? AND revoked_at IS NULL`)
-    .bind(pos.business_id, pos.id, tokenHash).run()
+    WHERE business_id = ? AND id = ? AND token_hash = ? AND revoked_at IS NULL AND ${paidSql}`)
+    .bind(pos.business_id, pos.id, tokenHash, ctx.businessId, subscriptionEnvironment(ctx)).run()
     .catch(() => console.warn("OLVEX POS aktarım zamanı kaydedilemedi."));
   return json(result, result.repeated || body.action === "void" ? 200 : 201);
 });

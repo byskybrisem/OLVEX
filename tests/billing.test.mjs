@@ -9,9 +9,11 @@ import { onRequestPost as callback } from "../functions/api/billing/callback.js"
 import { onRequestPost as webhook } from "../functions/api/billing/webhook.js";
 import { onRequestPost as hostedCheckout } from "../functions/api/billing/start.js";
 import { onRequestGet, onRequestPost } from "../functions/api/workspace/[businessId]/[section].js";
+import { requirePaidSubscription } from "../functions/_lib/entitlements.js";
+import { transact } from "../functions/_lib/workspace.js";
 import { randomToken, sha256 } from "../functions/_lib/session.js";
 
-test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde", async (t) => {
+for (const duringTrial of [true, false]) test(duringTrial ? "Doğrulanmış deneme, iptal ve müşteri sınırı" : "Deneme sonu, ilk tahsilat ve bildirim tekrarları", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "olvex-billing-"));
   const configPath = join(dir, "wrangler.json");
   await writeFile(configPath, JSON.stringify({ name: "olvex-billing-test", compatibility_date: "2025-10-01",
@@ -39,7 +41,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
 
   const origin = "https://billing.example.test";
   const env = { DB, OLVEX_BILLING_ORIGIN: origin, IYZICO_API_KEY: "fixture-key", IYZICO_SECRET_KEY: "fixture-secret",
-    IYZICO_MERCHANT_ID: "123", IYZICO_ESNAF_MONTHLY: "plan-em", IYZICO_ESNAF_YEARLY: "plan-ey",
+    OLVEX_TRIAL_IDENTITY_SECRET: "isolated-fixture-trial-secret-32-bytes", IYZICO_MERCHANT_ID: "123", IYZICO_ESNAF_MONTHLY: "plan-em", IYZICO_ESNAF_YEARLY: "plan-ey",
     IYZICO_PROFESYONEL_MONTHLY: "plan-pm", IYZICO_PROFESYONEL_YEARLY: "plan-py" };
   const call = async (body, status, { user = "owner", businessId = "biz" } = {}) => {
     const request = new Request(`${origin}/api/workspace/${businessId}/billing`, {
@@ -60,22 +62,27 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     assert.equal(response.status, 200);
     return (await response.json()).tier;
   };
-  const checkout = { action: "checkout", plan: "profesyonel-monthly", requestId: crypto.randomUUID(), acceptedBillingTerms: true, price: 1,
+  const plan = duringTrial ? "profesyonel-monthly" : "profesyonel-yearly";
+  const planRef = duringTrial ? "plan-pm" : "plan-py";
+  const correctPrice = duringTrial ? "999.00" : "9590.40";
+  const checkout = { action: "checkout", plan, requestId: crypto.randomUUID(), acceptedBillingTerms: true, price: 1,
     name: "Örnek", surname: "Üye", identityNumber: "00000000000", gsmNumber: "+905000000000",
     address: "Yalıtılmış test", city: "Denizli" };
 
   const sign = message => createHmac("sha256", env.IYZICO_SECRET_KEY).update(message).digest("hex");
   let initialized = 0;
   let cancellations = 0;
+  let planDays = 14;
   let planPrice = "1.00";
   let conversationId;
   let formOk = false;
   let detailShape = "missing";
   let subscriptionStatus = "ACTIVE";
   const now = Date.now();
-  const paidPeriod = { referenceCode: "order-a", orderStatus: "SUCCESS", currencyCode: "TRY", price: "999.00",
+  const paidPeriod = { referenceCode: "order-a", orderStatus: "SUCCESS", currencyCode: "TRY", price: correctPrice,
     startPeriod: now - 10000, endPeriod: now + 86400000 };
-  const trialStartDate = now - 1000;
+  const trialStartDate = now - (duringTrial ? 1000 : 15 * 86400000);
+  let dateOffset = 0;
   const trialEndDate = trialStartDate + 14 * 86400000;
   let orders = [{ ...paidPeriod, orderStatus: "WAITING", startPeriod: trialEndDate }];
   const realFetch = globalThis.fetch;
@@ -87,15 +94,15 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     const signed = sign(nonce + url.pathname + (options.body || ""));
     assert.equal(options.headers.Authorization, "IYZWSv2 " + btoa(`apiKey:fixture-key&randomKey:${nonce}&signature:${signed}`));
     switch (url.pathname) {
-      case "/v2/subscription/pricing-plans/plan-pm":
-        return Response.json({ status: "success", data: { referenceCode: "plan-pm", status: "ACTIVE", planPaymentType: "RECURRING",
-          price: planPrice, currencyCode: "TRY", paymentInterval: "MONTHLY", paymentIntervalCount: 1, trialPeriodDays: 14 } });
+      case "/v2/subscription/pricing-plans/" + planRef:
+        return Response.json({ status: "success", data: { referenceCode: planRef, status: "ACTIVE", planPaymentType: "RECURRING",
+          price: planPrice, currencyCode: "TRY", paymentInterval: duringTrial ? "MONTHLY" : "YEARLY", paymentIntervalCount: 1, trialPeriodDays: planDays } });
       case "/v2/subscription/checkoutform/initialize": {
         initialized++;
         const body = JSON.parse(options.body);
         assert.deepEqual(Object.keys(body.customer).sort(), ["billingAddress", "email", "gsmNumber", "identityNumber", "name", "surname"]);
         assert.ok(["owner@example.test", "outsider@example.test"].includes(body.customer.email));
-        assert.equal(body.pricingPlanReferenceCode, "plan-pm");
+        assert.equal(body.pricingPlanReferenceCode, planRef);
         assert.equal(body.callbackUrl, origin + "/api/billing/callback?id=" + body.conversationId);
         conversationId = body.conversationId;
         return Response.json({ status: "success", conversationId, token: body.customer.email === "outsider@example.test" ? "checkout-token-other" : "checkout-token", checkoutFormContent: "<script>window.iyzicoFixture = true;</script>" });
@@ -105,14 +112,14 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
         assert.equal(url.searchParams.get("conversationId"), conversationId);
         return Response.json(formOk ? { status: "success", conversationId,
           data: { referenceCode: "sub", customerReferenceCode: "customer", subscriptionStatus: "ACTIVE",
-            pricingPlanReferenceCode: "plan-pm" } } : { status: "failure" });
+            pricingPlanReferenceCode: planRef } } : { status: "failure" });
       case "/v2/subscription/subscriptions/sub/cancel":
         cancellations++;
         subscriptionStatus = "CANCELED";
         return Response.json({ status: "success" });
       case "/v2/subscription/subscriptions/sub": {
         const subscription = { referenceCode: "sub", customerReferenceCode: "customer",
-          pricingPlanReferenceCode: "plan-pm", subscriptionStatus, trialDays: 14, trialStartDate, trialEndDate, orders };
+          pricingPlanReferenceCode: planRef, subscriptionStatus, trialDays: 14, trialStartDate: trialStartDate + dateOffset, trialEndDate: trialEndDate + dateOffset, orders };
         const unrelated = { ...subscription, referenceCode: "other-sub" };
         const items = detailShape === "missing" ? [unrelated] : [unrelated, subscription];
         if (detailShape === "duplicate") items.push(subscription);
@@ -124,6 +131,9 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
 
   assert.equal((await call(null, 200)).enabled, false);
   await call(checkout, 503);
+  env.OLVEX_BILLING = "live";
+  await call(checkout, 403);
+  assert.equal(initialized, 0);
   env.OLVEX_BILLING = "sandbox";
   env.OLVEX_ENVIRONMENT = "preview";
   await call(checkout, 403, { user: "admin" });
@@ -132,12 +142,15 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await call({ ...checkout, plan: "esnaf-monthly" }, 400);
   await call(checkout, 503);
   assert.equal(initialized, 0);
-  planPrice = "999.00";
+  planPrice = correctPrice;
+  planDays = 0;
+  await call(checkout, 503);
+  planDays = 14;
   const initial = await Promise.all([call(checkout, 200), call(checkout, 200)]);
   assert.equal(initial.filter(row => row.checkoutFormContent).length, 1);
   assert.equal(initialized, 1);
   await call({ ...checkout, requestId: crypto.randomUUID() }, 409);
-  assert.equal((await call(null, 200)).tier, "free");
+  assert.equal((await call(null, 200)).tier, "inactive");
 
   const confirm = async (token, status) => {
     const response = await callback({ env, request: new Request(origin + "/api/billing/callback?id=" + checkout.requestId, {
@@ -152,15 +165,27 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await confirm("checkout-token", 502);
   detailShape = "duplicate";
   await confirm("checkout-token", 502);
-  assert.equal((await call(null, 200)).tier, "free");
+  assert.equal((await call(null, 200)).tier, "inactive");
   detailShape = "list";
+  dateOffset = 20 * 86400000;
+  await confirm("checkout-token", 502);
+  dateOffset = 0;
+  subscriptionStatus = "PENDING";
+  await confirm("checkout-token", 303);
+  assert.equal((await call(null, 200)).subscription.trialStartedAt, null);
+  subscriptionStatus = "ACTIVE";
   await confirm("checkout-token", 303);
   await confirm("checkout-token", 303);
-  assert.equal((await call(null, 200)).tier, "profesyonel");
-  assert.equal((await call(null, 200)).subscription.trial, true);
-  assert.equal((await call(null, 200)).subscription.trialUntil, trialEndDate);
-  assert.equal(await packageTier(), "profesyonel");
-  assert.equal(await packageTier("https://olvex.com.tr"), "free");
+  const subscription = (await call(null, 200)).subscription;
+  assert.equal(subscription.trial, duringTrial);
+  assert.equal(subscription.trialStartedAt, trialStartDate);
+  assert.equal(subscription.trialUntil, trialEndDate);
+  const trialTier = duringTrial ? "profesyonel" : "inactive";
+  assert.equal(await packageTier(), trialTier);
+  assert.equal(await packageTier("https://olvex.com.tr"), "inactive");
+  dateOffset = -1000;
+  await confirm("checkout-token", 502);
+  dateOffset = 0;
 
   const notify = async (type, status, { valid = true, order = "order-next" } = {}) => {
     const event = { iyziEventType: "subscription.order." + type, subscriptionReferenceCode: "sub",
@@ -172,37 +197,48 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     }) });
     assert.equal(response.status, status);
   };
-  detailShape = "direct";
-  subscriptionStatus = "UNPAID";
-  orders = [{ ...paidPeriod, referenceCode: "order-next", orderStatus: "FAILED" }];
-  await notify("failure", 403, { valid: false });
-  assert.equal((await call(null, 200)).tier, "profesyonel");
-  await notify("failure", 200);
-  assert.equal(await packageTier(), "free");
-  assert.equal((await call(null, 200)).subscription.state, "unpaid");
-  assert.equal((await call(null, 200)).tier, "free");
+  if (!duringTrial) {
+    detailShape = "direct";
+    subscriptionStatus = "UNPAID";
+    orders = [{ ...paidPeriod, referenceCode: "order-next", orderStatus: "FAILED" }];
+    await notify("failure", 403, { valid: false });
+    assert.equal((await call(null, 200)).tier, "inactive");
+    await notify("failure", 200);
+    assert.equal(await packageTier(), "inactive");
+    assert.equal((await call(null, 200)).subscription.state, "unpaid");
+    assert.equal((await call(null, 200)).tier, "inactive");
 
-  subscriptionStatus = "ACTIVE";
-  orders = [{ ...paidPeriod, referenceCode: "order-next", endPeriod: paidPeriod.endPeriod + 86400000 }];
-  await notify("success", 200);
-  const revision = () => DB.prepare("SELECT revision FROM olvex_subscriptions WHERE id = ?").bind(checkout.requestId).first("revision");
-  const afterRenewal = await revision();
-  await notify("success", 200);
-  await notify("failure", 200);
-  assert.equal(await revision(), afterRenewal);
-  assert.equal(await packageTier(), "profesyonel");
-  assert.equal((await call(null, 200)).subscription.paidUntil, orders[0].endPeriod);
+    subscriptionStatus = "ACTIVE";
+    orders = [{ ...paidPeriod, referenceCode: "order-next", endPeriod: paidPeriod.endPeriod + 86400000 }];
+    await notify("success", 200);
+    const revision = () => DB.prepare("SELECT revision FROM olvex_subscriptions WHERE id = ?").bind(checkout.requestId).first("revision");
+    const afterRenewal = await revision();
+    await notify("success", 200);
+    await notify("failure", 200);
+    assert.equal(await revision(), afterRenewal);
+    assert.equal(await packageTier(), "profesyonel");
+    assert.equal((await call(null, 200)).subscription.paidUntil, orders[0].endPeriod);
+  }
 
+  const queuedWrite = { db: DB, env, request: new Request(origin), businessId: "biz", actorId: "owner", roles: ["owner"] };
+  queuedWrite.packageGuard = await requirePaidSubscription(queuedWrite);
   const cancel = { action: "cancel", id: checkout.requestId };
   await call(cancel, 404, { user: "outsider", businessId: "other" });
   assert.equal((await call(cancel, 200)).state, "canceled");
   await call(cancel, 200);
   assert.equal(cancellations, 1);
-  assert.equal((await call(null, 200)).tier, "profesyonel");
+  assert.equal((await call(null, 200)).tier, trialTier);
+  if (!duringTrial) {
+    await assert.rejects(transact(queuedWrite, "business-rename", { requestId: crypto.randomUUID() }, [
+      DB.prepare("UPDATE businesses SET name = 'Değişmemeli' WHERE id = 'biz'")
+    ]), { status: 403 });
+    assert.equal(await DB.prepare("SELECT name FROM businesses WHERE id = 'biz'").first("name"), "Örnek");
+  }
   await call({ ...checkout, requestId: crypto.randomUUID() }, 409);
 
   // Hosted checkout must render the iyzico bootstrap safely, not collect card data locally.
-  const fields = { ...checkout, businessId: "other", requestId: crypto.randomUUID() };
+  await call({ ...checkout, requestId: crypto.randomUUID() }, 409, { user: "outsider", businessId: "other" });
+  const fields = { ...checkout, identityNumber: "11111111111", businessId: "other", requestId: crypto.randomUUID() };
   const form = new URLSearchParams(Object.entries(fields).map(([key,value])=>[key,String(value)]));
   const postForm = (originUrl, cookie, headers = {}) => hostedCheckout({ env,
     request: new Request(originUrl + "/api/billing/start", {
@@ -234,5 +270,5 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
       body: JSON.stringify({ action: "save", requestId: crypto.randomUUID() })
     }), params: { businessId: "biz", section: "products" }
   });
-  assert.equal(blocked.status, 402);
+  assert.equal(blocked.status, 403);
 });

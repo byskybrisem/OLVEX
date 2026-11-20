@@ -1,5 +1,5 @@
 import { beginCheckout, requireBilling } from "../../_lib/billing.js";
-import { handle, HttpError, isPreviewRequest, sameOrigin } from "../../_lib/http.js";
+import { handle, HttpError, sameOrigin } from "../../_lib/http.js";
 import { OWNER, workspace } from "../../_lib/workspace.js";
 
 function escapeHtml(value) {
@@ -8,10 +8,7 @@ function escapeHtml(value) {
 
 export const onRequestPost = handle(async ({ request, env }) => {
   sameOrigin(request);
-  const config = requireBilling(env);
-  if (config.environment === "sandbox" && !isPreviewRequest(env, request)) {
-    throw new HttpError(403, "Canlı alan adında test ödemesi başlatılamaz.");
-  }
+  requireBilling(env, request);
   if (request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/x-www-form-urlencoded") {
     throw new HttpError(415, "Ödeme formu gönderimi gerekli.");
   }
@@ -70,9 +67,9 @@ export const onRequestPost = handle(async ({ request, env }) => {
     '<link rel="stylesheet" href="/assets/public.css"></head><body><main class="shell">' +
     '<header><a class="brand" href="/billing.html?businessId=' + encodeURIComponent(businessId) + '">OLVEX</a></header>' +
     '<section class="card"><h1>Güvenli kart doğrulama</h1>' +
-    '<p>14 günlük denemede abonelik ücreti alınmaz. İptal etmezseniz seçtiğiniz dönem sonunda ' +
+    '<p>14 günlük denemede abonelik ücreti alınmaz. İptal etmezseniz 14 günlük deneme bittiğinde ' +
     escapeHtml(values.plan === "profesyonel-monthly" ? "999 TL/ay" : "9.590,40 TL/yıl") +
-    ' abonelik ücreti otomatik tahsil edilir. iyzico kart doğrulaması için geçici 1 TL çekip iade edebilir.</p>' +
+    ' abonelik ücreti otomatik tahsil edilir. iyzico kart doğrulaması için 1 TL çeker ve hemen iade eder.</p>' +
     '<div id="iyzipay-checkout-form" class="responsive"></div>' + trusted +
     '</section></main></body></html>';
   return new Response(html, { status: 200, headers: {

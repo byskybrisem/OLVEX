@@ -31,21 +31,25 @@ async function load() {
     const { businesses } = await getJson("/api/businesses");
     const business = businesses.find(item => item.id === businessId && item.role === "owner");
     if (!business) throw new Error("Yalnızca işletme sahibi aboneliği yönetebilir.");
-    const { enabled, subscription } = await getJson("/api/workspace/" + encodeURIComponent(businessId) + "/billing");
-    if (!enabled) {
+    const { enabled, checkoutEnabled, subscription } = await getJson("/api/workspace/" + encodeURIComponent(businessId) + "/billing");
+    if (!enabled || (!checkoutEnabled && !subscription)) {
       subtitle.textContent = "Kartla 14 günlük deneme henüz açık değil.";
       notify("iyzico canlı ödeme ve abonelik onayı tamamlanınca bu ekrandan güvenle başlayabilirsiniz. Şu anda kart bilgisi alınmıyor.");
       return;
     }
     subtitle.textContent = business.name + " işletmesinin aboneliği";
-    if (subscription) {
+    if (subscription && (subscription.state !== "failed" || !checkoutEnabled)) {
       current.hidden = false;
-      const state = subscription.trial ? "Deneme etkin" : subscription.tier === "profesyonel" ? "Profesyonel etkin" : "Abonelik durumu: " + subscription.state;
-      stateText.textContent = [state, subscription.trialUntil ? "Deneme bitişi: " + pretty(subscription.trialUntil) : "",
+      const state = subscription.state === "canceled" ? "Abonelik iptal edildi" : subscription.trial ? "Deneme etkin" : subscription.tier === "profesyonel" ? "Profesyonel etkin" : "Abonelik durumu: " + subscription.state;
+      stateText.textContent = [state, subscription.trialStartedAt ? "Deneme başlangıcı: " + pretty(subscription.trialStartedAt) : "",
+        subscription.trialUntil ? "Deneme bitişi: " + pretty(subscription.trialUntil) : "",
+        subscription.trial && subscription.state === "active" ? "İlk tahsilat: " + amount[subscription.plan] + ", " + pretty(subscription.trialUntil) + " (Türkiye saati)" : "",
+        subscription.state === "canceled" ? "Otomatik yenileme kapalı." : "",
+        ["creating", "checkout", "pending"].includes(subscription.state) ? "Kart işlemi henüz doğrulanmadı. İşlemi tamamlayamadıysanız destekle iletişime geçin." : "",
         subscription.paidUntil ? "Ödenmiş dönem bitişi: " + pretty(subscription.paidUntil) : ""].filter(Boolean).join(" · ");
       cancel.hidden = !["active", "canceling"].includes(subscription.state);
-      cancel.disabled = subscription.state === "canceling";
-      cancel.textContent = subscription.state === "canceling" ? "İptal işleniyor" : "Aboneliği iptal et";
+      cancel.disabled = false;
+      cancel.textContent = subscription.state === "canceling" ? "İptal durumunu kontrol et" : "Aboneliği iptal et";
       cancel.onclick = async () => {
         if (!confirm("Aboneliği iptal etmek istediğinize emin misiniz? İptal sonrası yeniden deneme hakkı verilmez.")) return;
         cancel.disabled = true;

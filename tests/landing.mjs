@@ -33,7 +33,7 @@ async function checkStaticPage(page, url) {
   const missingTargets = await page.locator('a[href^="#"]').evaluateAll(links =>
     links.map(link => link.hash.slice(1)).filter(id => id && !document.getElementById(decodeURIComponent(id))));
   assert.deepEqual(missingTargets, []);
-  await page.getByRole("link", {name: "14 Gün Ücretsiz Dene", exact: true}).first().waitFor();
+  await page.getByRole("link", {name: "Hesap oluştur", exact: true}).first().waitFor();
 }
 
 export async function landingChecks({ safeContext, url, snapshots }) {
@@ -190,7 +190,7 @@ export async function landingChecks({ safeContext, url, snapshots }) {
     await page.locator("#site-menu summary").click();
     await page.locator('#site-menu a[href="#moduller"]').click();
     assert.equal(new URL(page.url()).hash, "#moduller");
-    await page.getByRole("link", {name: "14 Gün Ücretsiz Dene", exact: true}).first().click();
+    await page.getByRole("link", {name: "Hesap oluştur", exact: true}).first().click();
     await page.getByText("Hesap kaydı için tarayıcınızda JavaScript’i etkinleştirin.").waitFor();
     assert.equal(await page.locator("#registerForm").isVisible(), false);
   } finally { await noJS.close(); }

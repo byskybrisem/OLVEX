@@ -1,4 +1,4 @@
-import { HttpError } from "./http.js";
+import { HttpError, isPreviewRequest } from "./http.js";
 
 const encoder = new TextEncoder();
 export const reference = value => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
@@ -34,8 +34,21 @@ export function billingConfig(env) {
     base: environment === "sandbox" ? "https://sandbox-api.iyzipay.com" : "https://api.iyzipay.com" };
 }
 
+export function canStartTrial(ctx, config) {
+  return config?.environment === "sandbox" && isPreviewRequest(ctx.env, ctx.request) &&
+    new URL(ctx.request.url).origin === config.origin && ctx.env.OLVEX_TRIAL_IDENTITY_SECRET?.length >= 32;
+}
+
 async function hmacKey(secret, usage) {
   return crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [usage]);
+}
+
+// A keyed digest cannot be searched by phone or identity number alone.
+export async function trialIdentityKey(secret, customer) {
+  const key = await hmacKey(secret, "sign");
+  const data = JSON.stringify(["olvex-trial-v1", customer.identityNumber, customer.gsmNumber]);
+  const bytes = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
+  return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export async function iyzico(config, path, payload) {

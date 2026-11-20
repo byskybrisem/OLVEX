@@ -53,15 +53,6 @@ export async function transact(ctx, action, data, statements, guard) {
   const { db, businessId, actorId, pos, roles } = ctx;
   const requestId = identifier(data.requestId, "İstek kimliği");
   const fingerprint = await sha256(JSON.stringify({ ...data, requestId }));
-  const premium = ctx.packageGuard;
-  if (premium) {
-    const operation = guard;
-    guard = operation ? {
-      sql: `(${premium.sql}) AND (${operation.sql})`,
-      values: id => [...premium.values(id), ...operation.values(id)],
-      message: operation.message || premium.message
-    } : premium;
-  }
   const conditions = guard ? guard.values(businessId) : [];
   const checks = [];
   const actorValues = [actorId];
@@ -76,6 +67,10 @@ export async function transact(ctx, action, data, statements, guard) {
     checks.push(`EXISTS (SELECT 1 FROM business_members WHERE business_id = ? AND user_id = ?
       AND role IN (${roles.map(() => "?").join(", ")}))`);
     actorValues.push(businessId, actorId, ...roles);
+  }
+  if (ctx.packageGuard) {
+    checks.push(ctx.packageGuard.sql);
+    actorValues.push(...ctx.packageGuard.values(businessId));
   }
   const actorQuery = `SELECT ? WHERE ${checks.join(" AND ")}`;
   const requestIdSql = guard ? `CASE WHEN ${guard.sql} OR EXISTS (

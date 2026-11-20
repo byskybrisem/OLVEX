@@ -3,7 +3,7 @@ import { handle, HttpError } from "../../_lib/http.js";
 import { identifier } from "../../_lib/validate.js";
 
 export const onRequestPost = handle(async ({ request, env }) => {
-  const config = requireBilling(env);
+  const config = requireBilling(env, request);
   const type = request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase();
   if (type !== "application/x-www-form-urlencoded" || !request.body) throw new HttpError(415, "Ödeme formu gerekli.");
   let body = "";

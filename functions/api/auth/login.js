@@ -1,5 +1,5 @@
 import { clientIp, handle, HttpError, json, readJson, sameOrigin } from "../../_lib/http.js";
-import { randomToken, sessionCookie, sha256 } from "../../_lib/session.js";
+import { platformAdminId, PLATFORM_ADMIN_SESSION_SECONDS, randomToken, sessionCookie, sha256 } from "../../_lib/session.js";
 import { verifyPassword } from "../../_lib/password.js";
 import { clearRateLimit, isRateLimited } from "./rate-limit.js";
 
@@ -14,9 +14,12 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
     throw new HttpError(401, rejected);
   }
 
-  const key = `login:${clientIp(request)}:${email}`;
-  if (await isRateLimited(env.DB, `login-ip:${clientIp(request)}`, 50, 900) ||
-      await isRateLimited(env.DB, key, 5, 900)) {
+  const ip = clientIp(request);
+  const key = `login:${ip}:${email}`;
+  const accountKey = `login-account:${email}`;
+  if (await isRateLimited(env.DB, `login-ip:${ip}`, 50, 900) ||
+      await isRateLimited(env.DB, key, 5, 900) ||
+      await isRateLimited(env.DB, accountKey, 20, 900)) {
     throw new HttpError(429, "Çok fazla giriş denemesi. Biraz sonra tekrar deneyin.", { "Retry-After": "900" });
   }
 
@@ -24,8 +27,9 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
     .bind(email).first();
   if (!await verifyPassword(password, user?.password_hash)) throw new HttpError(401, rejected);
 
-  const remember = data.remember === true;
-  const duration = (remember ? 30 : 1) * 86400;
+  const isPlatformAdmin = user.id.toLowerCase() === platformAdminId(env);
+  const remember = !isPlatformAdmin && data.remember === true;
+  const duration = isPlatformAdmin ? PLATFORM_ADMIN_SESSION_SECONDS : (remember ? 30 : 1) * 86400;
   const token = randomToken();
   const now = new Date();
   const expires = new Date(+now + duration * 1000).toISOString();
@@ -38,6 +42,7 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
 
   waitUntil(Promise.all([
     clearRateLimit(env.DB, key),
+    clearRateLimit(env.DB, accountKey),
     env.DB.prepare(`DELETE FROM user_sessions WHERE id IN (
       SELECT id FROM user_sessions WHERE expires_at <= ? LIMIT 250
     )`).bind(now.toISOString()).run(),
@@ -48,7 +53,5 @@ export const onRequestPost = handle(async ({ request, env, waitUntil }) => {
 
   // Return only a boolean about the authenticated user; never expose the
   // configured administrator ID or trust roles supplied by the browser.
-  const adminId = env.OLVEX_SUPER_ADMIN_USER_ID?.trim().toLowerCase();
-  const isPlatformAdmin = Boolean(adminId && user.id.toLowerCase() === adminId);
   return json({ success: true, isPlatformAdmin }, 200, { "Set-Cookie": sessionCookie(token, remember ? duration : undefined) });
 });

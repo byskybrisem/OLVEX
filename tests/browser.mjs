@@ -139,7 +139,7 @@ try {
   const page = await desktop.newPage();
   watch(page);
   await page.goto(local.url);
-  await page.getByRole("link", { name: "14 Gün Ücretsiz Dene", exact: true }).first().click();
+  await page.getByRole("link", { name: "Hesap oluştur", exact: true }).first().click();
   await page.locator("#name").fill("Örnek Kullanıcı");
   await page.locator("#email").fill(credentials.email);
   await page.locator("#password").fill(credentials.password);
@@ -406,6 +406,11 @@ try {
   await navigate(page, "settings", "Ayarlar");
   await page.getByRole("heading", { name: "Paket · Profesyonel" }).waitFor();
   await page.getByText(/bekleyen davet\./).waitFor();
+  await page.getByRole("link", { name: "Aboneliği yönet" }).click();
+  await page.getByText("Kartla 14 günlük deneme henüz açık değil.").waitFor();
+  assert.equal(await page.locator("#billingForm").isVisible(), false);
+  await page.goBack();
+  await page.getByRole("heading", { name: "Paket · Profesyonel" }).waitFor();
 
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await heading(page, "Kasa Bağlantıları");
@@ -669,6 +674,15 @@ try {
       await prepareScreenshot(phone, "ai-webkit-history.png");
     } finally { await safari.close(); }
   }
+  await local.query("UPDATE olvex_subscriptions SET paid_until = 1 WHERE business_id = '" + workspace + "'");
+  await navigate(page, "overview", "Genel Bakış");
+  await page.getByRole("heading", { name: "Aktif aboneliğiniz bulunmuyor" }).waitFor();
+  await page.getByText(/OLVEX abonelik sistemi hazırlanıyor/).waitFor();
+  assert.equal(await page.getByRole("link", { name: "Paketleri ve fiyatları gör" }).getAttribute("href"), "/#fiyatlandirma");
+  assert.equal(await page.getByRole("link", { name: "Paket seçimine git" }).count(), 0);
+  await navigate(page, "products", "Ürünler ve Stok");
+  await page.getByText("Filtre kahve", { exact: true }).first().waitFor();
+
   await handset.setViewportSize({ width: 390, height: 844 });
   await handset.getByRole("button", { name: "Menüyü aç" }).click();
   await handset.getByRole("button", { name: "Çıkış yap" }).click();
