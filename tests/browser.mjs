@@ -691,12 +691,6 @@ try {
   await navigate(page, "products", "Ürünler ve Stok");
   await page.getByText("Filtre kahve", { exact: true }).first().waitFor();
 
-  await handset.setViewportSize({ width: 390, height: 844 });
-  await handset.getByRole("button", { name: "Menüyü aç" }).click();
-  await handset.getByRole("button", { name: "Çıkış yap" }).click();
-  await handset.waitForURL(/\/login(?:\.html)?$/);
-  await handset.goto(`${local.url}/app.html`);
-  await handset.waitForURL(/\/login(?:\.html)?$/);
   await page.goto(`${local.url}/billing.html?business=${encodeURIComponent(workspace)}&returned=1`);
   await page.getByText("Polar ödemeleri bu ortamda kapalı.").waitFor();
   assert.equal(await page.getByRole("button", { name: "Standart aboneliği başlat" }).count(), 0);
@@ -708,6 +702,16 @@ try {
   await page.getByRole("button", { name: "Standart aboneliği başlat" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Lansman aboneliğini başlat" }).count(), 0);
   assert.equal(await fitsViewport(page), true);
+  await page.unroute("**/api/workspace/*/polar");
+
+  await handset.setViewportSize({ width: 390, height: 844 });
+  await handset.getByRole("button", { name: "Menüyü aç" }).click();
+  await handset.getByRole("button", { name: "Çıkış yap" }).click();
+  await handset.waitForURL(/\/login(?:\.html)?$/);
+  await handset.goto(`${local.url}/app.html`);
+  await handset.waitForURL(/\/login(?:\.html)?$/);
+  await page.reload();
+  await page.getByText(/Abonelik bilgileri için OLVEX hesabınıza giriş yapın/).waitFor();
   await landingChecks({ safeContext, url: local.url, snapshots });
   assert.deepEqual(browserErrors, []);
   console.log("Tarayıcı doğrulandı: masaüstü ve mobil akış, satış/CSV, AI onayı, rapor, kasa ve oturum.");
