@@ -63,7 +63,7 @@ request("/api/public-info").then((info) => {
     restart.hidden = false;
   } else {
     subtitle.textContent = "Başlamak için birkaç bilgi yeterli.";
-    submitLabel = "Ücretsiz Hesap Oluştur";
+    submitLabel = "Hesap Oluştur";
   }
   form.hidden = false;
   submit.textContent = submitLabel;
