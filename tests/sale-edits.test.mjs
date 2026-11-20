@@ -23,7 +23,7 @@ before(async () => {
       ('${second}','Şube','${people[2].id}');` +
     people.map(user => `INSERT INTO business_members(id,business_id,user_id,role) VALUES
       ('${id()}','${user.role === "other" ? second : business}','${user.id}','${user.role === "member" ? "member" : "owner"}');`).join("\n");
-  server = await localPages({ seed });
+  server = await localPages({ professionalFixtures: true, seed });
   for (const user of people) {
     const res = await fetch(server.url + "/api/auth/login", { method: "POST",
       headers: {"Content-Type": "application/json", Origin: server.url},

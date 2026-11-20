@@ -4,7 +4,7 @@ import { registeredSaleId } from "./legacy-csv.js";
 import { sourceReferences } from "./pos-identity.js";
 import { returnOrder } from "./returns.js";
 import { choice, identifier, text } from "./validate.js";
-import { stableId } from "./workspace.js";
+import { list, searchTerm, stableId } from "./workspace.js";
 
 export async function postRegisterEvent(ctx, body) {
   const { pos } = ctx;
@@ -25,7 +25,19 @@ export async function postRegisterEvent(ctx, body) {
   return createOrder(ctx, { ...body, ...refs, customerId: null }, "sale", "pos");
 }
 
+export function csvSources(ctx) {
+  const term = searchTerm(ctx.paramsUrl.get("q"));
+  return list(ctx, `SELECT p.id, p.name, b.name AS branch_name
+    FROM olvex_pos_connections p JOIN olvex_branches b ON b.business_id = p.business_id AND b.id = p.branch_id
+    WHERE p.business_id = ? AND p.revoked_at IS NULL
+      AND (p.name LIKE ? ESCAPE '\\' OR b.name LIKE ? ESCAPE '\\')
+    ORDER BY p.name COLLATE NOCASE, p.id LIMIT ? OFFSET ?`, [term, term]);
+}
+
 export async function importRegisterSale(ctx, body) {
+  if (body.csvMode === "file" && body.registerId == null) {
+    return createOrder(ctx, body, "sale", "csv");
+  }
   if (body.registerId == null) {
     // Older clients may retry receipts already committed before registers were introduced.
     const existing = await ctx.db.prepare(`SELECT id FROM olvex_orders WHERE business_id = ?

@@ -77,6 +77,15 @@ async function account(name, address) {
   return client;
 }
 
+// A pre-launch owner can own multiple existing businesses. Seed that legacy state directly.
+async function legacyBusiness(client, name) {
+  const { data: { user } } = await client.call("/api/auth/me");
+  const business = { id: id(), name, role: "owner" };
+  await pages.query("INSERT INTO businesses (id,name,created_by) VALUES ('" + business.id + "','" + name + "','" + user.id + "');" +
+    "INSERT INTO business_members (id,business_id,user_id,role) VALUES ('" + id() + "','" + business.id + "','" + user.id + "','owner');");
+  return { data: { business } };
+}
+
 async function stockFor(client, business, code) {
   return (await client.read(business, "products", "?archived=1")).rows.find((row) => row.sku === code)?.stock;
 }
@@ -91,7 +100,7 @@ before(async () => {
   const hash = await passwordHash(password);
   const tokenHash = await sha256(resetToken);
   const expiresAt = new Date(Date.now() + 600_000).toISOString();
-  pages = await localPages({ seed: `
+  pages = await localPages({ professionalFixtures: true, seed: `
     INSERT INTO users(id,email,full_name,password_hash) VALUES ('${legacyId}','legacy@example.test','Eski Hesap','${hash}');
     INSERT INTO olvex_password_resets(token_hash,user_id,expires_at) VALUES ('${tokenHash}','${legacyId}','${expiresAt}');
     CREATE TRIGGER preserve_legacy_consent BEFORE INSERT ON olvex_terms_acceptances
@@ -160,8 +169,7 @@ test("önceki ve yeni işletme akışı, kayıt eşsizliği ve işletme izolasyo
   assert.equal(thisBusiness, requestId);
   await owner.post("/api/businesses", { name: "Merkez", requestId }, 201);
   await owner.post("/api/businesses", { name: "Farklı", requestId }, 409);
-  const { data: branch } = await owner.post("/api/businesses", { name: "İkinci Şube" }, 201);
-  assert.equal(branch.business.role, "owner");
+  await owner.post("/api/businesses", { name: "İkinci İşletme" }, 409);
   const { data: isolated } = await other.post("/api/businesses", { name: "Ayrı İşletme" }, 201);
   assert.notEqual(isolated.business.id, thisBusiness);
   await other.read(thisBusiness, "products", "", 404);
@@ -439,7 +447,7 @@ test("giriş deneme sınırı ve yayın dosyalarının izin listesi", async () =
 });
 
 test("eşzamanlı kısmi iadeler, net tahsilat ve kalan satışın iptali", async () => {
-  const { data } = await owner.post("/api/businesses", { name: "İade işlemleri" }, 201);
+  const { data } = await legacyBusiness(owner, "İade işlemleri");
   const business = data.business.id;
   await saveProduct(owner, business, { sku: "A", opening: 10 });
   const secret = "h".repeat(43);
@@ -481,7 +489,7 @@ test("eşzamanlı kısmi iadeler, net tahsilat ve kalan satışın iptali", asyn
 });
 
 test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi korunur", async () => {
-  const { data: created } = await owner.post("/api/businesses", { name: "CSV Arşivi" }, 201);
+  const { data: created } = await legacyBusiness(owner, "CSV Arşivi");
   const business = created.business.id;
   const actor = (await owner.call("/api/auth/me")).data.user.id;
   const branch = (await owner.read(business, "locations")).rows[0].id;
@@ -540,7 +548,7 @@ test("kasa bilgisi eksik eski CSV fişi doğrulanınca asıl satış ve ödemesi
 });
 
 test("farklı şubelerin kasalarında aynı fiş, CSV/POS tekrarı ve transfer ayrı işlenir", async () => {
-  const { data: created } = await owner.post("/api/businesses", { name: "Kasa ve transfer testi" }, 201);
+  const { data: created } = await legacyBusiness(owner, "Kasa ve transfer testi");
   const business = created.business.id;
   const { rows: [center] } = await owner.read(business, "locations");
   const coast = await owner.mutate(business, "locations", "create", { name: "Sahil" });
@@ -594,7 +602,7 @@ test("farklı şubelerin kasalarında aynı fiş, CSV/POS tekrarı ve transfer a
 });
 
 test("arşivli ürüne stok düzeltmesi yazılmaz ve ürün yeniden açılabilir", async () => {
-  const { data } = await owner.post("/api/businesses", { name: "Ürün arşiv testi" }, 201);
+  const { data } = await legacyBusiness(owner, "Ürün arşiv testi");
   const business = data.business.id;
   const item = await saveProduct(owner, business, { sku: "ARŞİV-TEST", opening: 0 });
   const change = { requestId: id(), productId: item.id, delta: 2, note: "Sayım" };
@@ -609,7 +617,7 @@ test("arşivli ürüne stok düzeltmesi yazılmaz ve ürün yeniden açılabilir
 });
 
 test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski taslaklar uygulanamaz", async () => {
-  const { data } = await owner.post("/api/businesses", { name: "AI Test İşletmesi" }, 201);
+  const { data } = await legacyBusiness(owner, "AI Test İşletmesi");
   const business = data.business.id;
   const main = (await owner.read(business, "locations")).rows[0].id;
   const coast = (await owner.mutate(business, "locations", "create", { name: "Sahil" })).id;
@@ -678,7 +686,7 @@ test("AI stok onayı işletme, şube ve ürüne bağlıdır; şubesiz eski tasla
 });
 
 test("AI stok taslağı onay anında ürünün halen etkin ve aynı SKU olduğunu doğrular", async () => {
-  const { data } = await owner.post("/api/businesses", { name: "AI ürün durumu" }, 201);
+  const { data } = await legacyBusiness(owner, "AI ürün durumu");
   const business = data.business.id;
   const branchId = (await owner.read(business, "locations")).rows[0].id;
   const item = await saveProduct(owner, business, { sku: "KALEM", opening: 0 });
@@ -696,7 +704,7 @@ test("AI stok taslağı onay anında ürünün halen etkin ve aynı SKU olduğun
 });
 
 test("işletme karşılaştırmasında önceki günden iptal negatif fiş adedi üretmez", async () => {
-  const { data } = await owner.post("/api/businesses", { name: "Rapor iptal testi" }, 201);
+  const { data } = await legacyBusiness(owner, "Rapor iptal testi");
   const business = data.business.id;
   await saveProduct(owner, business, { sku: "RAPOR" });
   const posted = await owner.mutate(business, "sales", "create", sale("RAPOR-1", "RAPOR", 1));
@@ -708,7 +716,7 @@ test("işletme karşılaştırmasında önceki günden iptal negatif fiş adedi 
 });
 
 test("şube stoku yoksa kritik stok uyarısı panelde ve AI özetinde işletme toplamından ayrılır", async () => {
-  const { data } = await owner.post("/api/businesses", { name: "Şube stok uyarıları" }, 201);
+  const { data } = await legacyBusiness(owner, "Şube stok uyarıları");
   const business = data.business.id;
   const branch = await owner.mutate(business, "locations", "create", { name: "Sahil" });
   const cola = await saveProduct(owner, business, { sku: "KOLA", name: "Kola", opening: 500, reorder: 10 });
@@ -743,9 +751,9 @@ test("AI sohbeti sahibine özeldir, şubeyi korur ve aynı mesajı iki kez işle
   const owner = await signedIn("chat-owner");
   const teammate = await signedIn("chat-manager");
   const other = await signedIn("chat-outsider");
-  const { data: unrelated } = await owner.post("/api/businesses", { name: "Başka sohbet işletmesi" }, 201);
+  const { data: unrelated } = await legacyBusiness(owner, "Başka sohbet işletmesi");
   const thisBusiness = unrelated.business.id;
-  const { data } = await owner.post("/api/businesses", { name: "Sohbet testi" }, 201);
+  const { data } = await legacyBusiness(owner, "Sohbet testi");
   const business = data.business.id;
   const branch = (await owner.read(business, "locations")).rows[0].id;
   const external = (await owner.read(thisBusiness, "locations")).rows[0].id;

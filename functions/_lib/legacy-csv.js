@@ -49,11 +49,15 @@ export const registerOwnsOrder = `AND branch_id = ? AND (
       AND m.order_id = olvex_orders.id AND m.register_id = ? AND m.decision = 'same')))`;
 
 export async function replayLegacyCsv(ctx, data) {
-  const match = await ctx.db.prepare(`SELECT o.id, (SELECT fingerprint FROM olvex_operations op
+  const match = await ctx.db.prepare(`SELECT o.id, o.branch_id, (SELECT fingerprint FROM olvex_operations op
     WHERE op.business_id = o.business_id AND op.request_id = o.id AND op.action = 'sale-create') AS fingerprint
     ${matchedOrder}`).bind(ctx.businessId, data.reference, ctx.pos.id).first();
   if (!match) throw new HttpError(409, "Bu referansta kasa bilgisi eksik bir eski CSV fişi var. Kaynak belgesini doğrulayıp fişi kasayla eşleştirin.");
-  const fingerprint = await sha256(JSON.stringify({ ...data, requestId: match.id, source: "csv" }));
-  if (match.fingerprint !== fingerprint) throw new HttpError(409, "Gönderilen işlem eşleştirilmiş eski CSV satışının içeriğiyle uyuşmuyor.");
+  const record = { ...data, requestId: match.id, source: "csv" };
+  const fingerprint = await sha256(JSON.stringify(record));
+  if (match.fingerprint !== fingerprint) {
+    const scoped = await sha256(JSON.stringify({ ...record, branchId: match.branch_id }));
+    if (match.fingerprint !== scoped) throw new HttpError(409, "Gönderilen işlem eşleştirilmiş CSV satışının içeriğiyle uyuşmuyor.");
+  }
   return { success: true, id: match.id, repeated: true };
 }

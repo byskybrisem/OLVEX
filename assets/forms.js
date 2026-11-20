@@ -187,7 +187,7 @@ function invite(ctx) {
   saveForm(ctx, {
     title: "Ekip daveti oluştur", section: "settings", action: "invite",
     html: field("Davetlinin e-postası", "email", "", { type: "email", max: 254 }) +
-      select("Rol", "role", [["member", "Ekip üyesi"], ["admin", "Yönetici"]]) +
+      select("Rol", "role", ctx.packagePlan?.professional === false ? [["member", "Ekip üyesi"]] : [["member", "Ekip üyesi"], ["admin", "Yönetici"]]) +
       '<p class="hint">Davet bağlantısı 7 gün geçerlidir. Davetli bu e-posta adresine bağlı hesapla giriş yapar.</p>',
     fields: (form) => ({ ...Object.fromEntries(form), secret }),
     after: async () => {
@@ -339,6 +339,14 @@ function posHelp(ctx) {
 }
 
 function editMember(ctx, row) {
+  if (ctx.packagePlan?.professional === false) {
+    return saveForm(ctx, {
+      title: "Ekip üyesini işletmeden çıkar", section: "settings", action: "member",
+      html: "<p>" + h(row.name || row.email) + " bu işletmeye erişimini kaybedecek.</p>",
+      fields: () => ({ userId: row.id, role: "remove" }),
+      message: "Ekip üyesi işletmeden çıkarıldı."
+    });
+  }
   saveForm(ctx, {
     title: "Ekip yetkisini düzenle", section: "settings", action: "member",
     html: `<p>${h(row.name || row.email)}</p>` +

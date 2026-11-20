@@ -72,7 +72,7 @@ before(async () => {
     `('${id}','${role}@branches.test','${role}','${hash}')`);
   const members = Object.values(people).map(({ id, role }) =>
     `('${uuid()}','${role === "outsider" ? otherBusiness : business}','${id}','${role === "outsider" ? "owner" : role}')`);
-  pages = await localPages({ seed: `
+  pages = await localPages({ professionalFixtures: true, seed: `
     INSERT INTO users(id,email,full_name,password_hash) VALUES ${users.join(",")};
     INSERT INTO businesses(id,name,created_by) VALUES
       ('${business}','Merkez işletme','${people.owner.id}'),('${otherBusiness}','Ayrı işletme','${people.outsider.id}');

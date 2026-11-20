@@ -1,3 +1,4 @@
+import { requireProfessional } from "./entitlements.js";
 import { financials } from "./reports.js";
 import { addDays, period, today } from "./validate.js";
 
@@ -79,6 +80,7 @@ export async function factsForAI(ctx, messages, branch, allowedDraft) {
       note: "Stok anlık. quantityToThreshold yalnızca kritik eşiğe olan farktır. Tedarik süresi ve talep tahmini yok." };
   }
 
+  if (kind === "branches" || branchId) await requireProfessional(ctx);
   const { start, end } = dates(prompt, previous ? dates(previous, null, now) : null, now);
   const scope = { ...ctx, branchId };
   const dated = { from: start, to: end, asOf: now, location, kind };

@@ -37,7 +37,7 @@ test("şube geçişinde eski POS satışları, iptalleri, ödemeleri ve tekrar g
   const cancelled = "a7dff71c-367b-494e-8f7e-bb070e7c41e6";
   const voidId = "e2b0f906-2151-41f7-8b25-86a733530630";
   // Fixed IDs and fingerprints use the pre-branch API's canonical request format.
-  const pages = await localPages({ legacyWorkspaceSeed: `
+  const pages = await localPages({ professionalFixtures: true, legacyWorkspaceSeed: `
     INSERT INTO users(id,email) VALUES ('u','eski@example.test');
     INSERT INTO businesses(id,name,created_by) VALUES ('merkez','Merkez','u');
     INSERT INTO business_members(id,business_id,user_id,role) VALUES ('m','merkez','u','owner');

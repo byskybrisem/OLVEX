@@ -1,3 +1,4 @@
+import { entitlement } from "./entitlements.js";
 import { HttpError, isPreviewRequest } from "./http.js";
 import { cashInsert } from "./records.js";
 import { financials, insights } from "./reports.js";
@@ -28,7 +29,8 @@ export async function aiDashboard(ctx) {
       ORDER BY created_at DESC, id DESC LIMIT 20`).bind(ctx.businessId, ctx.actorId, new Date().toISOString()).all(),
     aiUsage(ctx),
     full ? financials(ctx, day, day) : null,
-    full ? factsForAI(ctx, [{ role: "user", content: "Son 7 gün hangi şube daha fazla satış yapıyor?" }], null, null) : null
+    full ? entitlement(ctx).then(plan => plan.professional
+      ? factsForAI(ctx, [{ role: "user", content: "Son 7 gün hangi şube daha fazla satış yapıyor?" }], null, null) : null) : null
   ]);
   return { mode: mode(ctx), facts, usage, daily: daily?.totals, branches: branches?.rows, proposals: pending.results.map(({ payload, ...row }) => ({ ...row, ...JSON.parse(payload) })) };
 }
@@ -135,8 +137,8 @@ export async function ask(ctx, body, { deferProposal = false } = {}) {
   } else {
     const config = activeMode === "cloudflare" ? { model: WORKERS_AI_MODEL } : openAIConfig(ctx.env);
     const safeMessages = externalMessages(messages);
-    const id = await reserveAI(ctx, config.model);
     const facts = await factsForAI(ctx, safeMessages, branch, allowedDraft);
+    const id = await reserveAI(ctx, config.model);
     if (activeMode === "cloudflare") {
       const result = await requestWorkersAI(ctx.env.AI, facts, safeMessages, allowedDraft);
       await recordAIUsage(ctx, id, config.model, result.usage).catch(() => console.warn("OLVEX AI kullanım ölçümü kaydedilemedi."));

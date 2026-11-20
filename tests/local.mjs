@@ -22,7 +22,7 @@ async function openPort() {
   return port;
 }
 
-export async function localPages({ seed, legacyWorkspaceSeed, https = false, bindings = {}, registration = "preview" } = {}) {
+export async function localPages({ seed, legacyWorkspaceSeed, https = false, bindings = {}, registration = "preview", professionalFixtures = false } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "olvex-test-"));
   const dbId = crypto.randomUUID();
   const config = join(dir, "wrangler.test.toml");
@@ -30,6 +30,7 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
   const testEnv = {
     OLVEX_SIGNUPS: registration,
     OLVEX_AI_MODE: "mock",
+    ...(professionalFixtures ? { OLVEX_BILLING: "sandbox" } : {}),
     ...bindings
   };
   let worker;
@@ -59,6 +60,19 @@ export async function localPages({ seed, legacyWorkspaceSeed, https = false, bin
     await writeFile(config, `name = "olvex-test"\ncompatibility_date = "2025-10-01"\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "olvex-test"\ndatabase_id = "${dbId}"\nmigrations_dir = "migrations"\n`);
     const dbArgs = ["DB", "--local", "--config", config, "--persist-to", storage];
     await wrangler("d1", "migrations", "apply", ...dbArgs);
+    if (professionalFixtures) {
+      // Test-only paid records make existing feature tests go through standard plan checks.
+      const fixture = join(dir, "plans.sql");
+      const columns = "(id,business_id,environment,plan,plan_ref,state,provider_ref,customer_ref,paid_until)";
+      const row = id => "'test-plan-'||" + id + "," + id +
+        ",'sandbox','profesyonel-monthly','test-plan','active','test-sub-'||" + id + ",'test-customer',4070908800000";
+      await writeFile(fixture, [
+        "INSERT INTO olvex_subscriptions " + columns + " SELECT " + row("id") + " FROM businesses;",
+        "CREATE TRIGGER test_paid_plan AFTER INSERT ON businesses BEGIN INSERT INTO olvex_subscriptions " +
+          columns + " VALUES (" + row("NEW.id") + "); END;"
+      ].join("\n"));
+      await wrangler("d1", "execute", ...dbArgs, "--file", fixture);
+    }
     if (seed) {
       const fixture = join(dir, "fixture.sql");
       await writeFile(fixture, seed);

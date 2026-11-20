@@ -9,6 +9,7 @@ Fiyat ve plan eşleşmesini sunucu belirler. Checkout başlamadan önce iyzico p
 
 ## API ve hata davranışı
 
+- Paket erişiminde doğrulanmış abonelik durumu ve ödenmiş dönem sonu esas alınır. Bir sandbox aboneliği yalnızca sandbox önizlemesinde paket erişimi sağlar. Canlı onayı, ayrı ödeme sayfası ve uçtan uca doğrulama tamamlanıncaya kadar üretimde tahsilat kapalı kalmalıdır.
 - İşletme sahibi `GET /api/workspace/{businessId}/billing` ile durum alabilir. Aynı yola yapılan POST için işlemler `checkout`, `refresh` ve `cancel` değerleridir. Yazma istekleri normal oturum ve aynı köken denetiminden geçer.
 - Checkout, istemci tarafından oluşturulan UUID `requestId`, plan kodu, ad, soyad, telefon, kimlik numarası, fatura adresi ve il alır. E-posta oturumdan alınır. Kart verisi iyzico formunda girilir. Bu müşteri alanları ve kart bilgileri OLVEX D1’de saklanmaz.
 - `checkoutFormContent` iyzico’nun HTML/JavaScript içeriğidir. Yayın öncesinde ana uygulamanın oturum ve DOM erişiminden ayrılmış bir ödeme sayfasında barındırılması ve gerçek sağlama/3D Secure dönüşleriyle sınanması gerekir. OLVEX’in mevcut fiyat kartları ücretli satın alma başlatmaz.
@@ -21,7 +22,7 @@ Fiyat ve plan eşleşmesini sunucu belirler. Checkout başlamadan önce iyzico p
 1. iyzico’dan OLVEX’in faaliyet ve başvuru statüsü için Sanal POS ve **Abonelik** uygunluğunu yazılı doğrulayın. Resmî yardım merkezindeki bireysel başvuru açıklaması iyzico Link’e ilişkindir. Bu bilgi Abonelik başvurusu için onay anlamına gelmez.
 2. Başvuruya uygun imza sirküleri veya beyannamesi, vergi levhası ve işletmeciyle eşleşen banka hesabı/IBAN doğrulamasını hazırlayın. iyzico banka doğrulaması başarısız olursa hesap adı ve IBAN’ı gösteren belge ister. Başvuruya özgü ek belgeleri iyzico’dan alın ve üye işyeri sözleşmesini tamamlayın. Gizlilik, mesafeli satış, teslimat/iade ve işletmeci bilgileri sayfalarını abonelik koşulları ve iyzico’ya aktarılacak müşteri bilgilerine göre doğrulayın.
 3. Sandbox ve üretim için ayrı D1 ve ayrı iyzico kimlikleri kullanın. `0010_iyzico_subscriptions.sql` migrasyonunu doğru D1 bağında uygulayın. iyzico panelinde yukarıdaki ücretlerle dört farklı `RECURRING` plan ve `/api/billing/webhook` adresini tanımlayın. V3 webhook imzasının hesapta etkin olduğunu iyzico ile doğrulayın.
-4. İzole ödeme formu, ilk ödeme, yinelenen ödeme, başarısız ödeme, iptal, form ve webhook tekrarları gerçek sandbox hesabıyla doğrulandıktan sonra canlı yapılandırmayı ayrıca onaylayın. Canlı ödeme butonu ve paket yetki matrisi bu aşamada kesinleşir.
+4. İzole ödeme formu, ilk ödeme, yinelenen ödeme, başarısız ödeme, iptal, form ve webhook tekrarları gerçek sandbox hesabıyla doğrulandıktan sonra canlı yapılandırmayı ayrıca onaylayın. Paket yetki matrisini doğrulanmış sandbox abonelikleriyle tekrar test edin. Canlı ödeme butonunu ayrı yayın onayına bağlayın.
 
 | Cloudflare Pages ayarı | Değer |
 | --- | --- |

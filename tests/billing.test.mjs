@@ -51,6 +51,14 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
     assert.equal(response.status, status, JSON.stringify(data));
     return data;
   };
+  const packageTier = async (host = origin) => {
+    const request = new Request(host + "/api/workspace/biz/package", {
+      headers: { Cookie: "olvex_session=" + sessions.owner }
+    });
+    const response = await onRequestGet({ env, request, params: { businessId: "biz", section: "package" } });
+    assert.equal(response.status, 200);
+    return (await response.json()).tier;
+  };
   const checkout = { action: "checkout", plan: "esnaf-yearly", requestId: crypto.randomUUID(), price: 1,
     name: "Örnek", surname: "Üye", identityNumber: "00000000000", gsmNumber: "+905000000000",
     address: "Yalıtılmış test", city: "Denizli" };
@@ -114,6 +122,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   assert.equal((await call(null, 200)).enabled, false);
   await call(checkout, 503);
   env.OLVEX_BILLING = "sandbox";
+  env.OLVEX_ENVIRONMENT = "preview";
   await call(checkout, 403, { user: "admin" });
   await call(checkout, 404, { user: "outsider" });
   await call(checkout, 503);
@@ -143,6 +152,8 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await confirm("checkout-token", 303);
   await confirm("checkout-token", 303);
   assert.equal((await call(null, 200)).tier, "esnaf");
+  assert.equal(await packageTier(), "esnaf");
+  assert.equal(await packageTier("https://olvex.com.tr"), "free");
 
   const notify = async (type, status, { valid = true, order = "order-next" } = {}) => {
     const event = { iyziEventType: "subscription.order." + type, subscriptionReferenceCode: "sub",
@@ -160,6 +171,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await notify("failure", 403, { valid: false });
   assert.equal((await call(null, 200)).tier, "esnaf");
   await notify("failure", 200);
+  assert.equal(await packageTier(), "free");
   assert.equal((await call(null, 200)).subscription.state, "unpaid");
   assert.equal((await call(null, 200)).tier, "free");
 
@@ -171,6 +183,7 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
   await notify("success", 200);
   await notify("failure", 200);
   assert.equal(await revision(), afterRenewal);
+  assert.equal(await packageTier(), "esnaf");
   assert.equal((await call(null, 200)).subscription.paidUntil, orders[0].endPeriod);
 
   const cancel = { action: "cancel", id: checkout.requestId };

@@ -11,7 +11,7 @@ import { landingChecks, widths } from "./landing.mjs";
 
 const desktopEngineName = process.env.OLVEX_DESKTOP_BROWSER || "chromium";
 assert.ok(["chromium", "firefox", "webkit"].includes(desktopEngineName), "Unknown desktop engine");
-const local = await localPages({ https: true });
+const local = await localPages({ professionalFixtures: true, https: true });
 const systemChromium = "/usr/bin/chromium";
 const executablePath = process.env.CHROMIUM_PATH || (existsSync(systemChromium) ? systemChromium : undefined);
 const snapshots = process.env.OLVEX_SCREENSHOT_DIR;
@@ -404,6 +404,9 @@ try {
   await loaded(page);
   await page.getByRole("button", { name: "+ Vardiya ekle", exact: true }).waitFor();
   await navigate(page, "settings", "Ayarlar");
+  await page.getByRole("heading", { name: "Paket · Profesyonel" }).waitFor();
+  await page.getByText(/bekleyen davet\./).waitFor();
+
   await page.getByRole("link", { name: "Kasa bağlantıları", exact: true }).click();
   await heading(page, "Kasa Bağlantıları");
   await loaded(page);

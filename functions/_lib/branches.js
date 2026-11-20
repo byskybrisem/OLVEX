@@ -1,3 +1,4 @@
+import { branchCapacity } from "./entitlements.js";
 import { HttpError } from "./http.js";
 import { date, identifier, integer, MAX_STOCK, text, today } from "./validate.js";
 import { list, searchTerm, stableId, transact } from "./workspace.js";
@@ -15,7 +16,7 @@ export function createBranch(ctx, body) {
   return transact(ctx, "branch-create", { requestId, name }, [
     ctx.db.prepare("INSERT INTO olvex_branches (business_id, id, name) VALUES (?, ?, ?)")
       .bind(ctx.businessId, requestId, name)
-  ]);
+  ], branchCapacity(ctx));
 }
 
 export async function resolveBranch(ctx, branchId) {

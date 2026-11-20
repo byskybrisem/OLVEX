@@ -13,7 +13,7 @@ const session = randomToken();
 let pages;
 
 before(async () => {
-  pages = await localPages({ bindings: { OLVEX_POS_REQUESTS_PER_MINUTE: "2" }, seed: `
+  pages = await localPages({ professionalFixtures: true, bindings: { OLVEX_POS_REQUESTS_PER_MINUTE: "2" }, seed: `
     INSERT INTO users(id,email) VALUES ('${owner}','security@example.test');
     INSERT INTO businesses(id,name,created_by) VALUES ('${business}','Test işletmesi','${owner}');
     INSERT INTO business_members(id,business_id,user_id,role) VALUES ('m','${business}','${owner}','owner');

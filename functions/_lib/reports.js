@@ -1,3 +1,4 @@
+import { resolveBranch } from "./branches.js";
 import { addDays, period, today } from "./validate.js";
 import { list, MANAGERS, searchTerm } from "./workspace.js";
 
@@ -109,18 +110,27 @@ export async function summary(ctx) {
 }
 
 async function rankedProducts(ctx, start, end) {
+  const branchId = ctx.branchId ?? null;
   const { results } = await ctx.db.prepare(`
     SELECT e.product_id AS id, p.sku, p.name, SUM(e.quantity) AS quantity,
       SUM(e.quantity * e.unit_minor) AS sales, SUM(e.quantity * e.cost_minor) AS cost
     FROM olvex_order_events e JOIN olvex_products p ON p.business_id = e.business_id AND p.id = e.product_id
     WHERE e.business_id = ? AND e.kind = 'sale' AND e.occurred_on BETWEEN ? AND ?
+      AND (? IS NULL OR e.branch_id = ?)
     GROUP BY e.product_id ORDER BY sales DESC, p.sku LIMIT 20
-  `).bind(ctx.businessId, start, end).all();
+  `).bind(ctx.businessId, start, end, branchId, branchId).all();
   return results;
 }
 
 export async function reports(ctx) {
   const { start, end } = period(ctx.paramsUrl);
+  const selected = ctx.paramsUrl.get("branchId");
+  if (selected != null) {
+    const branchId = await resolveBranch(ctx, selected);
+    const scope = { ...ctx, branchId };
+    const [{ totals, days }, topProducts] = await Promise.all([financials(scope, start, end), rankedProducts(scope, start, end)]);
+    return { from: start, to: end, branchId, totals, days, topProducts };
+  }
   const [result, topProducts] = await Promise.all([summary(ctx), rankedProducts(ctx, start, end)]);
   return { ...result, topProducts };
 }

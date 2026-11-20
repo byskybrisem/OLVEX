@@ -430,24 +430,35 @@ export function importSales(ctx) {
     title: "Kasa satışlarını CSV ile içe aktar",
     label: "Satışları aktar",
     html: `<p>Başlık sırası <code>referans;tarih;sku;adet;birim_fiyat</code>. Tarih biçimi YYYY-AA-GG. Aynı fişin ürünleri aynı referansı kullanır.</p>
-      ${lookupField("Kaynak kasa", "registerId", "Dosyanın geldiği kasayı seçin", true)}
+      ${lookupField("Kaynak kasa", "registerId", "Bağlantısız CSV dosyası")}
+      ${lookupField("Dosya şubesi", "branchId", "Varsayılan şube")}
       <p class="hint">Kaynak işlem kimliği kullanan kasalarda referans sütununa kalıcı işlem kimliğini girin. Uzlaştırma kullanan kasalarda bu sütuna onaylı kaynak kayıt konumunu girin.</p>
       <label class="field">CSV dosyası<input name="file" type="file" accept=".csv,text/csv" required></label>
       ${check("Dosyadaki satışlar tahsil edildi", "paid")}
       <p class="hint" role="status" data-progress></p>`,
-    init: root => findRegister(ctx, root),
+    init: root => {
+      lookup(ctx, root, { section: "csv-sources", field: "registerId", label: "kasa",
+        labelFor: row => row.name + " · " + row.branch_name });
+      lookup(ctx, root, { section: "locations", field: "branchId", label: "şube", labelFor: row => row.name,
+        selectOnlyOption: true, hideSearchForShortList: true });
+      const register = root.querySelector('[name="registerId"]');
+      const branch = root.querySelector('[data-lookup="branchId"]');
+      register.addEventListener("change", () => { branch.hidden = Boolean(register.value); });
+    },
     submit: async (form, _send, root) => {
       const file = form.get("file");
       if (!file?.size || file.size > 512 * 1024) throw new Error("En fazla 512 KB boyutunda bir CSV dosyası seçin.");
       const sales = parseSalesCsv(await file.text());
       const paid = form.get("paid") === "on";
+      const registerId = form.get("registerId");
+      const source = registerId ? { registerId } : { csvMode: "file", branchId: form.get("branchId") || null };
       const progress = root.querySelector("[data-progress]");
       let created = 0;
       let repeated = 0;
       for (const [index, sale] of sales.entries()) {
         progress.textContent = `${index + 1} / ${sales.length} satış aktarılıyor`;
         try {
-          const result = await ctx.post("sales", "import", { ...sale, paid, registerId: form.get("registerId") });
+          const result = await ctx.post("sales", "import", { ...sale, paid, ...source });
           if (result.repeated) repeated++;
           else created++;
         } catch (error) {
