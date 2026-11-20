@@ -192,40 +192,6 @@ h2 { font-size: clamp(39px, 4.4vw, 69px); line-height: 1.03; letter-spacing: -.0
   background: linear-gradient(155deg, #fbf5fff5, #dac3fff5 52%, #c1a8ffed);
   color: #241342;
 }
-/* TEMPORARY LIVE PAYMENT QA — remove with the test offer after verification. */
-.payment-test-box {
-  margin-top: 16px;
-  padding: 18px;
-  border: 1px solid #a99cff94;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #2e2948, #1e2337);
-  box-shadow: 0 12px 32px #0000002b;
-}
-.payment-test-label {
-  margin: 0 0 6px;
-  color: #cbbcff;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .09em;
-}
-.payment-test-title { color: #f6f2ff; font-size: 16px; font-weight: 620; }
-.payment-test-title strong { font-size: 23px; color: #fff; }
-.payment-test-box .payment-test-buy {
-  margin-top: 12px;
-  min-height: 54px;
-  background: linear-gradient(110deg, #796bff, #5f56e8);
-  border-color: #c7b9ff;
-  box-shadow: 0 8px 28px #635bff55;
-  color: #fff;
-  font-size: 17px;
-}
-.payment-test-box .payment-test-buy:hover,
-.payment-test-box .payment-test-buy:focus-visible {
-  background: linear-gradient(110deg, #8f84ff, #7267f6);
-  color: #fff;
-}
-.payment-test-box .payment-test-note { margin-top: 11px; color: #ddd8ed; font-size: 12px; line-height: 1.55; }
-
 .billing-availability { margin-top: 8px; color: var(--dim); font-size: 13px; line-height: 1.55; }
 .plan-footer p + p { margin-top: 5px; }
 .launch-terms { margin-top: 8px; color: #a3f3e5; font-size: 14px; line-height: 1.55; }
