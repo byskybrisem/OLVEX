@@ -552,6 +552,19 @@ try {
     assert.deepEqual(routes, Object.keys(views).filter(route => !views[route][3]).sort());
     await memberPage.keyboard.press("Escape");
     assert.equal(await memberPage.locator("#module-search-open").evaluate(button => button === document.activeElement), true);
+
+    const owned = await memberPost("/api/businesses", { name: "Ekip üyesinin işletmesi" });
+    assert.equal(owned.status(), 201);
+    const ownedId = (await owned.json()).business.id;
+    await memberPage.goto(local.url + "/app.html?business=" + ownedId + "#products");
+    const consent = memberPage.getByRole("button", { name: "Tümünü reddet" });
+    if (await consent.isVisible()) await consent.click();
+    await loaded(memberPage);
+    assert.equal(await memberPage.locator("#business").inputValue(), ownedId);
+    await memberPage.reload();
+    await loaded(memberPage);
+    assert.equal(await memberPage.locator("#business").inputValue(), ownedId);
+    assert.equal(await memberPage.getByText("Filtre kahve", { exact: true }).count(), 0);
   } finally { await member.close(); }
 
   const mobile = await safeContext({
