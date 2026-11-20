@@ -1,5 +1,5 @@
 import { beginCheckout, requireBilling } from "../../_lib/billing.js";
-import { handle, HttpError, sameOrigin } from "../../_lib/http.js";
+import { handle, HttpError, isPreviewRequest, sameOrigin } from "../../_lib/http.js";
 import { OWNER, workspace } from "../../_lib/workspace.js";
 
 function escapeHtml(value) {
@@ -9,15 +9,28 @@ function escapeHtml(value) {
 export const onRequestPost = handle(async ({ request, env }) => {
   sameOrigin(request);
   const config = requireBilling(env);
-  if (config.environment === "sandbox" && new URL(request.url).hostname === "olvex.com.tr") {
+  if (config.environment === "sandbox" && !isPreviewRequest(env, request)) {
     throw new HttpError(403, "Canlı alan adında test ödemesi başlatılamaz.");
   }
   if (request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/x-www-form-urlencoded") {
     throw new HttpError(415, "Ödeme formu gönderimi gerekli.");
   }
   if (Number(request.headers.get("Content-Length")) > 8192) throw new HttpError(413, "Form çok büyük.");
-  const raw = await request.text();
-  if (raw.length > 8192) throw new HttpError(413, "Form çok büyük.");
+  const reader = request.body?.getReader();
+  if (!reader) throw new HttpError(400, "Ödeme formu eksik.");
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let raw = "";
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > 8192) { await reader.cancel(); throw new HttpError(413, "Form çok büyük."); }
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
+  } finally { reader.releaseLock(); }
   const form = new URLSearchParams(raw);
   const single = key => form.getAll(key).length === 1 ? form.get(key) : null;
   const businessId = single("businessId");
