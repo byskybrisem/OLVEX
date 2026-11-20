@@ -1,3 +1,4 @@
+import { paidLegalReady } from "./public-info.js";
 import { billingConfig } from "./iyzico.js";
 import { HttpError, isPreviewRequest } from "./http.js";
 
@@ -51,7 +52,8 @@ export async function requirePaidSubscription(ctx, { professional = false } = {}
 
 export function billingAvailable(ctx) {
   const config = billingConfig(ctx.env);
-  return Boolean(config && config.environment === subscriptionEnvironment(ctx));
+  return Boolean(config && config.environment === subscriptionEnvironment(ctx) &&
+    (config.environment === "sandbox" || paidLegalReady(ctx.env)));
 }
 
 export function branchCapacity(ctx) {

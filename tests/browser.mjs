@@ -678,6 +678,21 @@ try {
   await navigate(page, "products", "Ürünler ve Stok");
   await page.getByText("Filtre kahve", { exact: true }).first().waitFor();
 
+  for (const width of [320, 390]) {
+    await handset.setViewportSize({ width, height: 844 });
+    for (const route of ["terms", "privacy", "cookies", "contact", "subscription-terms", "pre-information", "distance-service-agreement", "account-rights"]) {
+      await handset.goto(local.url + "/" + route + ".html");
+      await handset.locator("main h1").waitFor();
+      assert.equal(await fitsViewport(handset), true, route + " " + width);
+    }
+  }
+  await handset.getByRole("radio", { name: "Hesap kapatma" }).check();
+  await handset.getByRole("checkbox", { name: /incelemeye alınmasını/ }).check();
+  await handset.getByRole("button", { name: "Talebi gönder" }).click();
+  await handset.locator("#rights-message").filter({ hasText: /Başvuru referansı/ }).waitFor();
+  await handset.reload();
+  await handset.locator("#rights-list").getByText(/İnceleme bekliyor/).waitFor();
+  await handset.goto(local.url + "/app.html");
   await handset.setViewportSize({ width: 390, height: 844 });
   await handset.getByRole("button", { name: "Menüyü aç" }).click();
   await handset.getByRole("button", { name: "Çıkış yap" }).click();

@@ -1,5 +1,6 @@
 import { HttpError } from "./http.js";
 import { billingConfig, iyzico, minorUnits, plans, reference } from "./iyzico.js";
+import { paidLegalReady } from "./public-info.js";
 import { sha256 } from "./session.js";
 import { identifier, text } from "./validate.js";
 
@@ -29,7 +30,7 @@ export async function billingStatus(ctx) {
     ORDER BY CASE WHEN state IN ('creating','checkout','pending','active','unpaid','canceling') THEN 0 ELSE 1 END,
       created_at DESC, rowid DESC LIMIT 1`).bind(config.environment, ctx.businessId).first();
   const subscription = row ? present(row) : null;
-  return { enabled: true, tier: subscription?.tier ?? "free", subscription };
+  return { enabled: config.environment === "sandbox" || paidLegalReady(ctx.env), tier: subscription?.tier ?? "free", subscription };
 }
 
 function customerPayload(body, email) {
@@ -50,6 +51,9 @@ function customerPayload(body, email) {
 
 export async function beginCheckout(ctx, body) {
   const config = requireBilling(ctx.env);
+  if (config.environment === "live" && !paidLegalReady(ctx.env)) {
+    throw new HttpError(503, "Ücretli kayıt ve sözleşme bilgileri henüz yayın onayı almadı.");
+  }
   if (!Object.hasOwn(plans, body.plan)) throw new HttpError(400, "Geçerli bir plan seçin.");
   const id = identifier(body.requestId);
   const plan = plans[body.plan];

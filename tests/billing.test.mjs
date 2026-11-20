@@ -123,6 +123,10 @@ test("iyzico checkout, yenileme, iptal ve işletme sınırı yerel D1 üzerinde"
 
   assert.equal((await call(null, 200)).enabled, false);
   await call(checkout, 503);
+  env.OLVEX_BILLING = "live";
+  assert.equal((await call(null, 200)).enabled, false);
+  assert.match((await call(checkout, 503)).error, /yayın onayı/);
+  assert.equal(initialized, 0);
   env.OLVEX_BILLING = "sandbox";
   env.OLVEX_ENVIRONMENT = "preview";
   await call(checkout, 403, { user: "admin" });

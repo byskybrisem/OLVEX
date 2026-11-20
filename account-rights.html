@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090b12">
+<title>Hesap ve veri talepleri | OLVEX</title>
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/public.css">
+<script type="module" src="/assets/account-rights.js"></script>
+</head>
+<body>
+<div class="shell compact">
+<header><a class="brand" href="/">OLVEX</a><a href="/app.html">Panele dön</a></header>
+<main class="card">
+  <h1>Hesap ve veri talepleri</h1>
+  <p>Hesabınızı kapatma veya kişisel verilerinize ilişkin talep oluşturabilirsiniz. OLVEX talebi inceler ve hesabınıza bağlı e-posta üzerinden güvenli yanıt kanalını bildirir.</p>
+  <p>Talep oluşturmak hesabı kapatmaz, aboneliği durdurmaz veya kayıtları silmez. İşletme sahipliği, açık abonelikler ve saklama yükümlülükleri incelemede değerlendirilir.</p>
+  <p><a href="/contact.html#veri-basvurusu">Hesabınıza erişemiyor musunuz?</a></p>
+  <p class="message" id="rights-message" role="status">Oturum kontrol ediliyor…</p>
+  <p id="rights-login" hidden><a href="/login.html?next=rights">Giriş yap</a></p>
+  <form id="rights-form" hidden aria-describedby="rights-instructions">
+    <fieldset>
+      <legend>Talep türü</legend>
+      <label class="agreement"><input type="radio" name="kind" value="close" required> Hesap kapatma</label>
+      <label class="agreement"><input type="radio" name="kind" value="access"> Verileri öğrenme veya kopya isteme</label>
+      <label class="agreement"><input type="radio" name="kind" value="correction"> Veri düzeltme</label>
+      <label class="agreement"><input type="radio" name="kind" value="erasure"> Veri silme veya yok etme</label>
+      <label class="agreement"><input type="radio" name="kind" value="other"> Diğer KVKK hakkı</label>
+    </fieldset>
+    <p id="rights-instructions" class="hint">İlk aşamada talep türü kaydedilir. Parola, kimlik belgesi, kart bilgisi veya işletme kaydı göndermeyin.</p>
+    <label class="agreement" id="rights-confirm" hidden><input type="checkbox" name="confirmed" disabled> Hesap kapatma talebimin incelemeye alınmasını istiyorum.</label>
+    <button type="submit">Talebi gönder</button>
+  </form>
+  <section id="rights-history" aria-labelledby="rights-history-title" hidden>
+    <h2 id="rights-history-title">Son talepleriniz</h2>
+    <ul id="rights-list"></ul>
+  </section>
+  <noscript><p>Panelden talep oluşturmak için JavaScript gerekir. <a href="/contact.html#veri-basvurusu">Diğer başvuru yollarına bakın.</a></p></noscript>
+</main>
+<footer><nav class="legal-nav" aria-label="Hukuki bilgiler"><a href="/privacy.html">KVKK aydınlatma metni</a><a href="/contact.html">İletişim</a><a href="/subscription-terms.html">Abonelik ve iade</a></nav></footer>
+</div>
+</body>
+</html>
