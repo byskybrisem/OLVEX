@@ -148,7 +148,7 @@ export async function request(path, method = "GET", body) {
     })
   });
   const data = await response.json().catch(() => null);
-  if (!response.ok || !data) {
+  if (!response.ok || !data || typeof data !== "object" || Array.isArray(data)) {
     const error = new Error(data?.error || "Bağlantı kurulamadı. Tekrar deneyin.");
     error.status = response.status;
     throw error;

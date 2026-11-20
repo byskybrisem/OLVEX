@@ -249,7 +249,11 @@ function navigate({ focus = false } = {}) {
   if (!business) return;
   const route = location.hash.slice(1);
   view = Object.hasOwn(views, route) && (!views[route][3] || viewManager()) ? route : "overview";
-  if (view !== route) history.replaceState(null, "", `#${view}`);
+  const url = new URL(location.href);
+  if (businesses.length > 1) url.searchParams.set("business", business.id);
+  else url.searchParams.delete("business");
+  url.hash = view;
+  if (url.href !== location.href) history.replaceState(null, "", url);
   const [name, hint, parent] = views[view];
   title.textContent = name;
   $("#breadcrumb").textContent = name;
@@ -446,7 +450,6 @@ async function start() {
     $("#account-name").textContent = $("#user-name").textContent;
     const preferred = new URLSearchParams(location.search).get("business") || localSelection();
     setBusiness(businesses.find((item) => item.id === preferred) || businesses[0]);
-    if (location.search) history.replaceState(null, "", location.pathname + location.hash);
     navigate();
   } catch (error) {
     if (loginIfNeeded(error)) return;
