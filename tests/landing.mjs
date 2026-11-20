@@ -138,6 +138,9 @@ export async function landingChecks({ safeContext, url, snapshots }) {
         await plan.screenshot({ path: join(snapshots, `single-pricing-${width}.png`), animations: "disabled" });
       }
     }
+    const actionColor = await action.evaluate(element => getComputedStyle(element).color);
+    await action.hover();
+    assert.equal(await action.evaluate(element => getComputedStyle(element).color), actionColor);
     const termsLink = plan.getByRole("link", { name: "Abonelik koşullarını incele" });
     assert.equal(await termsLink.getAttribute("href"), "/subscription-terms.html");
     const terms = await desktop.request.get(new URL(await termsLink.getAttribute("href"), url).href);
