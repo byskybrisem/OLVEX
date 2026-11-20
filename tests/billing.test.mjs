@@ -198,9 +198,14 @@ for (const duringTrial of [true, false]) test(duringTrial ? "Doğrulanmış dene
   const trialTier = duringTrial ? "profesyonel" : "inactive";
   assert.equal(await packageTier(), trialTier);
   assert.equal(await packageTier("https://olvex.com.tr"), "inactive");
+  // A preview that already ran 0015 may have only the verified end on file.
+  await DB.prepare("UPDATE olvex_subscriptions SET trial_started_at = NULL WHERE id = ?").bind(checkout.requestId).run();
+  assert.equal(await packageTier(), "inactive");
   dateOffset = -1000;
   await confirm("checkout-token", 502);
   dateOffset = 0;
+  await confirm("checkout-token", 303);
+  assert.equal((await call(null, 200)).subscription.trialStartedAt, trialStartDate);
 
   const notify = async (type, status, { valid = true, order = "order-next" } = {}) => {
     const event = { iyziEventType: "subscription.order." + type, subscriptionReferenceCode: "sub",

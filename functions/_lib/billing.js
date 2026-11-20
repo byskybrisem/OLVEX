@@ -151,8 +151,8 @@ export async function refreshSubscription(db, config, row, event) {
     if (sub.trialDays !== TRIAL_DAYS || !Number.isSafeInteger(sub.trialStartDate) ||
         !Number.isSafeInteger(sub.trialEndDate) || sub.trialStartDate <= 0 ||
         sub.trialEndDate - sub.trialStartDate !== TRIAL_DAYS * 86_400_000 ||
-        sub.trialStartDate > now || (trialStart !== null &&
-          (sub.trialStartDate !== trialStart || sub.trialEndDate !== trialUntil))) {
+        sub.trialStartDate > now || (trialStart !== null && sub.trialStartDate !== trialStart) ||
+        (trialUntil !== null && sub.trialEndDate !== trialUntil)) {
       throw new HttpError(502, "iyzico deneme tarihleri doğrulanamadı.");
     }
     trialStart = sub.trialStartDate;
